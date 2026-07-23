@@ -1,0 +1,197 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --samaj-primary: #a62a38;
+  --samaj-primary-dark: #851f2b;
+  --samaj-primary-deep: #6e1824;
+  --samaj-gold: #e0a64b;
+  --samaj-gold-light: #f3d488;
+  --samaj-amber: #f0b33a;
+  --samaj-bg: #fbf8f2;
+  --samaj-bg-warm: #ede7dc;
+  --samaj-bg-page: #e4dacb;
+  --samaj-cream: #f4eee3;
+  --samaj-text: #2a2320;
+  --samaj-muted: #938c80;
+  --samaj-border: #f0e9db;
+  --samaj-whatsapp: #25a056;
+  --samaj-whatsapp-dark: #128c43;
+  --background: #fbf8f2;
+  --foreground: #2a2320;
+  --card: #ffffff;
+  --card-foreground: #2a2320;
+  --popover: #ffffff;
+  --popover-foreground: #2a2320;
+  --primary: #a62a38;
+  --primary-foreground: #ffffff;
+  --secondary: #f6f3ec;
+  --secondary-foreground: #2a2320;
+  --muted: #f4eee3;
+  --muted-foreground: #938c80;
+  --accent: #fbefec;
+  --accent-foreground: #a62a38;
+  --destructive: #b0303a;
+  --border: #f0e9db;
+  --input: #e1dacc;
+  --ring: #a62a38;
+  --radius: 0.9rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --font-sans: var(--font-manrope);
+  --font-gujarati: var(--font-noto-sans-gujarati);
+  --font-serif-gu: var(--font-noto-serif-gujarati);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: radial-gradient(120% 90% at 50% 0%, #f4eee3 0%, #e4dacb 100%);
+  color: var(--samaj-text);
+  font-family: var(--font-manrope), var(--font-noto-sans-gujarati), sans-serif;
+}
+
+a {
+  color: var(--samaj-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: #7e1f2b;
+}
+
+.appscroll::-webkit-scrollbar {
+  width: 0;
+}
+
+.admin-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.admin-scroll::-webkit-scrollbar-thumb {
+  background: #d8d0c2;
+  border-radius: 8px;
+}
+
+.samaj-header {
+  background: linear-gradient(
+    160deg,
+    var(--samaj-primary) 0%,
+    var(--samaj-primary-dark) 62%,
+    var(--samaj-primary-deep) 100%
+  );
+}
+
+.samaj-btn-primary {
+  background: linear-gradient(135deg, var(--samaj-primary), var(--samaj-primary-dark));
+  color: #fff;
+  border-radius: 15px;
+  font-weight: 800;
+  box-shadow: 0 12px 24px -10px rgba(166, 42, 56, 0.55);
+}
+
+.samaj-btn-wa {
+  background: linear-gradient(135deg, #25a056, #128c43);
+  color: #fff;
+  border-radius: 15px;
+  font-weight: 800;
+  box-shadow: 0 12px 24px -10px rgba(18, 140, 67, 0.6);
+}
+
+.samaj-card {
+  background: #fff;
+  border: 1px solid #f0e9db;
+  border-radius: 20px;
+  box-shadow: 0 2px 4px rgba(42, 35, 32, 0.04);
+}
+
+.samaj-fld {
+  width: 100%;
+  min-height: 48px;
+  border: 1.5px solid #ede4d4;
+  border-radius: 13px;
+  padding: 0 14px;
+  font-family: var(--font-manrope), var(--font-noto-sans-gujarati), sans-serif;
+  font-size: 14px;
+  color: #2a2320;
+  background: #fcfaf6;
+  outline: none;
+}
+
+.samaj-fld:focus {
+  border-color: var(--samaj-primary);
+  box-shadow: 0 0 0 3px rgba(166, 42, 56, 0.1);
+  background: #fff;
+}
+
+.samaj-fld::placeholder {
+  color: #a79e92;
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+/* Main Admin (platform) form fields — match MainAdmin.dc.html */
+.mafld {
+  width: 100%;
+  min-height: 46px;
+  border: 1.5px solid #e0dacc;
+  border-radius: 12px;
+  padding: 0 13px;
+  font: inherit;
+  font-size: 14px;
+  color: #22252b;
+  background: #fff;
+  outline: none;
+}
+
+.mafld:focus {
+  border-color: #3d4ce0;
+  box-shadow: 0 0 0 3px rgba(61, 76, 224, 0.12);
+}
+
+.mafld::placeholder {
+  color: #a7a296;
+}

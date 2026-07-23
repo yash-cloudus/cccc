@@ -1,0 +1,139 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
+
+type Branding = {
+  slug: string;
+  nameEn: string;
+  nameGu: string | null;
+  logoText: string | null;
+  logoUrl: string | null;
+  primaryColor: string;
+  secondaryColor: string;
+};
+
+export default function AdminLoginPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [brand, setBrand] = useState<Branding | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/community/current", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => j.success && setBrand(j.data.community))
+      .catch(() => {});
+  }, []);
+
+  const primary = brand?.primaryColor || "#A62A38";
+  const secondary = brand?.secondaryColor || "#E8A33D";
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: username.trim(), password, slug: brand?.slug }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error || "Login failed");
+        return;
+      }
+      router.push(params.get("next") || "/admin");
+      router.refresh();
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div
+      className="flex min-h-dvh items-center justify-center p-4 font-[family-name:var(--font-manrope),var(--font-noto-sans-gujarati),sans-serif]"
+      style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
+    >
+      <div className="w-full max-w-sm rounded-2xl bg-white p-7 shadow-2xl">
+        <div className="mb-5 flex items-center gap-3">
+          <span
+            className="flex size-11 items-center justify-center overflow-hidden rounded-[13px] border-2 font-[family-name:var(--font-noto-serif-gujarati)] text-lg font-bold text-white"
+            style={{ background: primary, borderColor: secondary }}
+          >
+            {brand?.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={brand.logoUrl} alt="" className="size-full object-cover" />
+            ) : (
+              brand?.logoText || brand?.nameEn?.charAt(0) || "?"
+            )}
+          </span>
+          <div className="min-w-0">
+            <div className="truncate text-[15px] font-extrabold text-[#2A2320]">
+              {brand?.nameGu || brand?.nameEn || "Community Admin"}
+            </div>
+            <div className="text-[11.5px] font-semibold text-[#938C80]">Community Admin Panel</div>
+          </div>
+        </div>
+
+        <h1 className="text-xl font-extrabold text-[#2A2320]">Admin sign in</h1>
+        <p className="mt-1 text-[13px] text-[#938C80]">Use the username &amp; password you were given.</p>
+
+        {error && (
+          <div className="mt-4 rounded-[11px] border border-[#F1C4C4] bg-[#FCECEC] px-3.5 py-2.5 text-[13px] font-semibold text-[#B0303A]">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={submit} className="mt-5 space-y-3.5">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-bold text-[#8B8375]">Username</span>
+            <input
+              className="mafld"
+              value={username}
+              autoFocus
+              autoComplete="username"
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="community_admin"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-bold text-[#8B8375]">Password</span>
+            <input
+              className="mafld"
+              type="password"
+              value={password}
+              autoComplete="current-password"
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex h-[50px] w-full items-center justify-center gap-2 rounded-xl text-[14px] font-extrabold text-white disabled:opacity-70"
+            style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
+          >
+            {loading && <Loader2 className="size-[18px] animate-spin" />}
+            Sign in
+          </button>
+        </form>
+
+        <p className="mt-4 text-center text-[12px] text-[#938C80]">
+          Members sign in with mobile + OTP on the{" "}
+          <a href="/login" className="font-bold" style={{ color: primary }}>
+            main app
+          </a>
+          .
+        </p>
+      </div>
+    </div>
+  );
+}

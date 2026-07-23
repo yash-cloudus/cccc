@@ -1,0 +1,1001 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BloodGroupType {
+  A_POS
+  A_NEG
+  B_POS
+  B_NEG
+  O_POS
+  O_NEG
+  AB_POS
+  AB_NEG
+}
+
+enum ResultStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RESUBMIT
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum AdStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REJECTED
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum CommunityType {
+  PARIVAR
+  GAM
+}
+
+enum CommunityStatus {
+  DRAFT
+  LIVE
+  SUSPENDED
+}
+
+/// A tenant. One Community == one "app" created by the Main Admin.
+/// `slug` is the subdomain: {slug}.community.in
+model Community {
+  id             String          @id @default(cuid())
+  slug           String          @unique
+  nameEn         String
+  nameGu         String?
+  logoText       String?
+  logoUrl        String?
+  bannerUrl      String?
+  type           CommunityType   @default(PARIVAR)
+  status         CommunityStatus @default(DRAFT)
+  primaryColor   String          @default("#A62A38")
+  secondaryColor String          @default("#E8A33D")
+  groupingLabel  String?
+
+  // Community info (basic details)
+  estd         String?
+  village      String?
+  addressEn    String? @db.Text
+  addressGu    String? @db.Text
+  taluka       String?
+  district     String?
+  state        String?
+  country      String?
+  pincode      String?
+  contactPhone String?
+  whatsapp     String?
+  email        String?
+  website      String?
+  mapUrl       String?
+  descEn       String? @db.Text
+  descGu       String? @db.Text
+
+  // Feature flags / settings (JSON blob) + directory privacy
+  settingsJson        String? @db.LongText
+  showDirectoryPhones Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users                 User[]
+  surnameGroups         SurnameGroup[]
+  villageAreas          VillageArea[]
+  families              Family[]
+  dropdownOptions       DropdownOption[]
+  businessCategories    BusinessCategory[]
+  businesses            Business[]
+  newsCategories        NewsCategory[]
+  news                  News[]
+  galleryAlbums         GalleryAlbum[]
+  committees            Committee[]
+  committeeDesignations CommitteeDesignation[]
+  committeeMembers      CommitteeMember[]
+  resultDrives          ResultDrive[]
+  advertisements        Advertisement[]
+  settings              Setting[]
+  cmsPages              CmsPage[]
+  infoSections          InfoSection[]
+  institutes            Institute[]
+  educations            Education[]
+
+  @@index([status])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  description String?          @db.Text
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  permissions RolePermission[]
+  userRoles   UserRole[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  name        String
+  module      String
+  description String?          @db.Text
+  createdAt   DateTime         @default(now())
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  communityId        String?
+  mobile             String
+  email              String?
+  username           String?
+  passwordHash       String?
+  isPlatformAdmin    Boolean             @default(false)
+  status             UserStatus          @default(PENDING)
+  isEmailVerified    Boolean             @default(false)
+  rememberToken      String?
+  fcmToken           String?             @db.Text
+  lastLoginAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  community          Community?          @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  profile            Profile?
+  roles              UserRole[]
+  sessions           Session[]
+  otpCodes           OtpCode[]
+  emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
+  loginLogs          LoginLog[]
+  notifications      NotificationLog[]
+  complaints         Complaint[]
+  feedbacks          Feedback[]
+  payments           Payment[]
+  donations          Donation[]
+  businesses         Business[]
+  activityLogs       ActivityLog[]
+  auditLogs          AuditLog[]          @relation("AuditActor")
+  newsPosts          News[]              @relation("NewsAuthor")
+  advertisements     Advertisement[]     @relation("AdOwner")
+  resultEntries      ResultEntry[]
+  familyAsHead       Family?             @relation("FamilyHead")
+
+  @@unique([communityId, mobile])
+  @@unique([communityId, username])
+  @@unique([communityId, email])
+  @@index([communityId])
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Profile {
+  id               String            @id @default(cuid())
+  userId           String            @unique
+  familyId         String?
+  fullNameEn       String
+  fullNameGu       String?
+  relation         String?
+  dateOfBirth      DateTime?
+  bloodGroup       BloodGroupType?
+  occupation       String?
+  occupationOther  String?
+  education        String?
+  course           String?
+  businessDesc     String?           @db.Text
+  avatarUrl        String?
+  showPhone        Boolean           @default(true)
+  showBusiness     Boolean           @default(true)
+  hasWhatsApp      Boolean           @default(true)
+  isHead           Boolean           @default(false)
+  isVisible        Boolean           @default(true)
+  isDeceased       Boolean           @default(false)
+  currentlyAt      String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  family           Family?           @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  addresses        Address[]
+  committeeMembers CommitteeMember[]
+  bloodDonor       BloodDonor?
+  students         Student[]
+
+  @@index([familyId])
+  @@index([bloodGroup])
+}
+
+model Family {
+  id                String             @id @default(cuid())
+  communityId       String
+  surnameGroupId    String
+  headUserId        String?            @unique
+  headNameEn        String
+  headNameGu        String?
+  surnameEn         String
+  surnameGu         String?
+  addressEn         String             @db.Text
+  addressGu         String?            @db.Text
+  city              String?
+  villageAreaId     String?
+  latitude          Float?
+  longitude         Float?
+  businessGu        String?            @db.Text
+  nativeElderNameEn String?
+  nativeElderNameGu String?
+  nativeElderPhone  String?
+  status            RegistrationStatus @default(PENDING)
+  rejectReason      String?            @db.Text
+  whatsappNotified  Boolean            @default(false)
+  consentAccepted   Boolean            @default(false)
+  submittedAt       DateTime           @default(now())
+  approvedAt        DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  community         Community          @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  surnameGroup      SurnameGroup       @relation(fields: [surnameGroupId], references: [id])
+  villageArea       VillageArea?       @relation(fields: [villageAreaId], references: [id])
+  headUser          User?              @relation("FamilyHead", fields: [headUserId], references: [id])
+  members           Profile[]
+  familyMembers     FamilyMember[]
+  businesses        Business[]
+
+  @@index([communityId, status])
+  @@index([city])
+  @@index([surnameGroupId])
+}
+
+model FamilyMember {
+  id              String          @id @default(cuid())
+  familyId        String
+  fullNameEn      String
+  fullNameGu      String?
+  relation        String?
+  mobile          String?
+  dateOfBirth     DateTime?
+  bloodGroup      BloodGroupType?
+  occupation      String?
+  occupationOther String?
+  education       String?
+  currentlyAt     String?
+  hasWhatsApp     Boolean         @default(true)
+  showPhone       Boolean         @default(true)
+  isHead          Boolean         @default(false)
+  isVisible       Boolean         @default(true)
+  isDeceased      Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  family          Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([mobile])
+}
+
+model Address {
+  id        String   @id @default(cuid())
+  profileId String
+  label     String?
+  lineEn    String   @db.Text
+  lineGu    String?  @db.Text
+  city      String?
+  state     String?
+  pincode   String?
+  latitude  Float?
+  longitude Float?
+  isPrimary Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+}
+
+model SurnameGroup {
+  id          String              @id @default(cuid())
+  communityId String
+  nameEn      String
+  nameGu      String
+  needsReview Boolean             @default(false)
+  sortOrder   Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  community   Community           @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  families    Family[]
+  coordinator SurnameCoordinator?
+
+  @@index([communityId])
+}
+
+model SurnameCoordinator {
+  id              String       @id @default(cuid())
+  surnameGroupId  String       @unique
+  memberProfileId String?
+  memberName      String
+  memberMobile    String
+  showContact     Boolean      @default(true)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  surnameGroup    SurnameGroup @relation(fields: [surnameGroupId], references: [id], onDelete: Cascade)
+}
+
+model DropdownOption {
+  id          String    @id @default(cuid())
+  communityId String
+  type        String
+  nameEn      String
+  nameGu      String
+  needsReview Boolean   @default(false)
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@index([communityId, type])
+}
+
+model VillageArea {
+  id          String    @id @default(cuid())
+  communityId String
+  nameEn      String
+  nameGu      String
+  showPhones  Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  families    Family[]
+
+  @@index([communityId])
+}
+
+model BusinessCategory {
+  id          String     @id @default(cuid())
+  communityId String
+  nameEn      String
+  nameGu      String
+  slug        String
+  sortOrder   Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  community   Community  @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  businesses  Business[]
+
+  @@unique([communityId, slug])
+  @@index([communityId])
+}
+
+model Business {
+  id          String            @id @default(cuid())
+  communityId String
+  userId      String?
+  familyId    String?
+  categoryId  String?
+  nameEn      String
+  nameGu      String?
+  description String?           @db.Text
+  phone       String?
+  address     String?           @db.Text
+  city        String?
+  website     String?
+  isApproved  Boolean           @default(false)
+  isVisible   Boolean           @default(true)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  community   Community         @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  family      Family?           @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  category    BusinessCategory? @relation(fields: [categoryId], references: [id])
+  gallery     BusinessGallery[]
+
+  @@index([communityId, isApproved, isVisible])
+  @@index([categoryId])
+}
+
+model BusinessGallery {
+  id         String   @id @default(cuid())
+  businessId String
+  imageUrl   String
+  caption    String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model Committee {
+  id          String            @id @default(cuid())
+  communityId String
+  nameEn      String
+  nameGu      String?
+  sortOrder   Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  community   Community         @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  members     CommitteeMember[]
+
+  @@index([communityId])
+}
+
+model CommitteeDesignation {
+  id          String            @id @default(cuid())
+  communityId String
+  nameEn      String
+  nameGu      String
+  sortOrder   Int               @default(0)
+  createdAt   DateTime          @default(now())
+  community   Community         @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  members     CommitteeMember[]
+
+  @@index([communityId])
+}
+
+model CommitteeMember {
+  id            String                @id @default(cuid())
+  communityId   String
+  committeeId   String?
+  profileId     String?
+  designationId String?
+  roleEn        String?
+  roleGu        String?
+  nameOverride  String?
+  nameGu        String?
+  phoneOverride String?
+  whatsapp      String?
+  email         String?
+  descGu        String?               @db.Text
+  photoUrl      String?
+  showContact   Boolean               @default(true)
+  isActive      Boolean               @default(true)
+  sortOrder     Int                   @default(0)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  community     Community             @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  committee     Committee?            @relation(fields: [committeeId], references: [id], onDelete: SetNull)
+  profile       Profile?              @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  designation   CommitteeDesignation? @relation(fields: [designationId], references: [id])
+
+  @@index([communityId])
+}
+
+/// Community "info" sections (About > our purpose, history, rules, ...)
+model InfoSection {
+  id          String    @id @default(cuid())
+  communityId String
+  titleEn     String
+  titleGu     String?
+  bodyEn      String?   @db.Text
+  bodyGu      String?   @db.Text
+  sortOrder   Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@index([communityId])
+}
+
+model NewsCategory {
+  id          String    @id @default(cuid())
+  communityId String
+  nameEn      String
+  nameGu      String?
+  slug        String
+  createdAt   DateTime  @default(now())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  news        News[]
+
+  @@unique([communityId, slug])
+  @@index([communityId])
+}
+
+model News {
+  id               String        @id @default(cuid())
+  communityId      String
+  categoryId       String?
+  authorId         String?
+  titleEn          String
+  titleGu          String?
+  contentEn        String        @db.LongText
+  contentGu        String?       @db.LongText
+  imageUrl         String?
+  documentUrl      String?
+  documentName     String?
+  linkUrl          String?
+  linkInternal     String?
+  accent           String?
+  publishedAt      DateTime      @default(now())
+  isPinned         Boolean       @default(false)
+  notificationSent Boolean       @default(false)
+  isPublished      Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  community        Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  category         NewsCategory? @relation(fields: [categoryId], references: [id])
+  author           User?         @relation("NewsAuthor", fields: [authorId], references: [id])
+
+  @@index([communityId, isPinned, publishedAt])
+}
+
+model Event {
+  id            String              @id @default(cuid())
+  titleEn       String
+  titleGu       String?
+  description   String?             @db.Text
+  location      String?
+  startsAt      DateTime
+  endsAt        DateTime?
+  imageUrl      String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  registrations EventRegistration[]
+}
+
+model EventRegistration {
+  id        String   @id @default(cuid())
+  eventId   String
+  userId    String?
+  name      String
+  mobile    String
+  createdAt DateTime @default(now())
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+}
+
+model GalleryAlbum {
+  id          String         @id @default(cuid())
+  communityId String
+  titleEn     String
+  titleGu     String?
+  description String?        @db.Text
+  coverUrl    String?
+  accent      String?
+  albumDate   DateTime?
+  youtubeUrl  String?
+  isVisible   Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  community   Community      @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  images      GalleryImage[]
+  videos      GalleryVideo[]
+
+  @@index([communityId])
+}
+
+model GalleryImage {
+  id        String       @id @default(cuid())
+  albumId   String
+  imageUrl  String
+  caption   String?
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  album     GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+}
+
+model GalleryVideo {
+  id         String       @id @default(cuid())
+  albumId    String
+  youtubeUrl String
+  title      String?
+  createdAt  DateTime     @default(now())
+  album      GalleryAlbum @relation(fields: [albumId], references: [id], onDelete: Cascade)
+}
+
+model BloodGroup {
+  id        String         @id @default(cuid())
+  type      BloodGroupType @unique
+  label     String
+  createdAt DateTime       @default(now())
+  donors    BloodDonor[]
+}
+
+model BloodDonor {
+  id           String         @id @default(cuid())
+  profileId    String?        @unique
+  bloodGroupId String
+  bloodType    BloodGroupType
+  city         String?
+  mobile       String?
+  isAvailable  Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  profile      Profile?       @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  bloodGroup   BloodGroup     @relation(fields: [bloodGroupId], references: [id])
+}
+
+model Institute {
+  id          String    @id @default(cuid())
+  communityId String
+  nameEn      String
+  nameGu      String?
+  city        String?
+  createdAt   DateTime  @default(now())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  students    Student[]
+
+  @@index([communityId])
+}
+
+model Education {
+  id          String    @id @default(cuid())
+  communityId String
+  nameEn      String
+  nameGu      String?
+  level       String?
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  students    Student[]
+
+  @@index([communityId])
+}
+
+model Student {
+  id          String     @id @default(cuid())
+  profileId   String?
+  instituteId String?
+  educationId String?
+  nameEn      String
+  nameGu      String?
+  standard    String?
+  createdAt   DateTime   @default(now())
+  profile     Profile?   @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  institute   Institute? @relation(fields: [instituteId], references: [id])
+  education   Education? @relation(fields: [educationId], references: [id])
+}
+
+model Scholarship {
+  id          String   @id @default(cuid())
+  titleEn     String
+  titleGu     String?
+  description String?  @db.Text
+  amount      Decimal? @db.Decimal(12, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ResultDrive {
+  id          String        @id @default(cuid())
+  communityId String
+  titleEn     String
+  titleGu     String?
+  year        Int
+  isOpen      Boolean       @default(false)
+  isPublished Boolean       @default(false)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  community   Community     @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  entries     ResultEntry[]
+
+  @@index([communityId])
+}
+
+model ResultEntry {
+  id            String       @id @default(cuid())
+  driveId       String
+  userId        String?
+  studentName   String
+  standard      String
+  schoolName    String?
+  totalMarks    Float?
+  obtainedMarks Float?
+  percentage    Float?
+  marksheetUrl  String?
+  status        ResultStatus @default(PENDING)
+  rejectReason  String?      @db.Text
+  isEligible    Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  drive         ResultDrive  @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([driveId, standard, status])
+}
+
+model Advertisement {
+  id           String               @id @default(cuid())
+  communityId  String
+  ownerId      String?
+  name         String
+  pitch        String?              @db.Text
+  imageUrl     String?
+  linkUrl      String?
+  businessId   String?
+  ownerName    String?
+  ownerMobile  String?
+  category     String?
+  type         String               @default("general")
+  source       String               @default("user")
+  payStatus    String               @default("pending")
+  rejectReason String?              @db.Text
+  startDate    DateTime
+  endDate      DateTime
+  priority     Int                  @default(0)
+  status       AdStatus             @default(PENDING)
+  views        Int                  @default(0)
+  clicks       Int                  @default(0)
+  paymentProof String?
+  upiQrUrl     String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  community    Community            @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  owner        User?                @relation("AdOwner", fields: [ownerId], references: [id])
+  clickLogs    AdvertisementClick[]
+
+  @@index([communityId, status, startDate, endDate])
+}
+
+model AdvertisementClick {
+  id        String        @id @default(cuid())
+  adId      String
+  userId    String?
+  ip        String?
+  createdAt DateTime      @default(now())
+  ad        Advertisement @relation(fields: [adId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  titleEn   String
+  titleGu   String?
+  bodyEn    String              @db.Text
+  bodyGu    String?             @db.Text
+  linkUrl   String?
+  channel   NotificationChannel @default(IN_APP)
+  createdAt DateTime            @default(now())
+  logs      NotificationLog[]
+}
+
+model NotificationLog {
+  id             String       @id @default(cuid())
+  notificationId String
+  userId         String
+  isRead         Boolean      @default(false)
+  sentAt         DateTime     @default(now())
+  readAt         DateTime?
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+model Complaint {
+  id        String   @id @default(cuid())
+  userId    String?
+  subject   String
+  message   String   @db.Text
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String?
+  rating    Int?
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String?
+  amount            Decimal       @db.Decimal(12, 2)
+  currency          String        @default("INR")
+  purpose           String
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  status            PaymentStatus @default(CREATED)
+  meta              Json?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  logs              PaymentLog[]
+  donation          Donation?
+}
+
+model PaymentLog {
+  id        String   @id @default(cuid())
+  paymentId String
+  event     String
+  payload   Json?
+  createdAt DateTime @default(now())
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model Donation {
+  id        String   @id @default(cuid())
+  userId    String?
+  paymentId String?  @unique
+  amount    Decimal  @db.Decimal(12, 2)
+  note      String?  @db.Text
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+}
+
+model Download {
+  id        String   @id @default(cuid())
+  titleEn   String
+  titleGu   String?
+  fileUrl   String
+  category  String?
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id          String    @id @default(cuid())
+  communityId String
+  key         String
+  value       String    @db.LongText
+  updatedAt   DateTime  @updatedAt
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, key])
+  @@index([communityId])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  mobile    String?
+  email     String?
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+}
+
+model CmsPage {
+  id          String    @id @default(cuid())
+  communityId String
+  slug        String
+  titleEn     String
+  titleGu     String?
+  contentEn   String    @db.LongText
+  contentGu   String?   @db.LongText
+  imageUrl    String?
+  pdfUrl      String?
+  isPublished Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, slug])
+  @@index([communityId])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  entity    String?
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+  actor     User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+}
+
+model LoginLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  mobile    String?
+  success   Boolean
+  ip        String?
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Session {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String    @db.Text
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  ip               String?
+  userAgent        String?   @db.Text
+  createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model OtpCode {
+  id         String    @id @default(cuid())
+  userId     String?
+  mobile     String
+  codeHash   String
+  channel    String    @default("whatsapp")
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([mobile, expiresAt])
+}
+
+model EmailVerification {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordReset {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

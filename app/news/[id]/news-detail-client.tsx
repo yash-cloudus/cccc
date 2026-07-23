@@ -1,0 +1,86 @@
+"use client";
+
+import { ExternalLink, FileText } from "lucide-react";
+import { AppScreen } from "@/components/layout/app-screen";
+import { BackHeader } from "@/components/layout/back-header";
+import { useLang } from "@/providers/lang-provider";
+import { formatDate, pickText } from "@/lib/format";
+
+export type NewsDetail = {
+  id: string;
+  titleEn: string;
+  titleGu: string | null;
+  contentEn: string;
+  contentGu: string | null;
+  dateISO: string;
+  isPinned: boolean;
+  accent: string | null;
+  imageUrl: string | null;
+  documentUrl: string | null;
+  documentName: string | null;
+  linkUrl: string | null;
+};
+
+const DEFAULT_BG = "linear-gradient(150deg,#8E2230,#B24C3B)";
+
+export function NewsDetailClient({ item }: { item: NewsDetail }) {
+  const { t, lang } = useLang();
+
+  return (
+    <AppScreen showNav={false}>
+      <BackHeader title={t("news")} subtitle={formatDate(item.dateISO, lang)} />
+      <div className="px-4 py-4 pb-8">
+        {item.isPinned && (
+          <span className="mb-3 inline-flex items-center gap-1 rounded-lg bg-[#FCEFD6] px-2 py-1 text-[10.5px] font-extrabold text-[#B0801E]">
+            📌 {t("pinned")}
+          </span>
+        )}
+        <h1 className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold leading-snug text-[#2A2320]">
+          {pickText(item.titleGu, item.titleEn, lang)}
+        </h1>
+        <div
+          className="mt-5 flex h-[180px] items-center justify-center overflow-hidden rounded-[20px] text-white"
+          style={{ background: item.accent || DEFAULT_BG }}
+        >
+          {item.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={item.imageUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <FileText className="h-12 w-12" strokeWidth={1.6} />
+          )}
+        </div>
+        <p className="mt-5 whitespace-pre-line text-[15px] leading-relaxed text-[#3C382F]">
+          {pickText(item.contentGu, item.contentEn, lang)}
+        </p>
+
+        {item.documentUrl && (
+          <a
+            href={item.documentUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="samaj-card mt-5 flex items-center gap-3 p-3.5"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F0FB] text-[#3D6B8C]">
+              <FileText className="h-5 w-5" strokeWidth={1.85} />
+            </div>
+            <div className="flex-1 text-sm font-bold text-[#2A2320]">
+              {item.documentName || (lang === "gu" ? "દસ્તાવેજ જુઓ" : "View document")}
+            </div>
+            <ExternalLink className="h-[18px] w-[18px] text-[#C9C2B5]" />
+          </a>
+        )}
+
+        {item.linkUrl && (
+          <a
+            href={item.linkUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="samaj-btn-primary mt-4 flex h-12 items-center justify-center gap-2 text-sm"
+          >
+            {lang === "gu" ? "વધુ જુઓ" : "Read more"} <ExternalLink className="h-4 w-4" />
+          </a>
+        )}
+      </div>
+    </AppScreen>
+  );
+}
