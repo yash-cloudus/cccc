@@ -28,11 +28,11 @@ export type BusinessDetail = {
 };
 
 const PALETTE = [
-  { bg: "#FCE7E7", fg: "#B0303A" },
-  { bg: "#E7F0FB", fg: "#3D6B8C" },
-  { bg: "#FEF3E0", fg: "#B26A1E" },
-  { bg: "#EAF6EC", fg: "#4E7A45" },
-  { bg: "#F0ECFB", fg: "#6A4E9C" },
+  { bg: "var(--danger-tint)", fg: "var(--danger)" },
+  { bg: "var(--info-tint)", fg: "var(--info)" },
+  { bg: "var(--ochre-tint)", fg: "var(--ochre)" },
+  { bg: "var(--leaf-tint)", fg: "var(--leaf)" },
+  { bg: "var(--violet-tint)", fg: "var(--violet)" },
 ];
 
 function hashIndex(key: string, mod: number) {
@@ -81,7 +81,7 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
             <span className="text-[7px] font-extrabold tracking-widest opacity-70">{brand.shortLogo}</span>
           </div>
           <div className="min-w-0">
-            <div className="text-xl font-extrabold text-[#A62A38]">{name}</div>
+            <div className="text-xl font-extrabold text-[var(--brand)]">{name}</div>
             {category && (
               <span
                 className="mt-2 inline-block rounded-full px-3 py-1 text-xs font-bold"
@@ -95,23 +95,23 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
 
         {biz.description && (
           <div className="samaj-card mb-4 p-4">
-            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">{aboutLabel}</div>
-            <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[#3C382F]">{biz.description}</p>
+            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{aboutLabel}</div>
+            <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">{biz.description}</p>
           </div>
         )}
 
         {hasContactInfo && (
           <div className="samaj-card mb-4 p-4">
-            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">{addressLabel}</div>
+            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{addressLabel}</div>
             {biz.address && (
               <div className="mt-1 flex gap-3 py-1 text-[13px]">
-                <b className="min-w-[70px] font-bold text-[#938C80]">{addressLabel}</b>
+                <b className="min-w-[70px] font-bold text-[var(--faint)]">{addressLabel}</b>
                 <span>{biz.address}</span>
               </div>
             )}
             {biz.city && (
               <div className="flex gap-3 py-1 text-[13px]">
-                <b className="min-w-[70px] font-bold text-[#938C80]">{cityLabel}</b>
+                <b className="min-w-[70px] font-bold text-[var(--faint)]">{cityLabel}</b>
                 <span>{biz.city}</span>
               </div>
             )}
@@ -124,7 +124,7 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
               <div className="flex gap-2">
                 <a
                   href={telLink(biz.phone)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#FBEDEE] py-3.5 text-sm font-bold text-[#A62A38]"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--brand-tint)] py-3.5 text-sm font-bold text-[var(--brand)]"
                 >
                   <Phone className="h-4 w-4" /> {t("call")}
                 </a>
@@ -132,7 +132,7 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
                   href={waLink(biz.phone)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[#E4F5E9] py-3.5 text-sm font-bold text-[#1E9E52]"
+                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--success-tint)] py-3.5 text-sm font-bold text-[var(--success)]"
                 >
                   <WaIcon /> {t("whatsapp")}
                 </a>
@@ -143,7 +143,7 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
                 href={biz.website}
                 target="_blank"
                 rel="noreferrer"
-                className="flex h-12 items-center justify-center gap-2 rounded-2xl border-[1.5px] border-[#E1BFC3] text-sm font-bold text-[#A62A38]"
+                className="flex h-12 items-center justify-center gap-2 rounded-2xl border-[1.5px] border-[var(--brand-line)] text-sm font-bold text-[var(--brand)]"
               >
                 <Globe className="h-4 w-4" /> {websiteLabel} <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -153,7 +153,7 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
 
         {biz.gallery.length > 0 && (
           <div className="mt-5">
-            <div className="mb-2.5 px-1 text-[11.5px] font-extrabold tracking-wide text-[#8B8375]">
+            <div className="mb-2.5 px-1 text-[11.5px] font-extrabold tracking-wide text-[var(--muted)]">
               {t("gallery")}
             </div>
             <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
@@ -162,7 +162,7 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={g.imageUrl} alt={g.caption ?? ""} className="h-[120px] w-full object-cover" />
                   {g.caption && (
-                    <figcaption className="px-2.5 py-1.5 text-[11px] font-medium text-[#6B6357]">
+                    <figcaption className="px-2.5 py-1.5 text-[11px] font-medium text-[var(--ink-dim)]">
                       {g.caption}
                     </figcaption>
                   )}

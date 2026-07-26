@@ -38,7 +38,7 @@ export function NewsListClient({ rows }: { rows: NewsRow[] }) {
       </header>
       <div className="px-4 py-4 md:pb-[120px]">
         {rows.length === 0 ? (
-          <p className="py-16 text-center text-[13.5px] text-[#938C80]">
+          <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
             {lang === "gu" ? "હજુ કોઈ સમાચાર નથી." : "No news yet."}
           </p>
         ) : (
@@ -47,7 +47,7 @@ export function NewsListClient({ rows }: { rows: NewsRow[] }) {
               <Link
                 key={n.id}
                 href={`/news/${n.id}`}
-                className="samaj-card mb-2.5 flex items-center gap-3.5 p-[13px] transition hover:border-[#EED8A8] hover:shadow-[0_12px_22px_-12px_rgba(166,42,56,.32)] md:mb-0"
+                className="samaj-card mb-2.5 flex items-center gap-3.5 p-[13px] transition hover:border-[var(--gold-border)] hover:shadow-[0_12px_22px_-12px_rgb(var(--brand-rgb) / .32)] md:mb-0"
               >
                 <div
                   className="flex h-[60px] w-[60px] flex-none items-center justify-center overflow-hidden rounded-[15px] text-white"
@@ -62,16 +62,16 @@ export function NewsListClient({ rows }: { rows: NewsRow[] }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   {n.isPinned && (
-                    <span className="mb-1 inline-flex items-center gap-1 rounded-lg bg-[#FCEFD6] px-2 py-0.5 text-[10px] font-extrabold text-[#B0801E]">
+                    <span className="mb-1 inline-flex items-center gap-1 rounded-lg bg-[var(--gold-tint)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--warn)]">
                       📌 {t("pinned")}
                     </span>
                   )}
-                  <div className="text-[14.5px] font-bold leading-snug text-[#2A2320]">
+                  <div className="text-[14.5px] font-bold leading-snug text-[var(--ink)]">
                     {pickText(n.titleGu, n.titleEn, lang)}
                   </div>
-                  <div className="mt-0.5 text-[11.5px] font-medium text-[#938C80]">{formatDate(n.dateISO, lang)}</div>
+                  <div className="mt-0.5 text-[11.5px] font-medium text-[var(--faint)]">{formatDate(n.dateISO, lang)}</div>
                 </div>
-                <ChevronRight className="h-5 w-5 flex-none text-[#C9C2B5]" strokeWidth={2.2} />
+                <ChevronRight className="h-5 w-5 flex-none text-[var(--line-strong)]" strokeWidth={2.2} />
               </Link>
             ))}
           </div>

@@ -69,12 +69,12 @@ export default function NotificationsPage() {
       <div className="px-4 py-4 pb-8">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="size-6 animate-spin text-[#A62A38]" />
+            <Loader2 className="size-6 animate-spin text-[var(--brand)]" />
           </div>
         ) : error ? (
-          <p className="py-16 text-center text-[13.5px] text-[#B0303A]">{error}</p>
+          <p className="py-16 text-center text-[13.5px] text-[var(--danger)]">{error}</p>
         ) : rows.length === 0 ? (
-          <p className="py-16 text-center text-[13.5px] text-[#938C80]">
+          <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
             {lang === "gu" ? "કોઈ સૂચના નથી." : "No notifications yet."}
           </p>
         ) : (
@@ -83,25 +83,25 @@ export default function NotificationsPage() {
               key={n.id}
               className={cn(
                 "samaj-card mb-3 p-4",
-                !n.isRead && "border-[#EED8A8] bg-gradient-to-r from-[#FFFBF5] to-white",
+                !n.isRead && "border-[var(--gold-border)] bg-gradient-to-r from-[#FFFBF5] to-white",
               )}
             >
               <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-[#FBEDEE] text-[#A62A38]">
+                <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-[var(--brand-tint)] text-[var(--brand)]">
                   <Bell className="h-[18px] w-[18px]" />
                 </div>
                 <div className="flex-1">
-                  <div className="text-sm font-bold text-[#2A2320]">
+                  <div className="text-sm font-bold text-[var(--ink)]">
                     {pickText(n.notification.titleGu, n.notification.titleEn, lang)}
                   </div>
-                  <div className="mt-1 text-[13px] leading-relaxed text-[#57524A]">
+                  <div className="mt-1 text-[13px] leading-relaxed text-[var(--ink-mid)]">
                     {pickText(n.notification.bodyGu, n.notification.bodyEn, lang)}
                   </div>
-                  <div className="mt-2 text-[11px] font-medium text-[#938C80]">
+                  <div className="mt-2 text-[11px] font-medium text-[var(--faint)]">
                     {formatTimeAgo(n.sentAt || n.notification.createdAt, lang)}
                   </div>
                 </div>
-                {!n.isRead && <span className="mt-1 h-2 w-2 rounded-full bg-[#A62A38]" />}
+                {!n.isRead && <span className="mt-1 h-2 w-2 rounded-full bg-[var(--brand)]" />}
               </div>
             </div>
           ))

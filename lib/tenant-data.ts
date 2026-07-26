@@ -25,10 +25,31 @@ export async function getPendingCount(communityId: string) {
   return prisma.family.count({ where: { communityId, status: "PENDING" } });
 }
 
+/** Sidebar badge counts, keyed by ADMIN_NAV `badge` (matches Admin.dc.html). */
+export async function getAdminNavBadges(communityId: string) {
+  const [queue, ads] = await Promise.all([
+    prisma.family.count({ where: { communityId, status: "PENDING" } }),
+    prisma.advertisement.count({ where: { communityId, status: "PENDING" } }),
+  ]);
+  return { queue, ads };
+}
+
 /** Rich dashboard payload (stats + latest result drive breakdown + ad performance). */
 export async function getAdminDashboard(communityId: string) {
   const now = new Date();
-  const [families, members, pending, activeAds, drive, adPerformance] = await Promise.all([
+  const [
+    families,
+    members,
+    pending,
+    activeAds,
+    drive,
+    adPerformance,
+    adsByStatus,
+    adsByType,
+    newsPosts,
+    albums,
+    pendingUpdates,
+  ] = await Promise.all([
     prisma.family.count({ where: { communityId, status: "APPROVED" } }),
     prisma.familyMember.count({
       where: { family: { communityId, status: "APPROVED" }, isDeceased: false },
@@ -48,7 +69,25 @@ export async function getAdminDashboard(communityId: string) {
       take: 8,
       select: { id: true, name: true, views: true, clicks: true },
     }),
+    prisma.advertisement.groupBy({
+      by: ["status"],
+      where: { communityId },
+      _count: { _all: true },
+    }),
+    prisma.advertisement.groupBy({
+      by: ["type"],
+      where: { communityId },
+      _count: { _all: true },
+    }),
+    prisma.news.count({ where: { communityId } }),
+    prisma.galleryAlbum.count({ where: { communityId } }),
+    prisma.profileUpdateRequest.count({ where: { communityId, status: "PENDING" } }),
   ]);
+
+  const adStatus = (s: string) =>
+    adsByStatus.find((r) => r.status === s)?._count._all ?? 0;
+  const adType = (t: string) => adsByType.find((r) => r.type === t)?._count._all ?? 0;
+  const totalAds = adsByStatus.reduce((sum, r) => sum + r._count._all, 0);
 
   const byStandard = new Map<string, { entries: number; reviewed: number }>();
   for (const e of drive?.entries ?? []) {
@@ -59,7 +98,22 @@ export async function getAdminDashboard(communityId: string) {
   }
 
   return {
-    stats: { families, members, pending, activeAds },
+    stats: {
+      families,
+      members,
+      pending,
+      pendingUpdates,
+      activeAds,
+      totalAds,
+      premiumAds: adType("premium"),
+      generalAds: adType("general"),
+      pendingAds: adStatus("PENDING"),
+      expiredAds: adStatus("EXPIRED"),
+      draftAds: adStatus("DRAFT"),
+      rejectedAds: adStatus("REJECTED"),
+      newsPosts,
+      albums,
+    },
     drive: drive
       ? {
           titleEn: drive.titleEn,
@@ -96,6 +150,13 @@ export async function getFamilies(
     include: {
       surnameGroup: true,
       villageArea: true,
+      headUser: { select: { mobile: true } },
+      // The head member carries the contact number shown in the admin table.
+      familyMembers: {
+        where: { isHead: true },
+        select: { mobile: true },
+        take: 1,
+      },
       _count: { select: { familyMembers: true } },
     },
     orderBy: { submittedAt: "desc" },
@@ -131,10 +192,22 @@ export async function getNewsItem(communityId: string, id: string) {
   return prisma.news.findFirst({ where: { id, communityId } });
 }
 
-export async function getGalleryAlbums(communityId: string, visibleOnly = false) {
+/**
+ * `allImages` is for the admin album manager, which edits the full photo list.
+ * The member site only needs the first image as a cover fallback, so it keeps
+ * the cheaper `take: 1`.
+ */
+export async function getGalleryAlbums(
+  communityId: string,
+  visibleOnly = false,
+  allImages = false,
+) {
   return prisma.galleryAlbum.findMany({
     where: { communityId, ...(visibleOnly ? { isVisible: true } : {}) },
-    include: { _count: { select: { images: true } }, images: { take: 1, orderBy: { sortOrder: "asc" } } },
+    include: {
+      _count: { select: { images: true } },
+      images: { ...(allImages ? {} : { take: 1 }), orderBy: { sortOrder: "asc" } },
+    },
     orderBy: { albumDate: "desc" },
   });
 }

@@ -18,7 +18,10 @@ export async function GET() {
 
 const schema = z.object({
   id: z.string().min(1),
-  status: z.enum(["PENDING", "ACTIVE", "EXPIRED", "REJECTED"]).optional(),
+  status: z
+    .enum(["PENDING", "ACTIVE", "EXPIRED", "REJECTED", "DEACTIVATED", "DRAFT"])
+    .optional(),
+  rejectReason: z.string().max(500).optional(),
   priority: z.number().int().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
@@ -37,6 +40,7 @@ export async function PATCH(req: Request) {
       where: { id: body.id },
       data: {
         status: body.status,
+        rejectReason: body.rejectReason,
         priority: body.priority,
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined,

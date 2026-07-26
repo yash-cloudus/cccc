@@ -40,23 +40,23 @@ export function SurnameClient({
           return (
             <div key={f.id} className="samaj-card mb-3 p-[13px]">
               <Link href={`/directory/family/${f.id}`} className="flex items-center gap-3">
-                <div className="flex h-12 w-12 flex-none items-center justify-center rounded-2xl bg-[#FCE7E7] text-lg font-extrabold text-[#B0303A]">
+                <div className="flex h-12 w-12 flex-none items-center justify-center rounded-2xl bg-[var(--danger-tint)] text-lg font-extrabold text-[var(--danger)]">
                   {headName.trim()[0]}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-bold text-[#2A2320]">{headName}</div>
-                  <div className="mt-0.5 flex items-center gap-1 truncate text-xs font-medium text-[#938C80]">
+                  <div className="truncate text-[15px] font-bold text-[var(--ink)]">{headName}</div>
+                  <div className="mt-0.5 flex items-center gap-1 truncate text-xs font-medium text-[var(--faint)]">
                     <Users className="h-3.5 w-3.5 flex-none" strokeWidth={1.9} />
                     {sub}
                   </div>
                 </div>
-                <ChevronRight className="h-5 w-5 text-[#C9C2B5]" />
+                <ChevronRight className="h-5 w-5 text-[var(--line-strong)]" />
               </Link>
             </div>
           );
         })}
         {rows.length === 0 && (
-          <div className="py-10 text-center text-[#938C80]">{t("noResults")}</div>
+          <div className="py-10 text-center text-[var(--faint)]">{t("noResults")}</div>
         )}
       </div>
     </AppScreen>

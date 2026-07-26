@@ -45,17 +45,19 @@ export const ADMIN_NAV: {
   key: string;
   href: string;
   label: string;
-  badge?: boolean;
+  /** Key into the badge counts map (see getAdminNavBadges) — omit for no badge. */
+  badge?: "queue" | "ads";
 }[] = [
   { key: "dash", href: "/admin", label: "Dashboard" },
-  { key: "queue", href: "/admin/queue", label: "Registration queue", badge: true },
+  { key: "queue", href: "/admin/queue", label: "Registration queue", badge: "queue" },
   { key: "families", href: "/admin/families", label: "Families & Members" },
   { key: "drop", href: "/admin/dropdowns", label: "Dropdown lists" },
   { key: "gallery", href: "/admin/gallery", label: "Gallery" },
   { key: "news", href: "/admin/news", label: "News" },
-  { key: "ads", href: "/admin/ads", label: "Ads" },
+  { key: "ads", href: "/admin/ads", label: "Advertisements", badge: "ads" },
   { key: "info", href: "/admin/info", label: "Community info" },
   { key: "results", href: "/admin/results", label: "Result drive" },
+  { key: "settings", href: "/admin/settings", label: "Settings" },
   { key: "admins", href: "/admin/admins", label: "Admins & roles" },
 ];
 

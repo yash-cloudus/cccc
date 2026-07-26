@@ -22,19 +22,19 @@ export default function PendingPage() {
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-[#F0DCA8] bg-[#FEF6E7] text-[#D98A1E]"
+          className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-[#F0DCA8] bg-[var(--warn-tint)] text-[var(--gold-dark)]"
         >
           <Clock className="h-[46px] w-[46px]" strokeWidth={1.7} />
         </motion.div>
-        <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold text-[#2A2320]">
+        <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold text-[var(--ink)]">
           {title}
         </div>
-        <p className="max-w-[280px] text-sm leading-relaxed text-[#57524A]">{body || t("pendingBody")}</p>
+        <p className="max-w-[280px] text-sm leading-relaxed text-[var(--ink-mid)]">{body || t("pendingBody")}</p>
         <div className="mt-1.5 w-full max-w-[280px]">
           <button
             type="button"
             onClick={() => router.push("/login")}
-            className="flex h-[52px] w-full items-center justify-center rounded-2xl border-[1.5px] border-[#E1DACC] bg-white text-[15px] font-extrabold text-[#57524A]"
+            className="flex h-[52px] w-full items-center justify-center rounded-2xl border-[1.5px] border-[var(--line-input)] bg-white text-[15px] font-extrabold text-[var(--ink-mid)]"
           >
             {t("goBack")}
           </button>

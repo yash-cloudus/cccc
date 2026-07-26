@@ -1,29 +1,72 @@
 import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
-import { getAds } from "@/lib/tenant-data";
-import { AdsClient, type AdRow } from "./ads-client";
+import { AdsClient, type AdRow, type BusinessOption } from "./ads-client";
 
 export const dynamic = "force-dynamic";
-
-function fmt(d: Date) {
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-}
 
 export default async function AdsPage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  const ads = await getAds(community.id);
+  const [ads, categories, bizRows] = await Promise.all([
+    prisma.advertisement.findMany({
+      where: { communityId: community.id },
+      orderBy: [{ createdAt: "desc" }],
+    }),
+    prisma.businessCategory.findMany({
+      where: { communityId: community.id },
+      select: { nameEn: true },
+      orderBy: { nameEn: "asc" },
+    }),
+    // Offered in the "Existing business" picker of the New advertisement form.
+    prisma.business.findMany({
+      where: { communityId: community.id },
+      select: {
+        id: true,
+        nameEn: true,
+        nameGu: true,
+        phone: true,
+        category: { select: { nameEn: true } },
+        // Business has no owner column — the owner is the linked family's head.
+        family: { select: { headNameEn: true, headNameGu: true } },
+      },
+      orderBy: { nameEn: "asc" },
+      take: 500,
+    }),
+  ]);
+
   const rows: AdRow[] = ads.map((a) => ({
     id: a.id,
     name: a.name,
-    start: fmt(a.startDate),
-    end: fmt(a.endDate),
+    imageUrl: a.imageUrl,
+    ownerName: a.ownerName,
+    ownerMobile: a.ownerMobile,
+    category: a.category,
+    type: a.type === "premium" ? "premium" : "general",
+    source: a.source === "admin" ? "admin" : "user",
     status: a.status,
     priority: a.priority,
     views: a.views,
     clicks: a.clicks,
+    createdAt: a.createdAt.toISOString(),
+    startDate: a.startDate.toISOString(),
+    endDate: a.endDate.toISOString(),
   }));
 
-  return <AdsClient initialRows={rows} />;
+  const businesses: BusinessOption[] = bizRows.map((b) => ({
+    id: b.id,
+    name: b.nameGu || b.nameEn,
+    category: b.category?.nameEn ?? "",
+    ownerName: b.family?.headNameGu || b.family?.headNameEn || "",
+    ownerMobile: b.phone ?? "",
+  }));
+
+  return (
+    <AdsClient
+      initialRows={rows}
+      categories={categories.map((c) => c.nameEn)}
+      businesses={businesses}
+    />
+  );
 }

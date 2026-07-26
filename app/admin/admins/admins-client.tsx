@@ -12,8 +12,21 @@ import {
   AdminTable,
   AdminTd,
   AdminTh,
+  FilterChip,
   LinkAction,
 } from "@/components/admin/admin-ui";
+import {
+  AdminCheck,
+  AdminChoiceChips,
+  AdminField,
+  AdminFormRow,
+  AdminFormSection,
+  AdminModal,
+  AdminModalActions,
+  AdminPasswordField,
+  AdminSearchSelect,
+  generatePassword,
+} from "@/components/admin/admin-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
@@ -25,8 +38,24 @@ export type AdminRow = {
   username: string | null;
   mobile: string;
   status: string;
+  lastLoginAt: string | null;
+  createdAt: string;
   roles: string[];
 };
+
+const fmtDateTime = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })
+    : "never";
+
+/** Coloured square with the admin's first letter (Design-Spec AvatarInitial). */
+function AvatarInitial({ name }: { name: string }) {
+  return (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--brand-tint)] text-[13px] font-extrabold text-[var(--brand)]">
+      {name.trim().charAt(0).toUpperCase() || "?"}
+    </span>
+  );
+}
 
 const ROLE_OPTIONS = [
   { value: "OWNER", label: "Owner" },
@@ -37,19 +66,113 @@ const ROLE_OPTIONS = [
 
 const roleLabel = (r: string) => ROLE_OPTIONS.find((o) => o.value === r)?.label ?? r;
 
-export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
+/** Sidebar sections an admin can be granted — mirrors Admin.dc.html MENUS(). */
+export const ADMIN_MENUS = [
+  { key: "dash", label: "Dashboard" },
+  { key: "queue", label: "Registration Queue" },
+  { key: "families", label: "Families & Members" },
+  { key: "drop", label: "Dropdown Lists" },
+  { key: "gallery", label: "Gallery" },
+  { key: "news", label: "News" },
+  { key: "ads", label: "Advertisements" },
+  { key: "info", label: "Community Information" },
+  { key: "results", label: "Result Drive" },
+  { key: "admins", label: "Admins & Roles" },
+];
+
+const ALL_MENUS = ADMIN_MENUS.map((m) => m.key);
+
+type RoleTemplate =
+  | "community_admin"
+  | "coordinator_head"
+  | "content_manager"
+  | "gallery_manager"
+  | "result_manager"
+  | "owner"
+  | "custom";
+
+const ROLE_TEMPLATES: { value: RoleTemplate; label: string }[] = [
+  { value: "community_admin", label: "Community Admin" },
+  { value: "coordinator_head", label: "Head of Surname Group Coordinators" },
+  { value: "content_manager", label: "Content Manager" },
+  { value: "gallery_manager", label: "Gallery Manager" },
+  { value: "result_manager", label: "Result Manager" },
+  { value: "owner", label: "Owner" },
+  { value: "custom", label: "Custom" },
+];
+
+/** Each template pre-fills the stored roles… */
+const ROLE_TEMPLATE_ROLES: Record<RoleTemplate, string[]> = {
+  community_admin: ["ADMIN"],
+  coordinator_head: ["MODERATOR"],
+  content_manager: ["CONTENT_MANAGER"],
+  gallery_manager: ["CONTENT_MANAGER"],
+  result_manager: ["DATA_MANAGER"],
+  owner: ["OWNER"],
+  custom: [],
+};
+
+/** …and the menus it can reach (Admin.dc.html rolePerms()). */
+const ROLE_TEMPLATE_MENUS: Record<RoleTemplate, string[]> = {
+  community_admin: ALL_MENUS,
+  owner: ALL_MENUS,
+  coordinator_head: ["queue", "families"],
+  content_manager: ["dash", "news", "ads", "info"],
+  gallery_manager: ["dash", "gallery"],
+  result_manager: ["dash", "results"],
+  custom: [],
+};
+
+export type MemberOption = { id: string; name: string; mobile: string; surname: string };
+
+export function AdminsClient({
+  initialRows,
+  currentUserId,
+  members = [],
+}: {
+  initialRows: AdminRow[];
+  currentUserId: string | null;
+  members?: MemberOption[];
+}) {
   const router = useRouter();
   const [rows, setRows] = useState<AdminRow[]>(initialRows);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [roleFilter, setRoleFilter] = useState("all");
+
+  const activeCount = rows.filter((r) => r.status === "APPROVED").length;
+
+  const visible = rows.filter((r) => {
+    if (statusFilter === "active" && r.status !== "APPROVED") return false;
+    if (statusFilter === "inactive" && r.status === "APPROVED") return false;
+    if (roleFilter !== "all" && !r.roles.includes(roleFilter)) return false;
+    return true;
+  });
+
+  /**
+   * Mirrors the prototype's guard: you cannot deactivate or delete your own
+   * account, nor the last remaining active admin — that would lock everyone out.
+   */
+  function guardReason(row: AdminRow): string | null {
+    if (row.id === currentUserId) return "You cannot change your own account here.";
+    if (row.status === "APPROVED" && activeCount <= 1) {
+      return "This is the last active admin — promote another admin first.";
+    }
+    return null;
+  }
 
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({
+    memberId: "",
     fullNameEn: "",
     fullNameGu: "",
     username: "",
     password: "admin",
+    confirmPassword: "admin",
     mobile: "",
-    roles: ["MODERATOR"] as string[],
+    roleTemplate: "community_admin" as RoleTemplate,
+    roles: ROLE_TEMPLATE_ROLES.community_admin,
+    menus: ROLE_TEMPLATE_MENUS.community_admin,
   });
   const [busy, setBusy] = useState(false);
 
@@ -79,9 +202,12 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
 
   async function createAdmin() {
     if (!addForm.fullNameEn.trim() || !addForm.username.trim() || !addForm.password.trim()) {
-      return setError("Name, username and password are required");
+      return setError("Name, login ID and password are required");
     }
-    if (addForm.roles.length === 0) return setError("Pick at least one role");
+    if (addForm.password !== addForm.confirmPassword) {
+      return setError("Password and confirm password do not match");
+    }
+    if (addForm.roles.length === 0) return setError("Pick a role");
     setBusy(true);
     setError(null);
     const res = await api.post<{
@@ -102,17 +228,23 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
         username: addForm.username,
         mobile: res.data.mobile || addForm.mobile,
         status: "APPROVED",
+        lastLoginAt: null,
+        createdAt: new Date().toISOString(),
         roles: addForm.roles,
       },
     ]);
     setAddOpen(false);
     setAddForm({
+      memberId: "",
       fullNameEn: "",
       fullNameGu: "",
       username: "",
       password: "admin",
+      confirmPassword: "admin",
       mobile: "",
-      roles: ["MODERATOR"],
+      roleTemplate: "community_admin",
+      roles: ROLE_TEMPLATE_ROLES.community_admin,
+      menus: ROLE_TEMPLATE_MENUS.community_admin,
     });
   }
 
@@ -173,6 +305,8 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
   }
 
   async function remove(row: AdminRow) {
+    const blocked = guardReason(row);
+    if (blocked) return setError(blocked);
     if (!window.confirm(`Remove admin ${row.name}?`)) return;
     const res = await api.del(`/api/admin/admins?id=${row.id}`);
     if (!res.ok) return setError(res.error);
@@ -182,38 +316,91 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
 
   return (
     <>
-      <AdminH2>Admins &amp; roles</AdminH2>
-      <AdminBtn
-        className="mb-4 inline-flex"
-        onClick={() => {
-          setAddOpen(true);
-          setError(null);
-        }}
-      >
-        <Plus className="size-4" />
-        Add admin
-      </AdminBtn>
+      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+        <AdminH2 className="mb-0">Admins &amp; roles</AdminH2>
+        <AdminBtn
+          onClick={() => {
+            setAddOpen(true);
+            setError(null);
+          }}
+        >
+          <Plus className="size-4" />
+          Add admin
+        </AdminBtn>
+      </div>
+      <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
+        <b>{activeCount}</b> active of <b>{rows.length}</b> admins · create login credentials and
+        assign menu permissions. You cannot delete or deactivate your own account or the last
+        active admin.
+      </AdminHint>
 
       {error && !addOpen && !editRow && (
-        <p className="mb-3 text-[13px] font-semibold text-[#B0303A]">{error}</p>
+        <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>
       )}
+
+      <div className="mb-2.5 flex flex-wrap items-center gap-2">
+        <span className="text-[11.5px] font-bold tracking-wide text-[var(--faint)] uppercase">
+          Status
+        </span>
+        {(
+          [
+            { v: "all", l: "All" },
+            { v: "active", l: "Active" },
+            { v: "inactive", l: "Inactive" },
+          ] as const
+        ).map((c) => (
+          <FilterChip
+            key={c.v}
+            label={c.l}
+            active={statusFilter === c.v}
+            onClick={() => setStatusFilter(c.v)}
+          />
+        ))}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-[11.5px] font-bold tracking-wide text-[var(--faint)] uppercase">
+          Role
+        </span>
+        <FilterChip label="All" active={roleFilter === "all"} onClick={() => setRoleFilter("all")} />
+        {ROLE_OPTIONS.map((o) => (
+          <FilterChip
+            key={o.value}
+            label={o.label}
+            active={roleFilter === o.value}
+            onClick={() => setRoleFilter(o.value)}
+          />
+        ))}
+      </div>
 
       <AdminTable>
         <thead>
           <tr>
             <AdminTh>Admin</AdminTh>
-            <AdminTh>Username</AdminTh>
+            <AdminTh>Login ID</AdminTh>
             <AdminTh>Mobile</AdminTh>
-            <AdminTh>Roles</AdminTh>
+            <AdminTh>Role</AdminTh>
             <AdminTh>Status</AdminTh>
-            <AdminTh>Action</AdminTh>
+            <AdminTh>Last login</AdminTh>
+            <AdminTh>Created</AdminTh>
+            <AdminTh className="text-right">Actions</AdminTh>
           </tr>
         </thead>
         <tbody>
-          {rows.map((a) => (
+          {visible.map((a) => (
             <tr key={a.id}>
               <AdminTd>
-                <b>{a.nameGu || a.name}</b>
+                <span className="flex items-center gap-2.5">
+                  <AvatarInitial name={a.nameGu || a.name} />
+                  <span className="min-w-0">
+                    <b>{a.nameGu || a.name}</b>
+                    {a.id === currentUserId && (
+                      <span className="ml-1.5 rounded-full bg-[var(--brand-tint)] px-1.5 py-px text-[9.5px] font-extrabold tracking-wide text-[var(--brand)]">
+                        YOU
+                      </span>
+                    )}
+                  </span>
+                </span>
               </AdminTd>
               <AdminTd>{a.username || "—"}</AdminTd>
               <AdminTd className="font-mono text-[12px]">
@@ -225,7 +412,7 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
                     key={r}
                     className={cn(
                       "mr-1 inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold",
-                      r === "OWNER" ? "bg-[#E4F5E9] text-[#1E9E52]" : "bg-[#EEF1F6] text-[#4A5B72]",
+                      r === "OWNER" ? "bg-[var(--success-tint)] text-[var(--success)]" : "bg-[#EEF1F6] text-[#4A5B72]",
                     )}
                   >
                     {roleLabel(r)}
@@ -233,26 +420,45 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
                 ))}
               </AdminTd>
               <AdminTd>
-                <span className={a.status === "APPROVED" ? "text-[#1E9E52]" : "text-[#B0303A]"}>
+                <span className={a.status === "APPROVED" ? "text-[var(--success)]" : "text-[var(--danger)]"}>
                   {a.status === "APPROVED" ? "Active" : a.status}
                 </span>
               </AdminTd>
-              <AdminTd>
-                <span className="flex flex-wrap gap-2">
-                  <LinkAction onClick={() => openEdit(a)}>edit</LinkAction>
-                  <LinkAction danger onClick={() => remove(a)}>
-                    remove
-                  </LinkAction>
-                </span>
+              <AdminTd className="whitespace-nowrap">{fmtDateTime(a.lastLoginAt)}</AdminTd>
+              <AdminTd className="whitespace-nowrap">{fmtDateTime(a.createdAt)}</AdminTd>
+              <AdminTd className="text-right">
+                {(() => {
+                  const blocked = guardReason(a);
+                  return (
+                    <span className="flex flex-wrap justify-end gap-2">
+                      <LinkAction onClick={() => openEdit(a)}>edit</LinkAction>
+                      {blocked ? (
+                        <span
+                          title={blocked}
+                          className="cursor-not-allowed text-xs font-bold text-[var(--faint)]"
+                        >
+                          remove
+                        </span>
+                      ) : (
+                        <LinkAction danger onClick={() => remove(a)}>
+                          remove
+                        </LinkAction>
+                      )}
+                    </span>
+                  );
+                })()}
               </AdminTd>
             </tr>
           ))}
+          {visible.length === 0 && (
+            <tr>
+              <AdminTd colSpan={8} className="py-8 text-center text-[var(--faint)]">
+                {rows.length === 0 ? "No admins yet." : "No admins match your filters."}
+              </AdminTd>
+            </tr>
+          )}
         </tbody>
       </AdminTable>
-
-      {rows.length === 0 && (
-        <p className="py-6 text-center text-[11.5px] text-[#938C80]">No admins yet.</p>
-      )}
 
       <AdminHint>
         Roles: Owner · Data Manager · Content Manager · Moderator. One person can hold multiple.
@@ -260,65 +466,118 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
         <b>admin</b>.
       </AdminHint>
 
-      <Dialog open={addOpen} onOpenChange={(o) => !o && setAddOpen(false)}>
-        <DialogContent className="max-w-[420px] rounded-2xl sm:max-w-[420px]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">Add admin</DialogTitle>
-          </DialogHeader>
-          <div>
-            <AdminLabel>Full name *</AdminLabel>
-            <AdminInput value={addForm.fullNameEn} onChange={(v) => setAddForm({ ...addForm, fullNameEn: v })} />
-            <AdminLabel>Mobile</AdminLabel>
+      <AdminModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="Add admin"
+        subtitle="Everything for this admin — set up in one place."
+        footer={
+          <AdminModalActions
+            onSave={createAdmin}
+            onCancel={() => setAddOpen(false)}
+            saveLabel="Create admin"
+            busy={busy}
+          />
+        }
+      >
+        <AdminFormSection step={1} title="Member" />
+        <AdminField hint="Pick an existing member, or type the name below to create a standalone admin.">
+          <AdminSearchSelect
+            items={members}
+            value={members.find((m) => m.id === addForm.memberId) ?? null}
+            placeholder="Search & select a member…"
+            renderLabel={(m) => m.name}
+            renderMeta={(m) => [m.mobile, m.surname].filter(Boolean).join(" · ")}
+            emptyText="No member found"
+            onChange={(m) =>
+              setAddForm((f) => ({
+                ...f,
+                memberId: m?.id ?? "",
+                fullNameEn: m?.name ?? f.fullNameEn,
+                mobile: m?.mobile ?? f.mobile,
+              }))
+            }
+          />
+        </AdminField>
+
+        <AdminFormRow>
+          <AdminField label="Full name" required>
+            <AdminInput
+              value={addForm.fullNameEn}
+              onChange={(v) => setAddForm({ ...addForm, fullNameEn: v })}
+            />
+          </AdminField>
+          <AdminField label="Mobile">
             <AdminInput
               value={addForm.mobile}
               onChange={(v) => setAddForm({ ...addForm, mobile: v.replace(/\D/g, "").slice(0, 10) })}
             />
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <AdminLabel>Username *</AdminLabel>
-                <AdminInput value={addForm.username} onChange={(v) => setAddForm({ ...addForm, username: v })} />
-              </div>
-              <div>
-                <AdminLabel>Password *</AdminLabel>
-                <AdminInput value={addForm.password} onChange={(v) => setAddForm({ ...addForm, password: v })} />
-              </div>
-            </div>
-            <AdminLabel>Roles *</AdminLabel>
-            <div className="mb-2 flex flex-wrap gap-2">
-              {ROLE_OPTIONS.map((r) => {
-                const on = addForm.roles.includes(r.value);
-                return (
-                  <button
-                    key={r.value}
-                    type="button"
-                    onClick={() => setAddForm({ ...addForm, roles: toggle(addForm.roles, r.value) })}
-                    className={cn(
-                      "cursor-pointer rounded-[11px] border-[1.5px] px-3 py-2 text-[12.5px] font-bold",
-                      on ? "border-[#A62A38] bg-[#FBEBEC] text-[#A62A38]" : "border-[#E6E0D3] bg-white text-[#6B6357]",
-                    )}
-                  >
-                    {on ? "☑" : "☐"} {r.label}
-                  </button>
-                );
-              })}
-            </div>
-            {error && <p className="mt-2 text-[12.5px] font-semibold text-[#B0303A]">{error}</p>}
-            <div className="mt-4 flex gap-2.5">
-              <AdminBtn className="flex-1 justify-center" onClick={createAdmin}>
-                {busy ? <Loader2 className="size-4 animate-spin" /> : "Create admin"}
-              </AdminBtn>
-              <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setAddOpen(false)}>
-                Cancel
-              </AdminBtn>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+          </AdminField>
+        </AdminFormRow>
+
+        <AdminFormSection step={2} title="Login credentials" className="mt-5" />
+        <AdminField label="Login ID" required>
+          <AdminInput
+            value={addForm.username}
+            placeholder="e.g. community_admin_02"
+            onChange={(v) => setAddForm({ ...addForm, username: v })}
+          />
+        </AdminField>
+        <AdminFormRow>
+          <AdminField label="Password" required>
+            <AdminPasswordField
+              value={addForm.password}
+              onChange={(v) => setAddForm({ ...addForm, password: v })}
+              onGenerate={() => {
+                const pw = generatePassword();
+                setAddForm((f) => ({ ...f, password: pw, confirmPassword: pw }));
+              }}
+            />
+          </AdminField>
+          <AdminField label="Confirm password" required>
+            <AdminPasswordField
+              value={addForm.confirmPassword}
+              onChange={(v) => setAddForm({ ...addForm, confirmPassword: v })}
+            />
+          </AdminField>
+        </AdminFormRow>
+
+        <AdminFormSection step={3} title="Role (pre-fills permissions)" className="mt-5" />
+        <AdminChoiceChips
+          value={addForm.roleTemplate}
+          onChange={(t) =>
+            setAddForm((f) => ({
+              ...f,
+              roleTemplate: t,
+              roles: ROLE_TEMPLATE_ROLES[t],
+              // "Custom" keeps whatever is already ticked; templates overwrite.
+              menus: t === "custom" ? f.menus : ROLE_TEMPLATE_MENUS[t],
+            }))
+          }
+          options={ROLE_TEMPLATES}
+        />
+
+        <AdminFormSection step={4} title="Menu permissions" className="mt-5" />
+        <div className="grid grid-cols-2 gap-1">
+          {ADMIN_MENUS.map((m) => (
+            <AdminCheck
+              key={m.key}
+              label={m.label}
+              checked={addForm.menus.includes(m.key)}
+              onChange={() =>
+                setAddForm((f) => ({ ...f, menus: toggle(f.menus, m.key) }))
+              }
+            />
+          ))}
+        </div>
+
+        {error && <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
+      </AdminModal>
 
       <Dialog open={editRow !== null} onOpenChange={(o) => !o && setEditRow(null)}>
         <DialogContent className="max-w-[440px] rounded-2xl sm:max-w-[440px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">
+            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
               Edit admin — {editRow?.name}
             </DialogTitle>
           </DialogHeader>
@@ -353,7 +612,7 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
             <button
               type="button"
               onClick={resetPassword}
-              className="mb-3 cursor-pointer text-[12.5px] font-bold text-[#A62A38] underline"
+              className="mb-3 cursor-pointer text-[12.5px] font-bold text-[var(--brand)] underline"
             >
               Reset password to “admin”
             </button>
@@ -368,7 +627,7 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
                     onClick={() => setEditForm((prev) => ({ ...prev, roles: toggle(prev.roles, r.value) }))}
                     className={cn(
                       "cursor-pointer rounded-[11px] border-[1.5px] px-3 py-2 text-[12.5px] font-bold",
-                      on ? "border-[#A62A38] bg-[#FBEBEC] text-[#A62A38]" : "border-[#E6E0D3] bg-white text-[#6B6357]",
+                      on ? "border-[var(--brand)] bg-[var(--brand-tint)] text-[var(--brand)]" : "border-[var(--line-admin)] bg-white text-[var(--ink-dim)]",
                     )}
                   >
                     {on ? "☑" : "☐"} {r.label}
@@ -376,7 +635,7 @@ export function AdminsClient({ initialRows }: { initialRows: AdminRow[] }) {
                 );
               })}
             </div>
-            {error && <p className="mt-2 text-[12.5px] font-semibold text-[#B0303A]">{error}</p>}
+            {error && <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
             <div className="mt-4 flex gap-2.5">
               <AdminBtn className="flex-1 justify-center" onClick={saveEdit}>
                 {busy ? <Loader2 className="size-4 animate-spin" /> : "Save"}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
@@ -14,7 +14,7 @@ type Branding = {
   secondaryColor: string;
 };
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [brand, setBrand] = useState<Branding | null>(null);
@@ -76,25 +76,25 @@ export default function AdminLoginPage() {
             )}
           </span>
           <div className="min-w-0">
-            <div className="truncate text-[15px] font-extrabold text-[#2A2320]">
+            <div className="truncate text-[15px] font-extrabold text-[var(--ink)]">
               {brand?.nameGu || brand?.nameEn || "Community Admin"}
             </div>
-            <div className="text-[11.5px] font-semibold text-[#938C80]">Community Admin Panel</div>
+            <div className="text-[11.5px] font-semibold text-[var(--faint)]">Community Admin Panel</div>
           </div>
         </div>
 
-        <h1 className="text-xl font-extrabold text-[#2A2320]">Admin sign in</h1>
-        <p className="mt-1 text-[13px] text-[#938C80]">Use the username &amp; password you were given.</p>
+        <h1 className="text-xl font-extrabold text-[var(--ink)]">Admin sign in</h1>
+        <p className="mt-1 text-[13px] text-[var(--faint)]">Use the username &amp; password you were given.</p>
 
         {error && (
-          <div className="mt-4 rounded-[11px] border border-[#F1C4C4] bg-[#FCECEC] px-3.5 py-2.5 text-[13px] font-semibold text-[#B0303A]">
+          <div className="mt-4 rounded-[11px] border border-[var(--danger-line)] bg-[var(--danger-tint-soft)] px-3.5 py-2.5 text-[13px] font-semibold text-[var(--danger)]">
             {error}
           </div>
         )}
 
         <form onSubmit={submit} className="mt-5 space-y-3.5">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-[#8B8375]">Username</span>
+            <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">Username</span>
             <input
               className="mafld"
               value={username}
@@ -105,7 +105,7 @@ export default function AdminLoginPage() {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-[#8B8375]">Password</span>
+            <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">Password</span>
             <input
               className="mafld"
               type="password"
@@ -126,7 +126,7 @@ export default function AdminLoginPage() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-[12px] text-[#938C80]">
+        <p className="mt-4 text-center text-[12px] text-[var(--faint)]">
           Members sign in with mobile + OTP on the{" "}
           <a href="/login" className="font-bold" style={{ color: primary }}>
             main app
@@ -135,5 +135,13 @@ export default function AdminLoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense>
+      <AdminLoginForm />
+    </Suspense>
   );
 }

@@ -31,11 +31,11 @@ export type CategoryRow = {
 };
 
 const PALETTE = [
-  { bg: "#FCE7E7", fg: "#B0303A" },
-  { bg: "#E7F0FB", fg: "#3D6B8C" },
-  { bg: "#FEF3E0", fg: "#B26A1E" },
-  { bg: "#EAF6EC", fg: "#4E7A45" },
-  { bg: "#F0ECFB", fg: "#6A4E9C" },
+  { bg: "var(--danger-tint)", fg: "var(--danger)" },
+  { bg: "var(--info-tint)", fg: "var(--info)" },
+  { bg: "var(--ochre-tint)", fg: "var(--ochre)" },
+  { bg: "var(--leaf-tint)", fg: "var(--leaf)" },
+  { bg: "var(--violet-tint)", fg: "var(--violet)" },
 ];
 
 function initials(name: string) {
@@ -96,7 +96,7 @@ export function BusinessClient({
                   onClick={() => setCat(c.id)}
                   className="whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-bold transition"
                   style={{
-                    background: active ? "#A62A38" : "#fff",
+                    background: active ? "var(--brand)" : "#fff",
                     color: active ? "#fff" : "#6B6357",
                     border: active ? "none" : "1px solid #EDE4D4",
                   }}
@@ -109,11 +109,11 @@ export function BusinessClient({
         </div>
 
         {filtered.length === 0 ? (
-          <div className="py-10 text-center text-[#8B8375]">
+          <div className="py-10 text-center text-[var(--muted)]">
             <div className="mx-auto mb-3.5 flex h-[76px] w-[76px] items-center justify-center rounded-3xl bg-[#F4F1EA] text-[#C6B8A0]">
               <Building2 className="h-[34px] w-[34px]" strokeWidth={1.6} />
             </div>
-            <div className="mb-1 text-[15.5px] font-extrabold text-[#57524A]">{emptyTitle}</div>
+            <div className="mb-1 text-[15.5px] font-extrabold text-[var(--ink-mid)]">{emptyTitle}</div>
             <div className="mb-4 text-[13px]">{emptySub}</div>
             <button
               type="button"
@@ -121,7 +121,7 @@ export function BusinessClient({
                 setQ("");
                 setCat("all");
               }}
-              className="inline-flex h-11 items-center rounded-[14px] border-[1.5px] border-[#E1BFC3] px-5 text-sm font-bold text-[#A62A38]"
+              className="inline-flex h-11 items-center rounded-[14px] border-[1.5px] border-[var(--brand-line)] px-5 text-sm font-bold text-[var(--brand)]"
             >
               {clearLabel}
             </button>
@@ -140,7 +140,7 @@ export function BusinessClient({
                 <Link
                   key={b.id}
                   href={`/business/${b.id}`}
-                  className="samaj-card mb-3 flex items-center gap-3.5 p-[15px] transition hover:border-[#EED8A8] hover:shadow-[0_12px_24px_-12px_rgba(166,42,56,.3)] md:mb-0"
+                  className="samaj-card mb-3 flex items-center gap-3.5 p-[15px] transition hover:border-[var(--gold-border)] hover:shadow-[0_12px_24px_-12px_rgb(var(--brand-rgb) / .3)] md:mb-0"
                 >
                   <div
                     className="relative flex h-[66px] w-[66px] flex-none flex-col items-center justify-center overflow-hidden rounded-[18px]"
@@ -151,10 +151,10 @@ export function BusinessClient({
                     <span className="z-1 mt-0.5 text-[6.5px] font-extrabold tracking-[1.5px] opacity-70">{brand.shortLogo}</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-base font-extrabold text-[#A62A38]">{name}</div>
+                    <div className="truncate text-base font-extrabold text-[var(--brand)]">{name}</div>
                     {secondary && (
-                      <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[#2A2320]">
-                        <MapPin className="h-[15px] w-[15px] flex-none text-[#B26A1E]" strokeWidth={1.8} />
+                      <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[var(--ink)]">
+                        <MapPin className="h-[15px] w-[15px] flex-none text-[var(--ochre)]" strokeWidth={1.8} />
                         <span className="truncate text-sm font-medium">{secondary}</span>
                       </div>
                     )}
@@ -167,7 +167,7 @@ export function BusinessClient({
                       </span>
                     )}
                   </div>
-                  <ChevronRight className="h-5 w-5 flex-none text-[#C9C2B5]" strokeWidth={2.2} />
+                  <ChevronRight className="h-5 w-5 flex-none text-[var(--line-strong)]" strokeWidth={2.2} />
                 </Link>
               );
             })}

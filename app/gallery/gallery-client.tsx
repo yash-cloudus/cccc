@@ -46,7 +46,7 @@ export function GalleryClient({ rows }: { rows: AlbumRow[] }) {
 
       <div className="px-4 py-4 pb-8">
         {rows.length === 0 ? (
-          <p className="py-16 text-center text-[13.5px] text-[#938C80]">
+          <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
             {lang === "gu" ? "હજુ કોઈ આલ્બમ નથી." : "No albums yet."}
           </p>
         ) : (
@@ -73,13 +73,13 @@ export function GalleryClient({ rows }: { rows: AlbumRow[] }) {
                     )}
                   </div>
                   <div className="p-[13px]">
-                    <div className="text-[15px] font-bold text-[#2A2320]">
+                    <div className="text-[15px] font-bold text-[var(--ink)]">
                       {pickText(a.titleGu, a.titleEn, lang)}
                     </div>
                     {a.subtitle && (
-                      <div className="mt-0.5 text-xs font-medium text-[#938C80]">{a.subtitle}</div>
+                      <div className="mt-0.5 text-xs font-medium text-[var(--faint)]">{a.subtitle}</div>
                     )}
-                    <div className="mt-0.5 text-xs font-medium text-[#938C80]">
+                    <div className="mt-0.5 text-xs font-medium text-[var(--faint)]">
                       {photos}
                       {date ? ` · ${date}` : ""}
                     </div>

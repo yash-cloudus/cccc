@@ -94,12 +94,12 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
 
       <div className="px-4 py-4 pb-8">
         {rows.length === 0 ? (
-          <p className="py-16 text-center text-[13.5px] text-[#938C80]">
+          <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
             {lang === "gu" ? "હજુ કોઈ રક્તદાતા નથી." : "No blood donors yet."}
           </p>
         ) : !selected ? (
           <>
-            <div className="mb-3 px-1 text-[13px] font-extrabold tracking-wide text-[#8B8375]">
+            <div className="mb-3 px-1 text-[13px] font-extrabold tracking-wide text-[var(--muted)]">
               {pickLabel}
             </div>
             <div className="grid grid-cols-2 gap-[11px]">
@@ -110,12 +110,12 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
                     key={bg}
                     type="button"
                     onClick={() => openGroup(bg)}
-                    className="samaj-card px-2.5 py-5 text-center transition hover:border-[#EED8A8]"
+                    className="samaj-card px-2.5 py-5 text-center transition hover:border-[var(--gold-border)]"
                   >
-                    <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-[18px] bg-gradient-to-br from-[#FBEDEE] to-[#F6D9DC] text-[22px] font-extrabold text-[#A62A38]">
+                    <div className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-[18px] bg-gradient-to-br from-[var(--brand-tint)] to-[var(--brand-border)] text-[22px] font-extrabold text-[var(--brand)]">
                       {bg}
                     </div>
-                    <div className="text-xs font-semibold text-[#938C80]">
+                    <div className="text-xs font-semibold text-[var(--faint)]">
                       {count} {lang === "gu" ? "સભ્યો" : "members"}
                     </div>
                   </button>
@@ -132,11 +132,11 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
               <button
                 type="button"
                 onClick={() => setSelected(null)}
-                className="text-[13px] font-bold text-[#A62A38]"
+                className="text-[13px] font-bold text-[var(--brand)]"
               >
                 ‹ {lang === "gu" ? "બધા ગ્રુપ" : "All groups"}
               </button>
-              <div className="flex-1 text-right text-[15px] font-extrabold text-[#2A2320]">
+              <div className="flex-1 text-right text-[15px] font-extrabold text-[var(--ink)]">
                 {selected} · {members.length}
               </div>
             </div>
@@ -150,8 +150,8 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
                     className={cn(
                       "whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-bold",
                       loc === l
-                        ? "bg-[#A62A38] text-white"
-                        : "border border-[#EDE4D4] bg-white text-[#6B6357]",
+                        ? "bg-[var(--brand)] text-white"
+                        : "border border-[var(--line-field)] bg-white text-[var(--ink-dim)]",
                     )}
                   >
                     {l === "all" ? t("all") : l}
@@ -160,7 +160,7 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
               </div>
             )}
             {members.length === 0 ? (
-              <p className="py-16 text-center text-[13.5px] text-[#938C80]">
+              <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
                 {lang === "gu" ? "આ ગ્રુપમાં કોઈ સભ્ય નથી." : "No members in this group."}
               </p>
             ) : (
@@ -171,18 +171,18 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
                     key={`${name}-${i}`}
                     className="samaj-card mb-2.5 flex items-center gap-3 p-[13px]"
                   >
-                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-[#FCE7E7] text-[15px] font-extrabold text-[#B0303A]">
+                    <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-[var(--danger-tint)] text-[15px] font-extrabold text-[var(--danger)]">
                       {name.trim()[0]}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-bold">{name}</div>
                       {m.currentlyAt && (
-                        <div className="text-xs font-medium text-[#938C80]">{m.currentlyAt}</div>
+                        <div className="text-xs font-medium text-[var(--faint)]">{m.currentlyAt}</div>
                       )}
                     </div>
                     <a
                       href={telLink(m.mobile)}
-                      className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-[#FBEDEE] text-[#A62A38]"
+                      className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-[var(--brand-tint)] text-[var(--brand)]"
                     >
                       <Phone className="h-4 w-4" />
                     </a>
@@ -190,7 +190,7 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
                       href={waLink(m.mobile)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-[#E4F5E9] text-[#1E9E52]"
+                      className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-[var(--success-tint)] text-[var(--success)]"
                     >
                       <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M12 2.2A9.8 9.8 0 0 0 3.5 17L2.2 21.8l5-1.3A9.8 9.8 0 1 0 12 2.2Z" />

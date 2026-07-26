@@ -13,6 +13,7 @@ import {
   Megaphone,
   Info,
   Trophy,
+  Settings,
   Shield,
   LogOut,
   ChevronLeft,
@@ -33,6 +34,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   ads: Megaphone,
   info: Info,
   results: Trophy,
+  settings: Settings,
   admins: Shield,
 };
 
@@ -41,7 +43,7 @@ const MOBILE_PRIMARY_KEYS = ["dash", "queue", "families", "drop"] as const;
 
 export function AdminShell({
   children,
-  pendingCount = 0,
+  badges = {},
   communityNameEn,
   communityNameGu,
   logoText,
@@ -49,7 +51,8 @@ export function AdminShell({
   primaryColor = "#A62A38",
 }: {
   children: React.ReactNode;
-  pendingCount?: number;
+  /** Sidebar counts keyed by ADMIN_NAV `badge` (e.g. { queue: 4, ads: 2 }). */
+  badges?: Partial<Record<"queue" | "ads", number>>;
   communityNameEn: string;
   communityNameGu?: string | null;
   logoText: string;
@@ -119,7 +122,7 @@ export function AdminShell({
   return (
     <TooltipProvider delay={120}>
       <div className="flex h-dvh w-full flex-col overflow-hidden bg-white font-[family-name:var(--font-manrope),var(--font-noto-sans-gujarati),sans-serif]">
-        <div className="admin-body flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1">
           <aside
             className={cn(
               "relative hidden shrink-0 overflow-visible transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:block",
@@ -128,7 +131,7 @@ export function AdminShell({
           >
             <nav
               className={cn(
-                "admin-nav admin-scroll flex h-full w-full flex-col overflow-y-auto overflow-x-hidden border-r border-[#E6E0D3] bg-[#F6F3EC] py-3.5",
+                "admin-scroll flex h-full w-full flex-col overflow-y-auto overflow-x-hidden border-r border-[var(--line-admin)] bg-[var(--surface-admin)] py-3.5",
                 collapsed ? "items-center" : "",
               )}
             >
@@ -150,7 +153,7 @@ export function AdminShell({
                     }}
                     className={cn(
                       "flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] font-[family-name:var(--font-noto-sans-gujarati)] text-[13px] font-bold text-white transition-transform duration-300 hover:scale-[1.03]",
-                      collapsed && "cursor-pointer ring-offset-2 hover:ring-2 hover:ring-[#E0DACC]",
+                      collapsed && "cursor-pointer ring-offset-2 hover:ring-2 hover:ring-[var(--line-input)]",
                     )}
                     style={{ background: primaryColor }}
                     aria-label={collapsed ? "Open sidebar" : brand}
@@ -165,7 +168,7 @@ export function AdminShell({
                 </WithTooltip>
                 <span
                   className={cn(
-                    "min-w-0 flex-1 truncate text-[14px] font-extrabold text-[#2A2620] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                    "min-w-0 flex-1 truncate text-[14px] font-extrabold text-[var(--ink)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
                     collapsed ? "max-w-0 translate-x-[-6px] opacity-0" : "max-w-[160px] translate-x-0 opacity-100",
                   )}
                 >
@@ -182,7 +185,8 @@ export function AdminShell({
                 {ADMIN_NAV.map((item) => {
                   const active = isActive(item.href, item.key);
                   const Icon = NAV_ICONS[item.key] || LayoutDashboard;
-                  const badge = item.badge && pendingCount > 0 ? String(pendingCount) : null;
+                  const count = item.badge ? (badges[item.badge] ?? 0) : 0;
+                  const badge = count > 0 ? String(count) : null;
                   return (
                     <WithTooltip key={item.key} label={item.label} side="right" disabled={!collapsed}>
                       <Link
@@ -191,8 +195,8 @@ export function AdminShell({
                           "relative flex items-center rounded-[10px] text-[13.5px] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
                           collapsed ? "size-10 justify-center p-0" : "h-10 w-full gap-2.5 px-2.5",
                           active
-                            ? "bg-[#FBEBEC] font-bold text-[#A62A38]"
-                            : "font-semibold text-[#57524A] hover:bg-[#FBEBEC]/50",
+                            ? "bg-[var(--brand-tint)] font-bold text-[var(--brand)]"
+                            : "font-semibold text-[var(--ink-mid)] hover:bg-[var(--brand-tint)]/50",
                         )}
                       >
                         <Icon className="size-[18px] shrink-0" strokeWidth={2.1} />
@@ -224,7 +228,7 @@ export function AdminShell({
 
               <div
                 className={cn(
-                  "mt-auto w-full border-t border-[#E6E0D3] pt-2 transition-[padding] duration-300",
+                  "mt-auto w-full border-t border-[var(--line-admin)] pt-2 transition-[padding] duration-300",
                   collapsed ? "flex justify-center px-0" : "px-2",
                 )}
               >
@@ -233,7 +237,7 @@ export function AdminShell({
                     type="button"
                     onClick={logout}
                     className={cn(
-                      "flex cursor-pointer items-center rounded-[10px] text-[13.5px] font-bold text-[#B0303A] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[#FBEBEC]",
+                      "flex cursor-pointer items-center rounded-[10px] text-[13.5px] font-bold text-[var(--danger)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[var(--brand-tint)]",
                       collapsed ? "size-10 justify-center p-0" : "h-10 w-full gap-2.5 px-2.5",
                     )}
                   >
@@ -256,7 +260,7 @@ export function AdminShell({
                 type="button"
                 onClick={toggleCollapsed}
                 aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
-                className="absolute top-5 -right-3 z-30 flex size-6 cursor-pointer items-center justify-center rounded-md border border-[#D4CEC2] bg-white text-[#57524A] shadow-[0_1px_3px_rgba(30,25,40,.12)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 hover:bg-[#FAFAF8]"
+                className="absolute top-5 -right-3 z-30 flex size-6 cursor-pointer items-center justify-center rounded-md border border-[#D4CEC2] bg-white text-[var(--ink-mid)] shadow-[0_1px_3px_rgba(30,25,40,.12)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 hover:bg-[#FAFAF8]"
               >
                 <ChevronLeft
                   className={cn(
@@ -269,30 +273,30 @@ export function AdminShell({
             </WithTooltip>
           </aside>
 
-          <div className="admin-scroll admin-content min-w-0 flex-1 overflow-y-auto bg-white px-8 py-7 max-md:px-[15px] max-md:pb-24 max-md:pt-[18px]">
+          <div className="admin-scroll min-w-0 flex-1 overflow-y-auto bg-white px-8 py-7 max-md:px-[15px] max-md:pb-24 max-md:pt-[18px]">
             {children}
           </div>
         </div>
 
-        <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-[#E6E0D3] bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-4px_20px_rgba(30,25,40,.08)] backdrop-blur md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-[var(--line-admin)] bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-4px_20px_rgba(30,25,40,.08)] backdrop-blur md:hidden">
           {MOBILE_PRIMARY_KEYS.map((key) => {
             const item = ADMIN_NAV.find((n) => n.key === key);
             if (!item) return null;
             const Icon = NAV_ICONS[key] || LayoutDashboard;
             const active = isActive(item.href, item.key);
-            const badge = item.badge && pendingCount > 0;
+            const badge = item.badge ? (badges[item.badge] ?? 0) > 0 : false;
             return (
               <Link
                 key={key}
                 href={item.href}
                 className={cn(
                   "relative flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold",
-                  active ? "text-[#A62A38]" : "text-[#8A8378]",
+                  active ? "text-[var(--brand)]" : "text-[#8A8378]",
                 )}
               >
                 <Icon className="size-5" strokeWidth={2.1} />
                 <span className="max-w-full truncate">{item.label.split(" ")[0]}</span>
-                {badge && <span className="absolute right-2 top-1.5 size-1.5 rounded-full bg-[#E0A64B]" />}
+                {badge && <span className="absolute right-2 top-1.5 size-1.5 rounded-full bg-[var(--gold)]" />}
               </Link>
             );
           })}
@@ -301,7 +305,7 @@ export function AdminShell({
             onClick={() => setMoreOpen(true)}
             className={cn(
               "relative flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold",
-              moreOpen || moreSectionActive ? "text-[#A62A38]" : "text-[#8A8378]",
+              moreOpen || moreSectionActive ? "text-[var(--brand)]" : "text-[#8A8378]",
             )}
           >
             <Ellipsis className="size-5" strokeWidth={2.2} />
@@ -317,9 +321,9 @@ export function AdminShell({
               className="absolute inset-0 bg-black/35"
               onClick={() => setMoreOpen(false)}
             />
-            <div className="absolute inset-x-0 bottom-0 rounded-t-2xl border border-[#E6E0D3] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(30,25,40,.18)]">
+            <div className="absolute inset-x-0 bottom-0 rounded-t-2xl border border-[var(--line-admin)] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(30,25,40,.18)]">
               <div className="flex items-center justify-between border-b border-[#F0EAE0] px-4 py-3">
-                <p className="text-[14px] font-extrabold text-[#2A2620]">More</p>
+                <p className="text-[14px] font-extrabold text-[var(--ink)]">More</p>
                 <button
                   type="button"
                   onClick={() => setMoreOpen(false)}
@@ -332,7 +336,8 @@ export function AdminShell({
                 {moreItems.map((item) => {
                   const Icon = NAV_ICONS[item.key] || LayoutDashboard;
                   const active = isActive(item.href, item.key);
-                  const badge = item.badge && pendingCount > 0 ? String(pendingCount) : null;
+                  const count = item.badge ? (badges[item.badge] ?? 0) : 0;
+                  const badge = count > 0 ? String(count) : null;
                   return (
                     <Link
                       key={item.key}
@@ -341,8 +346,8 @@ export function AdminShell({
                       className={cn(
                         "flex items-center gap-3 rounded-xl px-3 py-3 text-[14px]",
                         active
-                          ? "bg-[#FBEBEC] font-bold text-[#A62A38]"
-                          : "font-semibold text-[#2A2620] hover:bg-[#F6F3EC]",
+                          ? "bg-[var(--brand-tint)] font-bold text-[var(--brand)]"
+                          : "font-semibold text-[var(--ink)] hover:bg-[var(--surface-admin)]",
                       )}
                     >
                       <Icon className="size-5 shrink-0" strokeWidth={2.1} />
@@ -358,7 +363,7 @@ export function AdminShell({
                 <button
                   type="button"
                   onClick={logout}
-                  className="mt-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-[14px] font-bold text-[#B0303A] hover:bg-[#FBEBEC]"
+                  className="mt-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-[14px] font-bold text-[var(--danger)] hover:bg-[var(--brand-tint)]"
                 >
                   <LogOut className="size-5 shrink-0" strokeWidth={2.2} />
                   <span>Logout</span>

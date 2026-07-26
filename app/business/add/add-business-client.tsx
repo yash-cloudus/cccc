@@ -62,7 +62,7 @@ export function AddBusinessClient({ categories }: { categories: Category[] }) {
         </Field>
         <Field label={T("શ્રેણી", "Category")}>
           {categories.length === 0 ? (
-            <div className="rounded-[13px] border border-dashed border-[#E1DACC] bg-[#FCFAF6] px-3.5 py-3 text-[12.5px] text-[#938C80]">
+            <div className="rounded-[13px] border border-dashed border-[var(--line-input)] bg-[var(--field)] px-3.5 py-3 text-[12.5px] text-[var(--faint)]">
               {T("કોઈ શ્રેણી ઉપલબ્ધ નથી", "No categories available")}
             </div>
           ) : (
@@ -96,14 +96,14 @@ export function AddBusinessClient({ categories }: { categories: Category[] }) {
           />
         </Field>
 
-        {error && <p className="mb-3 text-[13px] font-semibold text-[#B0303A]">{error}</p>}
+        {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
         <button
           type="button"
           onClick={submit}
           disabled={busy}
-          className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgba(166,42,56,.6)] disabled:opacity-70"
-          style={{ background: "linear-gradient(135deg,#A62A38,#851F2B)" }}
+          className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgb(var(--brand-rgb) / .6)] disabled:opacity-70"
+          style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
         >
           {busy ? <Loader2 className="size-5 animate-spin" /> : T("સબમિટ કરો", "Submit")}
         </button>
@@ -115,7 +115,7 @@ export function AddBusinessClient({ categories }: { categories: Category[] }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-3.5">
-      <div className="mb-1 text-xs font-bold text-[#8B8375]">{label}</div>
+      <div className="mb-1 text-xs font-bold text-[var(--muted)]">{label}</div>
       {children}
     </div>
   );

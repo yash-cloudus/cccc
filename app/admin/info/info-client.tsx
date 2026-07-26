@@ -28,6 +28,7 @@ type InfoSection = {
   titleGu: string | null;
   bodyEn: string | null;
   bodyGu: string | null;
+  sortOrder: number;
 };
 type Village = {
   id: string;
@@ -48,18 +49,52 @@ type CMember = {
 export function InfoClient({
   showDirectoryPhones: initialGlobal,
   upiId: initialUpi,
+  logoUrl: initialLogo,
+  bannerUrl: initialBanner,
   committees: initialCommittees,
   infoSections: initialInfo,
   villages: initialVillages,
 }: {
   showDirectoryPhones: boolean;
   upiId: string;
+  logoUrl: string;
+  bannerUrl: string;
   committees: Committee[];
   infoSections: InfoSection[];
   villages: Village[];
 }) {
   const { fromEn, fromGu } = useTranslitSync();
   const [globalPhones, setGlobalPhones] = useState(initialGlobal);
+  const [logoUrl, setLogoUrl] = useState(initialLogo);
+  const [bannerUrl, setBannerUrl] = useState(initialBanner);
+  const [brandBusy, setBrandBusy] = useState(false);
+
+  async function saveBranding() {
+    setBrandBusy(true);
+    setError(null);
+    const res = await api.patch("/api/admin/settings", {
+      logoUrl: logoUrl.trim(),
+      bannerUrl: bannerUrl.trim(),
+    });
+    setBrandBusy(false);
+    if (!res.ok) setError(res.error);
+  }
+
+  /** Swap a section with its neighbour and persist both sortOrders. */
+  async function moveSection(index: number, dir: -1 | 1) {
+    const target = index + dir;
+    if (target < 0 || target >= info.length) return;
+    const next = [...info];
+    [next[index], next[target]] = [next[target], next[index]];
+    setInfo(next);
+    const results = await Promise.all(
+      next.map((s, i) => api.patch("/api/admin/info-sections", { id: s.id, sortOrder: i })),
+    );
+    if (results.some((r) => !r.ok)) {
+      setInfo(info);
+      setError("Could not reorder sections");
+    }
+  }
   const [upiId, setUpiId] = useState(initialUpi);
   const [upiDraft, setUpiDraft] = useState(initialUpi);
   const [committees, setCommittees] = useState<Committee[]>(initialCommittees);
@@ -191,9 +226,68 @@ export function InfoClient({
 
   return (
     <>
-      <AdminH2>Community info</AdminH2>
+      <AdminH2 className="mb-1">Community info</AdminH2>
+      <AdminHint className="mt-0 mb-5 max-w-3xl text-[12.5px]">
+        Everything shown in the User App → Community Information section is managed here. Changes
+        sync to the app on save.
+      </AdminHint>
 
-      {error && <p className="mb-3 text-[13px] font-semibold text-[#B0303A]">{error}</p>}
+      <section className="mb-6 rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4">
+        <AdminH3>Cover banner &amp; logo</AdminH3>
+
+        <div className="relative mb-3 h-[132px] overflow-hidden rounded-xl bg-[var(--surface-admin)]">
+          {bannerUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={bannerUrl} alt="" className="size-full object-cover" />
+          ) : (
+            <span className="flex size-full items-center justify-center text-[12.5px] font-semibold text-[var(--faint)]">
+              No cover banner
+            </span>
+          )}
+          <span className="absolute bottom-3 left-3 flex size-14 items-center justify-center overflow-hidden rounded-[14px] border-2 border-white bg-[var(--brand)] text-[15px] font-extrabold text-white shadow">
+            {logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logoUrl} alt="" className="size-full object-cover" />
+            ) : (
+              "—"
+            )}
+          </span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <AdminLabel>Cover banner URL</AdminLabel>
+            <AdminInput
+              value={bannerUrl}
+              onChange={setBannerUrl}
+              placeholder="https://…/banner.jpg"
+            />
+          </div>
+          <div>
+            <AdminLabel>Logo URL</AdminLabel>
+            <AdminInput value={logoUrl} onChange={setLogoUrl} placeholder="https://…/logo.png" />
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2.5">
+          <AdminBtn onClick={saveBranding} disabled={brandBusy}>
+            {brandBusy ? <Loader2 className="size-4 animate-spin" /> : "Save banner & logo"}
+          </AdminBtn>
+          {(bannerUrl || logoUrl) && (
+            <AdminBtn
+              variant="ghost"
+              onClick={() => {
+                setBannerUrl("");
+                setLogoUrl("");
+              }}
+            >
+              Remove
+            </AdminBtn>
+          )}
+        </div>
+      </section>
+
+      {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
@@ -228,7 +322,7 @@ export function InfoClient({
                   <button
                     type="button"
                     onClick={() => setCommitteeEdit({ id: null, nameEn: "", nameGu: "" })}
-                    className="cursor-pointer font-bold text-[#A62A38]"
+                    className="cursor-pointer font-bold text-[var(--brand)]"
                   >
                     + Add committee
                   </button>
@@ -243,9 +337,33 @@ export function InfoClient({
           <AdminH3>Info pages</AdminH3>
           <AdminTable>
             <tbody>
-              {info.map((s) => (
+              {info.map((s, i) => (
                 <tr key={s.id}>
-                  <AdminTd>{s.titleGu || s.titleEn}</AdminTd>
+                  <AdminTd>
+                    <span className="flex items-center gap-2">
+                      <span className="flex flex-col leading-none">
+                        <button
+                          type="button"
+                          aria-label="Move up"
+                          disabled={i === 0}
+                          onClick={() => moveSection(i, -1)}
+                          className="cursor-pointer px-1 text-[10px] text-[var(--faint)] disabled:opacity-30"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Move down"
+                          disabled={i === info.length - 1}
+                          onClick={() => moveSection(i, 1)}
+                          className="cursor-pointer px-1 text-[10px] text-[var(--faint)] disabled:opacity-30"
+                        >
+                          ▼
+                        </button>
+                      </span>
+                      {s.titleGu || s.titleEn}
+                    </span>
+                  </AdminTd>
                   <AdminTd className="text-right">
                     <span className="flex justify-end gap-2">
                       <LinkAction
@@ -273,7 +391,7 @@ export function InfoClient({
                   <button
                     type="button"
                     onClick={() => setInfoEdit({ id: null, titleEn: "", titleGu: "", bodyEn: "", bodyGu: "" })}
-                    className="cursor-pointer font-bold text-[#A62A38]"
+                    className="cursor-pointer font-bold text-[var(--brand)]"
                   >
                     + New page (title + text)
                   </button>
@@ -284,7 +402,7 @@ export function InfoClient({
         </div>
       </div>
 
-      <div className="mt-[26px] rounded-[14px] border border-[#EDE4D4] bg-[#FCFAF6] p-4">
+      <div className="mt-[26px] rounded-[14px] border border-[var(--line-field)] bg-[var(--field)] p-4">
         <AdminH3 className="mb-1">Donations — UPI ID</AdminH3>
         <AdminHint className="mb-3">
           Members on the Donate screen will open a UPI payment to this ID. Leave blank to only record donation pledges.
@@ -303,20 +421,20 @@ export function InfoClient({
           </AdminBtn>
         </div>
         {upiId ? (
-          <p className="mt-2 text-[12px] font-semibold text-[#1E9E52]">Active: {upiId}</p>
+          <p className="mt-2 text-[12px] font-semibold text-[var(--success)]">Active: {upiId}</p>
         ) : (
-          <p className="mt-2 text-[12px] text-[#938C80]">No UPI configured yet.</p>
+          <p className="mt-2 text-[12px] text-[var(--faint)]">No UPI configured yet.</p>
         )}
       </div>
 
       <div className="mt-[26px] flex flex-wrap items-center justify-between gap-3">
         <AdminH3 className="mb-0">Directory privacy by village (ગામ પ્રમાણે નંબર)</AdminH3>
-        <label className="flex items-center gap-2 text-[11.5px] font-bold text-[#57524A]">
+        <label className="flex items-center gap-2 text-[11.5px] font-bold text-[var(--ink-mid)]">
           <span>Global: show phones in directory</span>
           <Switch
             checked={globalPhones}
             onCheckedChange={toggleGlobal}
-            className="h-[27px] w-[46px] data-checked:bg-[#25A056] data-unchecked:bg-[#D8D0C2] [&_[data-slot=switch-thumb]]:size-[21px]"
+            className="h-[27px] w-[46px] data-checked:bg-[var(--wa)] data-unchecked:bg-[var(--scroll-thumb)] [&_[data-slot=switch-thumb]]:size-[21px]"
           />
         </label>
       </div>
@@ -348,14 +466,14 @@ export function InfoClient({
                     checked={v.showPhones}
                     onCheckedChange={() => toggleVillage(v)}
                     className={cn(
-                      "h-[27px] w-[46px] data-checked:bg-[#25A056] data-unchecked:bg-[#D8D0C2]",
+                      "h-[27px] w-[46px] data-checked:bg-[var(--wa)] data-unchecked:bg-[var(--scroll-thumb)]",
                       "[&_[data-slot=switch-thumb]]:size-[21px]",
                     )}
                   />
                   <span
                     className={cn(
                       "text-[11.5px] font-bold",
-                      v.showPhones ? "text-[#1E9E52]" : "text-[#B0303A]",
+                      v.showPhones ? "text-[var(--success)]" : "text-[var(--danger)]",
                     )}
                   >
                     {v.showPhones ? "ON · shown" : "OFF · hidden"}
@@ -369,7 +487,7 @@ export function InfoClient({
               <button
                 type="button"
                 onClick={() => setVillageAdd({ nameEn: "", nameGu: "" })}
-                className="cursor-pointer font-bold text-[#A62A38]"
+                className="cursor-pointer font-bold text-[var(--brand)]"
               >
                 + Add village / area
               </button>
@@ -382,7 +500,7 @@ export function InfoClient({
       <Dialog open={committeeEdit !== null} onOpenChange={(o) => !o && setCommitteeEdit(null)}>
         <DialogContent className="max-w-[360px] rounded-2xl sm:max-w-[360px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">
+            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
               {committeeEdit?.id ? "Edit committee" : "Add committee"}
             </DialogTitle>
           </DialogHeader>
@@ -421,7 +539,7 @@ export function InfoClient({
       <Dialog open={infoEdit !== null} onOpenChange={(o) => !o && setInfoEdit(null)}>
         <DialogContent className="max-h-[88vh] max-w-[460px] overflow-y-auto rounded-2xl sm:max-w-[460px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">
+            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
               {infoEdit?.id ? "Edit info page" : "New info page"}
             </DialogTitle>
           </DialogHeader>
@@ -451,7 +569,7 @@ export function InfoClient({
                   setInfoEdit((prev) => (prev ? { ...prev, bodyEn: v } : prev));
                   fromEn(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, bodyGu: gu } : prev)), "body");
                 }}
-                className="mb-2 min-h-[80px] border-[#EDE4D4] bg-[#FCFAF6] text-[13px]"
+                className="mb-2 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
               <AdminLabel>Body (ગુજરાતી)</AdminLabel>
               <Textarea
@@ -461,7 +579,7 @@ export function InfoClient({
                   setInfoEdit((prev) => (prev ? { ...prev, bodyGu: v } : prev));
                   fromGu(v, (en) => setInfoEdit((prev) => (prev ? { ...prev, bodyEn: en } : prev)), "body");
                 }}
-                className="mb-2 min-h-[80px] border-[#EDE4D4] bg-[#FCFAF6] text-[13px]"
+                className="mb-2 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
               <div className="mt-3 flex gap-2.5">
                 <AdminBtn className="flex-1 justify-center" onClick={saveInfo}>
@@ -480,7 +598,7 @@ export function InfoClient({
       <Dialog open={villageAdd !== null} onOpenChange={(o) => !o && setVillageAdd(null)}>
         <DialogContent className="max-w-[360px] rounded-2xl sm:max-w-[360px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">Add village / area</DialogTitle>
+            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">Add village / area</DialogTitle>
           </DialogHeader>
           {villageAdd && (
             <div>
@@ -585,37 +703,37 @@ function CommitteeMembersModal({
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[88vh] max-w-[440px] overflow-y-auto rounded-2xl p-0 sm:max-w-[440px]" showCloseButton={false}>
-        <div className="sticky top-0 flex items-center justify-between border-b border-[#F1EBDE] bg-white px-6 py-5">
-          <DialogTitle className="text-base font-extrabold text-[#2A2620]">
+        <div className="sticky top-0 flex items-center justify-between border-b border-[var(--line-soft)] bg-white px-6 py-5">
+          <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
             {committee.nameGu || committee.nameEn} — members
           </DialogTitle>
-          <button type="button" onClick={onClose} className="cursor-pointer text-[#A79E92]">
+          <button type="button" onClick={onClose} className="cursor-pointer text-[var(--faint-soft)]">
             <X className="size-5" />
           </button>
         </div>
         <div className="px-6 py-4 pb-5">
           {loading ? (
-            <div className="flex items-center gap-2 py-6 text-[13px] text-[#938C80]">
+            <div className="flex items-center gap-2 py-6 text-[13px] text-[var(--faint)]">
               <Loader2 className="size-4 animate-spin" /> Loading…
             </div>
           ) : (
             <>
               {members.map((m) => (
-                <div key={m.id} className="mb-2 flex items-center gap-3 rounded-xl border border-[#F0E9DB] bg-white p-3">
+                <div key={m.id} className="mb-2 flex items-center gap-3 rounded-xl border border-[var(--line)] bg-white p-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13.5px] font-bold text-[#2A2620]">{m.nameOverride || "—"}</div>
-                    <div className="text-[11.5px] text-[#938C80]">
+                    <div className="text-[13.5px] font-bold text-[var(--ink)]">{m.nameOverride || "—"}</div>
+                    <div className="text-[11.5px] text-[var(--faint)]">
                       {m.roleGu || "—"} {m.phoneOverride ? `· ${m.phoneOverride}` : ""}
                     </div>
                   </div>
-                  <button type="button" onClick={() => remove(m.id)} className="cursor-pointer text-[11px] font-bold text-[#B0303A] underline">
+                  <button type="button" onClick={() => remove(m.id)} className="cursor-pointer text-[11px] font-bold text-[var(--danger)] underline">
                     Remove
                   </button>
                 </div>
               ))}
-              {members.length === 0 && <p className="mb-2 text-[12.5px] text-[#938C80]">No members yet.</p>}
+              {members.length === 0 && <p className="mb-2 text-[12.5px] text-[var(--faint)]">No members yet.</p>}
 
-              <div className="mt-3 rounded-xl border border-[#EEE7DA] bg-[#FCFAF6] p-3">
+              <div className="mt-3 rounded-xl border border-[#EEE7DA] bg-[var(--field)] p-3">
                 <AdminLabel>Member name *</AdminLabel>
                 <AdminInput value={form.nameOverride} onChange={(v) => setForm({ ...form, nameOverride: v })} />
                 <div className="grid grid-cols-2 gap-2">
@@ -628,7 +746,7 @@ function CommitteeMembersModal({
                     <AdminInput value={form.phoneOverride} onChange={(v) => setForm({ ...form, phoneOverride: v })} />
                   </div>
                 </div>
-                {error && <p className="mt-2 text-[12.5px] font-semibold text-[#B0303A]">{error}</p>}
+                {error && <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
                 <AdminBtn className="mt-3 w-full justify-center" onClick={add}>
                   {busy ? <Loader2 className="size-4 animate-spin" /> : "+ Add member"}
                 </AdminBtn>

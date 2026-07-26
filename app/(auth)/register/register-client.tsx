@@ -181,16 +181,16 @@ export function RegisterClient({
           <motion.div
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
-            className="flex h-[92px] w-[92px] items-center justify-center rounded-full border-2 border-[#B7E6C6] bg-[#E4F5E9] text-[#128C43]"
+            className="flex h-[92px] w-[92px] items-center justify-center rounded-full border-2 border-[#B7E6C6] bg-[var(--success-tint)] text-[var(--wa-dark)]"
           >
             <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
               <path d="m5 12 5 5 9-11" />
             </svg>
           </motion.div>
-          <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[21px] font-bold text-[#2A2320]">
+          <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[21px] font-bold text-[var(--ink)]">
             {T("નોંધણી મળી ગઈ!", "Registration received!")}
           </div>
-          <p className="max-w-[280px] text-[13.5px] leading-relaxed text-[#57524A]">
+          <p className="max-w-[280px] text-[13.5px] leading-relaxed text-[var(--ink-mid)]">
             {T(
               "એડમિન મંજૂરી આપશે એટલે તમારા WhatsApp નંબર પર જાણ થશે. પછી એ જ નંબરથી લોગિન કરી શકાશે.",
               "Once the admin approves, you'll be notified on your WhatsApp number. You can then log in with that number.",
@@ -198,13 +198,13 @@ export function RegisterClient({
           </p>
           {selectedGroup && (
             <div className="samaj-card mt-1.5 w-full max-w-[300px] p-4 text-left">
-              <div className="mb-2.5 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">
+              <div className="mb-2.5 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
                 {T("અટક જૂથ", "SURNAME GROUP")}
               </div>
-              <div className="text-sm font-bold text-[#2A2320]">
+              <div className="text-sm font-bold text-[var(--ink)]">
                 {pickText(selectedGroup.nameGu, selectedGroup.nameEn, lang)}
               </div>
-              <div className="mt-1 text-[11.5px] font-medium text-[#938C80]">
+              <div className="mt-1 text-[11.5px] font-medium text-[var(--faint)]">
                 {T("મંજૂરી માટે એડમિન કતારમાં", "In admin approval queue")}
               </div>
             </div>
@@ -229,14 +229,14 @@ export function RegisterClient({
                 m1blood: "B+",
               });
             }}
-            className="mt-1 w-full max-w-[280px] rounded-[14px] border border-dashed border-[#E1BFC3] bg-white py-3 text-sm font-bold text-[#A62A38]"
+            className="mt-1 w-full max-w-[280px] rounded-[14px] border border-dashed border-[var(--brand-line)] bg-white py-3 text-sm font-bold text-[var(--brand)]"
           >
             {T("બીજા પરિવારની નોંધણી કરો", "Register another family")}
           </button>
           <Link
             href="/login"
-            className="flex h-[52px] w-full max-w-[280px] items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgba(166,42,56,.6)]"
-            style={{ background: "linear-gradient(135deg,#A62A38,#851F2B)" }}
+            className="flex h-[52px] w-full max-w-[280px] items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgb(var(--brand-rgb) / .6)]"
+            style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
           >
             {T("લોગિન પર જાઓ", "Go to login")}
           </Link>
@@ -287,8 +287,8 @@ export function RegisterClient({
                   className={cn(
                     "rounded-full px-4 py-2.5 text-[13px] font-bold",
                     newMember.relation === r.en
-                      ? "bg-[#A62A38] text-white"
-                      : "border border-[#EDE4D4] bg-white text-[#6B6357]",
+                      ? "bg-[var(--brand)] text-white"
+                      : "border border-[var(--line-field)] bg-white text-[var(--ink-dim)]",
                   )}
                 >
                   {lang === "gu" ? r.gu : r.en}
@@ -338,7 +338,7 @@ export function RegisterClient({
             <span
               className={cn(
                 "relative h-[27px] w-[46px] rounded-2xl transition-colors",
-                newMember.hasWa ? "bg-[#A62A38]" : "bg-[#D8D0C2]",
+                newMember.hasWa ? "bg-[var(--brand)]" : "bg-[var(--scroll-thumb)]",
               )}
             >
               <span
@@ -366,7 +366,7 @@ export function RegisterClient({
               });
             }}
             className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white"
-            style={{ background: "linear-gradient(135deg,#A62A38,#851F2B)" }}
+            style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
           >
             {T("સભ્ય ઉમેરો", "Add member")}
           </button>
@@ -400,9 +400,9 @@ export function RegisterClient({
                 className={cn(
                   "flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full text-[13px] font-extrabold",
                   s.active
-                    ? "bg-white text-[#A62A38]"
+                    ? "bg-white text-[var(--brand)]"
                     : s.done
-                      ? "bg-[#E8A33D] text-white"
+                      ? "bg-[var(--gold)] text-white"
                       : "bg-white/18 text-white/70",
                 )}
               >
@@ -415,7 +415,7 @@ export function RegisterClient({
       </header>
 
       <div className="appscroll flex-1 overflow-y-auto px-4 py-4 pb-6">
-        {error && <p className="mb-3 text-[13px] font-semibold text-[#B0303A]">{error}</p>}
+        {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
         {surnameGroups.length === 0 && (
           <p className="mb-3 rounded-[14px] border border-[#EFE3CB] bg-[#FDF9F0] p-3.5 text-xs text-[#8B7A55]">
@@ -429,7 +429,7 @@ export function RegisterClient({
         <AnimatePresence mode="wait">
           {step === 1 && (
             <motion.div key="s1" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
-              <h2 className="mb-3.5 text-[15px] font-extrabold text-[#2A2320]">
+              <h2 className="mb-3.5 text-[15px] font-extrabold text-[var(--ink)]">
                 {T("પરિવારની માહિતી", "Family information")}
               </h2>
               <div className="mb-3 grid grid-cols-2 gap-2.5">
@@ -438,17 +438,17 @@ export function RegisterClient({
                     <button
                       type="button"
                       onClick={() => setGroupOpen(!groupOpen)}
-                      className="samaj-fld flex w-full items-center justify-between bg-[#FCFAF6]"
+                      className="samaj-fld flex w-full items-center justify-between bg-[var(--field)]"
                     >
                       <span className="truncate">
                         {selectedGroup
                           ? pickText(selectedGroup.nameGu, selectedGroup.nameEn, lang)
                           : T("પસંદ કરો", "Select")}
                       </span>
-                      <ChevronDown className="h-5 w-5 flex-none text-[#A62A38]" />
+                      <ChevronDown className="h-5 w-5 flex-none text-[var(--brand)]" />
                     </button>
                     {groupOpen && (
-                      <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[13px] border border-[#EDE4D4] bg-white shadow-lg">
+                      <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
                         {surnameGroups.map((g, i) => (
                           <button
                             key={g.id}
@@ -459,8 +459,8 @@ export function RegisterClient({
                             }}
                             className={cn(
                               "block w-full px-3 py-2.5 text-left text-sm",
-                              i > 0 && "border-t border-[#F1EBDE]",
-                              surnameGroupId === g.id && "bg-[#FBEBEC] font-bold text-[#A62A38]",
+                              i > 0 && "border-t border-[var(--line-soft)]",
+                              surnameGroupId === g.id && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
                             )}
                           >
                             {pickText(g.nameGu, g.nameEn, lang)}
@@ -471,7 +471,7 @@ export function RegisterClient({
                   </div>
                 </Field>
                 <Field label={T("(ગુજરાતી)", "(Gujarati)")}>
-                  <div className="flex min-h-[44px] items-center rounded-[13px] border border-dashed border-[#E1DACC] bg-[#F7F3EC] px-3.5 text-sm text-[#6B6357]">
+                  <div className="flex min-h-[44px] items-center rounded-[13px] border border-dashed border-[var(--line-input)] bg-[#F7F3EC] px-3.5 text-sm text-[var(--ink-dim)]">
                     {selectedGroup?.nameGu || selectedGroup?.nameEn || "—"}
                   </div>
                 </Field>
@@ -514,13 +514,13 @@ export function RegisterClient({
                       setForm({ ...form, loc: city || T("સ્થળ સેવ થયું", "Location saved") });
                     }
                   }}
-                  className="mt-2 flex h-12 w-full items-center gap-2.5 rounded-[13px] border-[1.5px] border-[#E1DACC] bg-white px-3"
+                  className="mt-2 flex h-12 w-full items-center gap-2.5 rounded-[13px] border-[1.5px] border-[var(--line-input)] bg-white px-3"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#EAF2E8] text-[#1E7A3E]">
                     <MapPin className="h-[19px] w-[19px]" />
                   </span>
                   <div className="min-w-0 flex-1 text-left">
-                    <div className="text-[13.5px] font-bold text-[#2A2320]">
+                    <div className="text-[13.5px] font-bold text-[var(--ink)]">
                       {form.loc
                         ? T("સ્થળ સેવ થયું", "Location captured")
                         : T("નકશા પર સ્થળ પસંદ કરો", "Pin location on map")}
@@ -538,10 +538,10 @@ export function RegisterClient({
                       className="samaj-fld flex w-full items-center justify-between"
                     >
                       {city || T("પસંદ કરો", "Select")}
-                      <ChevronDown className="h-5 w-5 text-[#A62A38]" />
+                      <ChevronDown className="h-5 w-5 text-[var(--brand)]" />
                     </button>
                     {halOpen && (
-                      <div className="absolute left-0 right-0 top-full z-15 mt-1 overflow-hidden rounded-[13px] border border-[#EDE4D4] bg-white shadow-lg">
+                      <div className="absolute left-0 right-0 top-full z-15 mt-1 overflow-hidden rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
                         {cityOptions.map((o, i) => (
                           <button
                             key={o}
@@ -552,8 +552,8 @@ export function RegisterClient({
                             }}
                             className={cn(
                               "block w-full px-3 py-2.5 text-left text-sm",
-                              i > 0 && "border-t border-[#F1EBDE]",
-                              city === o && "bg-[#FBEBEC] font-bold text-[#A62A38]",
+                              i > 0 && "border-t border-[var(--line-soft)]",
+                              city === o && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
                             )}
                           >
                             {o}
@@ -609,24 +609,24 @@ export function RegisterClient({
             <motion.div key="s2" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
               <div className="mb-3.5 flex items-center justify-between rounded-2xl bg-[#F4EFE6] px-3.5 py-3">
                 <div>
-                  <div className="text-[11px] font-extrabold tracking-wide text-[#8B8375]">
+                  <div className="text-[11px] font-extrabold tracking-wide text-[var(--muted)]">
                     {T("પરિવારની માહિતી", "FAMILY INFO")}
                   </div>
                   <div className="mt-0.5 text-sm font-bold">
                     {selectedGroup ? pickText(selectedGroup.nameGu, selectedGroup.nameEn, lang) : "—"}
                   </div>
                 </div>
-                <button type="button" onClick={() => setStep(1)} className="text-xs font-bold text-[#A62A38] underline">
+                <button type="button" onClick={() => setStep(1)} className="text-xs font-bold text-[var(--brand)] underline">
                   {T("ફેરફાર", "Edit")}
                 </button>
               </div>
               <h2 className="mb-3 text-[15px] font-extrabold">
                 {T(`ઘરના સભ્યો (${members.length + 1} ઉમેર્યા)`, `Household members (${members.length + 1} added)`)}
               </h2>
-              <div className="samaj-card mb-3 border-[1.5px] border-[#EED8A8] p-[15px]">
+              <div className="samaj-card mb-3 border-[1.5px] border-[var(--gold-border)] p-[15px]">
                 <div className="mb-2.5 flex items-center justify-between">
                   <b className="text-[14.5px]">{T("સભ્ય 1 — વડા", "Member 1 — Head")}</b>
-                  <span className="rounded-lg bg-[#FBEDEE] px-2 py-0.5 text-[10px] font-extrabold text-[#A62A38]">
+                  <span className="rounded-lg bg-[var(--brand-tint)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--brand)]">
                     {T("પરિવારના વડા", "Family head")}
                   </span>
                 </div>
@@ -686,13 +686,13 @@ export function RegisterClient({
                 <div key={i} className="samaj-card mb-3 p-[15px]">
                   <div className="mb-2 flex justify-between">
                     <b>{T(`સભ્ય ${i + 2}`, `Member ${i + 2}`)}</b>
-                    <span className="rounded-lg bg-[#F4EFE6] px-2 py-0.5 text-[10px] font-bold text-[#6B6357]">
+                    <span className="rounded-lg bg-[#F4EFE6] px-2 py-0.5 text-[10px] font-bold text-[var(--ink-dim)]">
                       {m.relation}
                     </span>
                   </div>
                   <div className="samaj-fld flex justify-between">
                     {lang === "gu" && m.nameGu ? m.nameGu : m.name}
-                    <span className="rounded-md bg-[#F4EFE6] px-2 py-0.5 text-[11px] font-bold text-[#8B8375]">
+                    <span className="rounded-md bg-[#F4EFE6] px-2 py-0.5 text-[11px] font-bold text-[var(--muted)]">
                       {selectedGroup ? selectedGroup.nameEn : ""}
                     </span>
                   </div>
@@ -701,7 +701,7 @@ export function RegisterClient({
               <button
                 type="button"
                 onClick={() => setAddOpen(true)}
-                className="mb-3 flex h-12 w-full items-center justify-center rounded-[14px] border border-dashed border-[#E1BFC3] bg-white text-sm font-bold text-[#A62A38]"
+                className="mb-3 flex h-12 w-full items-center justify-center rounded-[14px] border border-dashed border-[var(--brand-line)] bg-white text-sm font-bold text-[var(--brand)]"
               >
                 ＋ {T("બીજા સભ્ય ઉમેરો", "Add another member")}
               </button>
@@ -722,7 +722,7 @@ export function RegisterClient({
             <motion.div key="s3" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
               <h2 className="mb-3 text-[15px] font-extrabold">{T("ચકાસો અને મોકલો", "Review & send")}</h2>
               <div className="samaj-card mb-3 p-4">
-                <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">
+                <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
                   {T("પરિવારની માહિતી", "FAMILY INFO")}
                 </div>
                 <Kv
@@ -731,22 +731,22 @@ export function RegisterClient({
                 />
                 <Kv k={T("સરનામું", "Address")} v={form.addr || "—"} />
                 <Kv k={T("હાલ", "Currently at")} v={city || "—"} />
-                <button type="button" onClick={() => setStep(1)} className="mt-1.5 text-xs font-bold text-[#A62A38] underline">
+                <button type="button" onClick={() => setStep(1)} className="mt-1.5 text-xs font-bold text-[var(--brand)] underline">
                   {T("ફેરફાર કરવો?", "Make changes?")}
                 </button>
               </div>
               <div className="samaj-card mb-3 p-4">
                 <div className="mb-2 flex justify-between">
-                  <span className="text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">
+                  <span className="text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
                     {T("સભ્યો", "Members")} ({members.length + 1})
                   </span>
-                  <button type="button" onClick={() => setStep(2)} className="text-xs font-bold text-[#A62A38] underline">
+                  <button type="button" onClick={() => setStep(2)} className="text-xs font-bold text-[var(--brand)] underline">
                     {T("ફેરફાર", "Edit")}
                   </button>
                 </div>
                 {[form.m1name, ...members.map((m) => m.name)].map((n, i) => (
-                  <div key={i} className="flex items-center gap-3 border-t border-[#F4EEE3] py-2 first:border-0">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FCE7E7] text-[15px] font-extrabold text-[#B0303A]">
+                  <div key={i} className="flex items-center gap-3 border-t border-[var(--cream)] py-2 first:border-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--danger-tint)] text-[15px] font-extrabold text-[var(--danger)]">
                       {n.trim()[0] || "?"}
                     </div>
                     <div className="flex-1 text-[13.5px] font-bold">{n}</div>
@@ -780,7 +780,7 @@ export function RegisterClient({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-3.5">
-      <div className="mb-1 text-xs font-bold text-[#8B8375]">{label}</div>
+      <div className="mb-1 text-xs font-bold text-[var(--muted)]">{label}</div>
       {children}
     </div>
   );
@@ -800,8 +800,8 @@ function PrimaryBtn({
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgba(166,42,56,.6)] disabled:opacity-70"
-      style={{ background: "linear-gradient(135deg,#A62A38,#851F2B)" }}
+      className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgb(var(--brand-rgb) / .6)] disabled:opacity-70"
+      style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
     >
       {busy ? <Loader2 className="size-5 animate-spin" /> : children}
     </button>
@@ -810,8 +810,8 @@ function PrimaryBtn({
 
 function Kv({ k, v }: { k: string; v: string }) {
   return (
-    <div className="flex gap-3 py-1 text-[13px] text-[#3C382F]">
-      <b className="min-w-[70px] flex-none font-bold text-[#938C80]">{k}</b>
+    <div className="flex gap-3 py-1 text-[13px] text-[var(--ink-soft)]">
+      <b className="min-w-[70px] flex-none font-bold text-[var(--faint)]">{k}</b>
       <span>{v}</span>
     </div>
   );

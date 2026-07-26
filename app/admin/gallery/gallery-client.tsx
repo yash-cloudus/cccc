@@ -1,53 +1,79 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { ImageIcon, Plus } from "lucide-react";
 import {
   AdminBtn,
   AdminH2,
   AdminHint,
   AdminInput,
-  AdminLabel,
-  AdminTable,
-  AdminTd,
-  AdminTh,
+  AdminSelect,
   LinkAction,
 } from "@/components/admin/admin-ui";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  AdminField,
+  AdminFilePicker,
+  AdminFormRow,
+  AdminModal,
+  AdminModalActions,
+  AdminMultiImagePicker,
+  AdminSegmented,
+} from "@/components/admin/admin-form";
 import { api } from "@/lib/http";
+import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+
+export type AlbumImage = { imageUrl: string; caption: string | null };
 
 export type AlbumRow = {
   id: string;
   titleEn: string;
   titleGu: string | null;
   coverUrl: string | null;
+  accent: string | null;
+  albumDateISO: string | null;
   youtubeUrl: string | null;
   description: string | null;
   isVisible: boolean;
   photos: number;
+  images: AlbumImage[];
   date: string;
 };
 
 type Draft = {
+  id: string | null;
   titleEn: string;
   titleGu: string;
   albumDate: string;
+  accent: string;
   coverUrl: string;
   youtubeUrl: string;
   description: string;
+  isVisible: boolean;
+  images: string[];
 };
 
 const emptyDraft: Draft = {
+  id: null,
   titleEn: "",
   titleGu: "",
   albumDate: "",
+  accent: "#8E2230",
   coverUrl: "",
   youtubeUrl: "",
   description: "",
+  isVisible: true,
+  images: [],
 };
+
+/** Album accent colours — same set as Admin.dc.html `accentOpts`. */
+const ACCENTS = [
+  { value: "#8E2230", label: "Maroon" },
+  { value: "#B26A1E", label: "Amber" },
+  { value: "#3D6B8C", label: "Blue" },
+  { value: "#6A4E9C", label: "Purple" },
+  { value: "#4E7A45", label: "Green" },
+];
 
 export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   const { fromEn, fromGu } = useTranslitSync();
@@ -56,41 +82,80 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function create() {
+  function openCreate() {
+    setError(null);
+    setDraft({ ...emptyDraft });
+  }
+
+  function openEdit(a: AlbumRow) {
+    setError(null);
+    setDraft({
+      id: a.id,
+      titleEn: a.titleEn,
+      titleGu: a.titleGu || "",
+      albumDate: a.albumDateISO ? a.albumDateISO.slice(0, 10) : "",
+      accent: a.accent || "#8E2230",
+      coverUrl: a.coverUrl || "",
+      youtubeUrl: a.youtubeUrl || "",
+      description: a.description || "",
+      isVisible: a.isVisible,
+      images: a.images.map((i) => i.imageUrl),
+    });
+  }
+
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+  /** Create or update in one path — the dialog is the same for both. */
+  async function saveAlbum() {
     if (!draft) return;
-    if (!draft.titleEn.trim()) return setError("Album title (English) is required");
+    if (!draft.titleGu.trim() && !draft.titleEn.trim()) {
+      return setError("Folder name is required");
+    }
     setBusy(true);
     setError(null);
-    const res = await api.post<{ id: string }>(`/api/gallery`, {
-      titleEn: draft.titleEn,
-      titleGu: draft.titleGu || undefined,
+
+    const payload = {
+      titleEn: draft.titleEn.trim() || draft.titleGu.trim(),
+      titleGu: draft.titleGu.trim() || undefined,
       albumDate: draft.albumDate || undefined,
+      accent: draft.accent || undefined,
       coverUrl: draft.coverUrl || undefined,
       youtubeUrl: draft.youtubeUrl || undefined,
       description: draft.description || undefined,
-    });
+      isVisible: draft.isVisible,
+      images: draft.images.map((imageUrl) => ({ imageUrl })),
+    };
+
+    const res = draft.id
+      ? await api.patch<{ id: string }>(`/api/gallery`, { id: draft.id, ...payload })
+      : await api.post<{ id: string }>(`/api/gallery`, payload);
+
     setBusy(false);
     if (!res.ok) return setError(res.error);
-    setRows((prev) => [
-      {
-        id: res.data.id,
-        titleEn: draft.titleEn,
-        titleGu: draft.titleGu || null,
-        coverUrl: draft.coverUrl || null,
-        youtubeUrl: draft.youtubeUrl || null,
-        description: draft.description || null,
-        isVisible: true,
-        photos: 0,
-        date: draft.albumDate
-          ? new Date(draft.albumDate).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "—",
-      },
-      ...prev,
-    ]);
+
+    const row: AlbumRow = {
+      id: res.data.id,
+      titleEn: payload.titleEn,
+      titleGu: draft.titleGu || null,
+      coverUrl: draft.coverUrl || null,
+      accent: draft.accent,
+      youtubeUrl: draft.youtubeUrl || null,
+      description: draft.description || null,
+      isVisible: draft.isVisible,
+      photos: draft.images.length,
+      images: draft.images.map((imageUrl) => ({ imageUrl, caption: null })),
+      albumDateISO: draft.albumDate || null,
+      date: draft.albumDate ? fmtDate(draft.albumDate) : "—",
+    };
+
+    setRows((prev) =>
+      draft.id ? prev.map((r) => (r.id === draft.id ? row : r)) : [row, ...prev],
+    );
     setDraft(null);
   }
 
@@ -113,103 +178,182 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
 
   return (
     <>
-      <AdminH2>Gallery — albums</AdminH2>
-      <AdminBtn className="mb-4 inline-flex" onClick={() => { setDraft({ ...emptyDraft }); setError(null); }}>
-        <Plus className="size-4" />
-        Create album
-      </AdminBtn>
+      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+        <AdminH2 className="mb-0">Gallery — albums</AdminH2>
+        <AdminBtn onClick={openCreate}>
+          <Plus className="size-4" />
+          Create album (folder)
+        </AdminBtn>
+      </div>
 
-      {error && !draft && <p className="mb-3 text-[13px] font-semibold text-[#B0303A]">{error}</p>}
+      <AdminHint className="mt-0 mb-5 max-w-3xl text-[12.5px]">
+        Create a folder with a name &amp; date, then upload multiple images into it. Photos appear
+        in the User App under that album.
+      </AdminHint>
 
-      <AdminTable>
-        <thead>
-          <tr>
-            <AdminTh>Album</AdminTh>
-            <AdminTh>Date</AdminTh>
-            <AdminTh>Photos</AdminTh>
-            <AdminTh>Visible</AdminTh>
-            <AdminTh></AdminTh>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((a) => (
-            <tr key={a.id}>
-              <AdminTd>{a.titleGu || a.titleEn}</AdminTd>
-              <AdminTd>{a.date}</AdminTd>
-              <AdminTd>{a.photos}</AdminTd>
-              <AdminTd>
-                <Switch
-                  checked={a.isVisible}
-                  onCheckedChange={() => toggleVisible(a)}
-                  className="h-[24px] w-10 data-checked:bg-[#25A056] data-unchecked:bg-[#D8D0C2]"
-                />
-              </AdminTd>
-              <AdminTd>
+      {error && !draft && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
+
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
+        {rows.map((a) => (
+          <article
+            key={a.id}
+            className="flex flex-col overflow-hidden rounded-2xl border border-[var(--line-admin)] bg-white"
+          >
+            <div className="relative h-[132px] bg-[var(--surface-admin)]">
+              {a.coverUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={a.coverUrl} alt="" className="size-full object-cover" />
+              ) : (
+                <span className="flex size-full items-center justify-center">
+                  <ImageIcon className="size-8 text-[var(--faint-soft)]" strokeWidth={1.6} />
+                </span>
+              )}
+              <span
+                className={cn(
+                  "absolute top-2.5 right-2.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                  a.isVisible
+                    ? "bg-[var(--success-tint)] text-[var(--success)]"
+                    : "bg-[var(--line-soft)] text-[var(--muted)]",
+                )}
+              >
+                {a.isVisible ? "Visible" : "Hidden"}
+              </span>
+            </div>
+
+            <div className="flex min-w-0 flex-1 flex-col p-3.5">
+              <h3 className="truncate text-[14px] font-extrabold text-[var(--ink)]">
+                {a.titleGu || a.titleEn}
+              </h3>
+              <p className="mt-0.5 text-[11.5px] font-semibold text-[var(--faint)]">
+                {a.date} · {a.photos} photo{a.photos === 1 ? "" : "s"}
+                {a.youtubeUrl ? " · video" : ""}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2.5 border-t border-[var(--line-soft)] pt-3">
+                <LinkAction onClick={() => openEdit(a)}>Upload / manage</LinkAction>
+                <LinkAction onClick={() => toggleVisible(a)}>
+                  {a.isVisible ? "Hide" : "Show"}
+                </LinkAction>
                 <LinkAction danger onClick={() => remove(a.id)}>
                   Delete
                 </LinkAction>
-              </AdminTd>
-            </tr>
-          ))}
-        </tbody>
-      </AdminTable>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
 
       {rows.length === 0 && (
-        <p className="py-6 text-center text-[11.5px] text-[#938C80]">No albums yet.</p>
+        <p className="py-10 text-center text-[13px] text-[var(--faint)]">
+          No albums yet — create your first folder.
+        </p>
       )}
 
       <AdminHint>
         Album = title + date + description + cover. Long videos = YouTube link inside album.
       </AdminHint>
 
-      <Dialog open={draft !== null} onOpenChange={(o) => !o && setDraft(null)}>
-        <DialogContent className="max-h-[90vh] max-w-[460px] overflow-y-auto rounded-2xl sm:max-w-[460px]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">Create album</DialogTitle>
-          </DialogHeader>
-          {draft && (
-            <div>
-              <AdminLabel>Title (English) *</AdminLabel>
-              <AdminInput
-                value={draft.titleEn}
-                onChange={(v) => {
-                  setDraft((prev) => (prev ? { ...prev, titleEn: v } : prev));
-                  fromEn(v, (gu) => setDraft((prev) => (prev ? { ...prev, titleGu: gu } : prev)));
-                }}
-              />
-              <AdminLabel>Title (ગુજરાતી)</AdminLabel>
+      <AdminModal
+        open={draft !== null}
+        onClose={() => setDraft(null)}
+        title={draft?.id ? "Edit album" : "Create album"}
+        subtitle="Folder name, date & description."
+        footer={
+          <AdminModalActions
+            onSave={saveAlbum}
+            onCancel={() => setDraft(null)}
+            saveLabel={draft?.id ? "Save album" : "Create"}
+            busy={busy}
+          />
+        }
+      >
+        {draft && (
+          <>
+            <AdminField label="Folder name (ગુજરાતી)" required>
               <AdminInput
                 value={draft.titleGu}
+                placeholder="દા.ત. પાટોત્સવ 2026"
                 onChange={(v) => {
-                  setDraft((prev) => (prev ? { ...prev, titleGu: v } : prev));
-                  fromGu(v, (en) => setDraft((prev) => (prev ? { ...prev, titleEn: en } : prev)));
+                  setDraft((d) => (d ? { ...d, titleGu: v } : d));
+                  fromGu(v, (en) => setDraft((d) => (d ? { ...d, titleEn: en } : d)));
                 }}
               />
-              <AdminLabel>Album date</AdminLabel>
-              <AdminInput type="date" value={draft.albumDate} onChange={(v) => setDraft({ ...draft, albumDate: v })} />
-              <AdminLabel>Cover image URL</AdminLabel>
-              <AdminInput value={draft.coverUrl} onChange={(v) => setDraft({ ...draft, coverUrl: v })} />
-              <AdminLabel>YouTube URL (optional)</AdminLabel>
-              <AdminInput value={draft.youtubeUrl} onChange={(v) => setDraft({ ...draft, youtubeUrl: v })} />
-              <AdminLabel>Description</AdminLabel>
-              <Textarea
-                value={draft.description}
-                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-                className="mb-2 min-h-[70px] border-[#EDE4D4] bg-[#FCFAF6] text-[13px]"
+            </AdminField>
+
+            <AdminField label="Folder name (English)">
+              <AdminInput
+                value={draft.titleEn}
+                placeholder="e.g. Patotsav 2026"
+                onChange={(v) => {
+                  setDraft((d) => (d ? { ...d, titleEn: v } : d));
+                  fromEn(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)));
+                }}
               />
-              {error && <p className="mt-2 text-[12.5px] font-semibold text-[#B0303A]">{error}</p>}
-              <div className="mt-4 flex gap-2.5">
-                <AdminBtn className="flex-1 justify-center" onClick={create}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : "Create"}
-                </AdminBtn>
-                <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setDraft(null)}>
-                  Cancel
-                </AdminBtn>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            </AdminField>
+
+            <AdminFormRow>
+              <AdminField label="Date">
+                <AdminInput
+                  type="date"
+                  value={draft.albumDate}
+                  onChange={(v) => setDraft({ ...draft, albumDate: v })}
+                />
+              </AdminField>
+              <AdminField label="Accent color">
+                <AdminSelect
+                  value={draft.accent}
+                  onChange={(v) => setDraft({ ...draft, accent: v })}
+                  className="w-full"
+                  options={ACCENTS}
+                />
+              </AdminField>
+            </AdminFormRow>
+
+            <AdminField label="Description (ગુજરાતી)">
+              <AdminInput
+                value={draft.description}
+                placeholder="ટૂંકી વિગત"
+                onChange={(v) => setDraft({ ...draft, description: v })}
+              />
+            </AdminField>
+
+            <AdminField label="Status">
+              <AdminSegmented
+                value={draft.isVisible ? "active" : "hidden"}
+                onChange={(v) => setDraft({ ...draft, isVisible: v === "active" })}
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "hidden", label: "Hidden" },
+                ]}
+              />
+            </AdminField>
+
+            <AdminField label="Cover image">
+              <AdminFilePicker
+                value={draft.coverUrl}
+                folder="gallery"
+                onChange={(url) => setDraft((d) => (d ? { ...d, coverUrl: url } : d))}
+              />
+            </AdminField>
+
+            <AdminField label="YouTube URL (optional)">
+              <AdminInput
+                value={draft.youtubeUrl}
+                onChange={(v) => setDraft({ ...draft, youtubeUrl: v })}
+              />
+            </AdminField>
+
+            <AdminField label={`Photos (${draft.images.length})`}>
+              <AdminMultiImagePicker
+                images={draft.images}
+                onChange={(next) => setDraft((d) => (d ? { ...d, images: next } : d))}
+              />
+            </AdminField>
+
+            {error && <p className="text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
+          </>
+        )}
+      </AdminModal>
     </>
   );
 }

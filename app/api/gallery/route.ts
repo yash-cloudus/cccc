@@ -26,6 +26,8 @@ const schema = z.object({
   description: z.string().optional(),
   coverUrl: z.string().optional(),
   albumDate: z.string().optional(),
+  accent: z.string().optional(),
+  isVisible: z.boolean().optional(),
   youtubeUrl: z.string().optional(),
   images: z.array(z.object({ imageUrl: z.string(), caption: z.string().optional() })).optional(),
 });
@@ -46,6 +48,8 @@ export async function POST(req: Request) {
         description: body.description,
         coverUrl: body.coverUrl,
         youtubeUrl: body.youtubeUrl,
+        accent: body.accent,
+        isVisible: body.isVisible ?? true,
         albumDate: body.albumDate ? new Date(body.albumDate) : undefined,
         images: body.images?.length
           ? { create: body.images.map((img, i) => ({ ...img, sortOrder: i })) }
@@ -69,6 +73,13 @@ const patchSchema = z.object({
   titleGu: z.string().optional(),
   coverUrl: z.string().optional(),
   youtubeUrl: z.string().optional(),
+  description: z.string().optional(),
+  accent: z.string().optional(),
+  albumDate: z.string().optional(),
+  /** Full replace of the album's photos, in display order. Omit to leave untouched. */
+  images: z
+    .array(z.object({ imageUrl: z.string().min(1), caption: z.string().optional() }))
+    .optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -78,13 +89,30 @@ export async function PATCH(req: Request) {
       return fail("Forbidden", 403);
     }
     const communityId = await getWritableCommunityId();
-    const { id, ...data } = patchSchema.parse(await req.json());
+    const { id, images, albumDate, ...rest } = patchSchema.parse(await req.json());
+    // albumDate arrives as an ISO/date string; Prisma needs a Date.
+    const data = { ...rest, ...(albumDate ? { albumDate: new Date(albumDate) } : {}) };
     const existing = await prisma.galleryAlbum.findFirst({
       where: { id, communityId },
       select: { id: true },
     });
     if (!existing) return fail("Album not found", 404);
-    const album = await prisma.galleryAlbum.update({ where: { id }, data });
+
+    const album = await prisma.$transaction(async (tx) => {
+      await tx.galleryAlbum.update({ where: { id }, data });
+      if (images) {
+        await tx.galleryImage.deleteMany({ where: { albumId: id } });
+        if (images.length) {
+          await tx.galleryImage.createMany({
+            data: images.map((img, i) => ({ ...img, albumId: id, sortOrder: i })),
+          });
+        }
+      }
+      return tx.galleryAlbum.findUnique({
+        where: { id },
+        include: { images: { orderBy: { sortOrder: "asc" } }, _count: { select: { images: true } } },
+      });
+    });
     return ok(album);
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);

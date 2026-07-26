@@ -22,7 +22,7 @@ export function BackHeader({
   return (
     <header
       className={cn(
-        "samaj-header relative flex-none overflow-hidden px-[18px] pb-[18px] pt-12 text-white",
+        "samaj-header sticky top-0 z-30 flex-none overflow-hidden px-[18px] pb-[18px] pt-12 text-white",
         className,
       )}
     >

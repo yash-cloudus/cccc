@@ -9,16 +9,19 @@ export default async function GalleryPage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  const albums = await getGalleryAlbums(community.id);
+  const albums = await getGalleryAlbums(community.id, false, true);
   const rows: AlbumRow[] = albums.map((a) => ({
     id: a.id,
     titleEn: a.titleEn,
     titleGu: a.titleGu,
     coverUrl: a.coverUrl,
+    accent: a.accent,
+    albumDateISO: a.albumDate ? a.albumDate.toISOString() : null,
     youtubeUrl: a.youtubeUrl,
     description: a.description,
     isVisible: a.isVisible,
     photos: a._count.images,
+    images: a.images.map((i) => ({ imageUrl: i.imageUrl, caption: i.caption })),
     date: a.albumDate
       ? new Date(a.albumDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
       : "—",

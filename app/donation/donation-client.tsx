@@ -80,7 +80,7 @@ export function DonationClient({
       </header>
 
       <div className="px-4 py-4 pb-8">
-        <p className="mb-4 text-[14px] leading-relaxed text-[#57524A]">
+        <p className="mb-4 text-[14px] leading-relaxed text-[var(--ink-mid)]">
           {T(
             `${name}ને આપેલું આપનું યોગદાન સમાજના કલ્યાણ કાર્યોમાં વપરાશે.`,
             `Your contribution to ${name} supports the community's welfare initiatives.`,
@@ -89,14 +89,14 @@ export function DonationClient({
 
         {upiId ? (
           <div className="samaj-card mb-4 flex flex-col items-center p-6">
-            <div className="mb-4 flex h-[200px] w-[200px] items-center justify-center rounded-[20px] border-2 border-dashed border-[#E1DACC] bg-[#FCFAF6] text-[#938C80]">
+            <div className="mb-4 flex h-[200px] w-[200px] items-center justify-center rounded-[20px] border-2 border-dashed border-[var(--line-input)] bg-[var(--field)] text-[var(--faint)]">
               <div className="text-center">
-                <QrCode className="mx-auto h-16 w-16 text-[#A62A38]" strokeWidth={1.4} />
+                <QrCode className="mx-auto h-16 w-16 text-[var(--brand)]" strokeWidth={1.4} />
                 <div className="mt-2 text-xs font-bold">UPI</div>
                 <div className="mt-1 text-[11px]">{upiId}</div>
               </div>
             </div>
-            <div className="text-sm font-bold text-[#2A2320]">{upiId}</div>
+            <div className="text-sm font-bold text-[var(--ink)]">{upiId}</div>
           </div>
         ) : (
           <div className="mb-4 rounded-[14px] border border-[#EFE3CB] bg-[#FDF9F0] p-3.5 text-xs leading-relaxed text-[#8B7A55]">
@@ -105,14 +105,14 @@ export function DonationClient({
               "UPI is not configured yet. Your donation will be recorded and the community will contact you.",
             )}
             {contactPhone && (
-              <a href={telLink(contactPhone)} className="mt-2 block font-bold text-[#A62A38]">
+              <a href={telLink(contactPhone)} className="mt-2 block font-bold text-[var(--brand)]">
                 {T("સંપર્ક કરો", "Contact")}: {contactPhone}
               </a>
             )}
           </div>
         )}
 
-        <div className="mb-3 text-xs font-extrabold tracking-wide text-[#8B8375]">
+        <div className="mb-3 text-xs font-extrabold tracking-wide text-[var(--muted)]">
           {T("રકમ પસંદ કરો", "CHOOSE AMOUNT")}
         </div>
         <div className="mb-3 grid grid-cols-2 gap-2">
@@ -127,8 +127,8 @@ export function DonationClient({
               className={cn(
                 "rounded-[14px] border py-3 text-sm font-extrabold transition",
                 !custom && amount === a
-                  ? "border-[#A62A38] bg-[#FBEDEE] text-[#A62A38]"
-                  : "border-[#F0E9DB] bg-white text-[#57524A]",
+                  ? "border-[var(--brand)] bg-[var(--brand-tint)] text-[var(--brand)]"
+                  : "border-[var(--line)] bg-white text-[var(--ink-mid)]",
               )}
             >
               ₹{a.toLocaleString("en-IN")}
@@ -148,8 +148,8 @@ export function DonationClient({
           type="button"
           onClick={pay}
           disabled={busy}
-          className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgba(166,42,56,.6)] disabled:opacity-70"
-          style={{ background: "linear-gradient(135deg,#A62A38,#851F2B)" }}
+          className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgb(var(--brand-rgb) / .6)] disabled:opacity-70"
+          style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
         >
           {busy ? (
             <Loader2 className="size-5 animate-spin" />
