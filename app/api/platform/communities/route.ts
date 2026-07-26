@@ -20,7 +20,11 @@ export async function GET() {
     const communities = await prisma.community.findMany({
       orderBy: { createdAt: "asc" },
       include: {
-        _count: { select: { families: true, users: true } },
+        // surnameGroups / villageAreas are the grouping units the card counts:
+        // a Parivar app groups families by surname, a Gam app by village.
+        _count: {
+          select: { families: true, users: true, surnameGroups: true, villageAreas: true },
+        },
         users: {
           where: { roles: { some: { role: { name: "OWNER" } } } },
           take: 1,

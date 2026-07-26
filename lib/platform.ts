@@ -41,8 +41,22 @@ export function generatePassword(length = 12): string {
   return out;
 }
 
-export function groupingLabel(type: "PARIVAR" | "GAM", count = 24): string {
-  return `${count} ${type === "GAM" ? "Gam" : "Parivar"}`;
+/**
+ * The unit a community groups its families by — surname for a Parivar app,
+ * village for a Gam app.
+ *
+ * This used to return `"24 Parivar"` from a hardcoded `count = 24`, so every
+ * community advertised a fabricated number that never changed. Counts are now
+ * read live from the DB (`_count.surnameGroups` / `_count.villageAreas`); this
+ * only names the unit.
+ */
+export function groupingLabel(type: "PARIVAR" | "GAM"): string {
+  return type === "GAM" ? "Village" : "Surname";
+}
+
+/** Naive English pluraliser for card labels. */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return n === 1 ? one : many;
 }
 
 /** Display-only website host (no scheme), e.g. saurashtra_patel.community.in */

@@ -10,6 +10,7 @@ import {
   communityUrl,
   defaultAdminUsername,
   normalizeSlug,
+  plural,
 } from "@/lib/platform";
 import { downloadCredentialsPdf } from "@/lib/credentials-pdf";
 import { tintPrimary } from "@/lib/platform-types";
@@ -28,7 +29,12 @@ type ApiCommunity = {
   primaryColor: string;
   secondaryColor: string;
   groupingLabel: string | null;
-  _count?: { families: number; users: number };
+  _count?: {
+    families: number;
+    users: number;
+    surnameGroups: number;
+    villageAreas: number;
+  };
   owner?: {
     id: string;
     username: string | null;
@@ -703,13 +709,18 @@ export default function PlatformPage() {
                             <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
                               {a.type === "GAM" ? "Gam · ગામ" : "Parivar · પરિવાર"}
                             </span>
-                            {a.groupingLabel && (
-                              <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
-                                {a.groupingLabel}
-                              </span>
-                            )}
+                            {/* Live grouping count: villages for a Gam app,
+                                surname groups for a Parivar app. */}
                             <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
-                              {a._count?.families ?? 0} families
+                              {a.type === "GAM"
+                                ? `${a._count?.villageAreas ?? 0} ${plural(a._count?.villageAreas ?? 0, "village")}`
+                                : `${a._count?.surnameGroups ?? 0} ${plural(a._count?.surnameGroups ?? 0, "surname")}`}
+                            </span>
+                            <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
+                              {a._count?.families ?? 0} {plural(a._count?.families ?? 0, "family", "families")}
+                            </span>
+                            <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
+                              {a._count?.users ?? 0} {plural(a._count?.users ?? 0, "member")}
                             </span>
                           </div>
 
