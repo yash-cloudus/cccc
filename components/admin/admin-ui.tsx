@@ -27,10 +27,29 @@ export function AdminHint({ children, className }: { children: React.ReactNode; 
   );
 }
 
-export function AdminTable({ children, className }: { children: React.ReactNode; className?: string }) {
+/**
+ * Framed data table — one bordered, rounded surface with a tinted header.
+ * Every admin table renders through this, so table chrome is changed here once.
+ * `bordered={false}` for tables already sitting inside a bordered card.
+ */
+export function AdminTable({
+  children,
+  className,
+  bordered = true,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  bordered?: boolean;
+}) {
   return (
-    <div className={cn("overflow-x-auto", className)}>
-      <table className="w-full border-collapse">{children}</table>
+    <div
+      className={cn(
+        "overflow-x-auto",
+        bordered && "rounded-[14px] border border-[var(--line-admin)] bg-white",
+        className,
+      )}
+    >
+      <table className="admin-table w-full border-collapse">{children}</table>
     </div>
   );
 }
@@ -39,7 +58,7 @@ export function AdminTh({ children, className }: { children?: React.ReactNode; c
   return (
     <th
       className={cn(
-        "border-b-2 border-[#EFE8DB] px-3 py-2.5 text-left text-[11.5px] font-bold tracking-wide text-[var(--faint)] uppercase",
+        "border-b border-[var(--line-admin)] bg-[var(--surface-admin)] px-3 py-3 text-left text-[11.5px] font-extrabold tracking-wide text-[var(--ink-mid)] uppercase",
         className
       )}
     >
@@ -60,7 +79,10 @@ export function AdminTd({
   return (
     <td
       colSpan={colSpan}
-      className={cn("border-b border-[var(--line-soft)] px-3 py-[11px] text-[13px] text-[var(--ink-soft)]", className)}
+      className={cn(
+        "border-b border-[var(--line-soft)] px-3 py-[11px] text-[13px] font-medium text-[var(--ink-soft)]",
+        className
+      )}
     >
       {children}
     </td>

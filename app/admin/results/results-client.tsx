@@ -319,7 +319,7 @@ export function ResultsClient({
                     No approved results yet.
                   </p>
                 ) : (
-                  <AdminTable>
+                  <AdminTable bordered={false}>
                     <thead>
                       <tr>
                         <AdminTh>Rank</AdminTh>

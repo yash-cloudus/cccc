@@ -320,6 +320,12 @@ a:hover {
   border-radius: 8px;
 }
 
+/* The framed AdminTable draws its own outer border — drop the last row's
+   divider so it does not double up against it. */
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    SHARED COMPONENT CLASSES (Design-Spec §3, §10, §11, §12)
    ═══════════════════════════════════════════════════════════════════ */
