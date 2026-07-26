@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { PhoneShell } from "@/components/layout/phone-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 import { mainAdminUrl, communityAdminUrl } from "@/lib/host";
@@ -78,7 +78,7 @@ export default function LoginPage() {
   const displayMobile = mobile.replace(/\D/g, "").slice(0, 10);
 
   return (
-    <PhoneShell>
+    <AppShell>
       <div
         className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[30px] py-[34px] text-center"
         style={{
@@ -174,6 +174,6 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-    </PhoneShell>
+    </AppShell>
   );
 }

@@ -97,6 +97,11 @@
   --platform-surface: #f4f3f7;
   --platform-line: #eceaf0;
 
+  /* Member-site content column. Mobile is full-bleed (the column is wider
+     than the viewport); tablet/desktop centre on this width. */
+  --app-max-w: 900px;
+  --bottomnav-h: 72px;
+
   /* ── radii / elevation (Design-Spec §24) ─────────────────────── */
   --radius-field: 13px;
   --radius-card: 18px;
@@ -305,10 +310,6 @@ a {
 
 a:hover {
   color: var(--brand-hover);
-}
-
-.appscroll::-webkit-scrollbar {
-  width: 0;
 }
 
 .admin-scroll::-webkit-scrollbar {

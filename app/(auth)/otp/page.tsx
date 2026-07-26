@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { PhoneShell } from "@/components/layout/phone-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
 import { formatMobile } from "@/lib/format";
@@ -90,7 +90,7 @@ function OtpForm() {
     lang === "gu" ? "pending-approval સ્થિતિ જુઓ →" : "See pending-approval status →";
 
   return (
-    <PhoneShell>
+    <AppShell>
       <BackHeader title={title} onBack={() => router.push("/login")} />
       <div className="flex flex-1 flex-col items-center justify-center gap-[22px] px-[30px] py-[30px] text-center">
         <motion.div
@@ -162,7 +162,7 @@ function OtpForm() {
           {seePending}
         </Link>
       </div>
-    </PhoneShell>
+    </AppShell>
   );
 }
 

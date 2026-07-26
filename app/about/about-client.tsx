@@ -83,7 +83,7 @@ export function AboutClient({
   );
 
   return (
-    <AppScreen showNav={false} framed={false}>
+    <AppScreen showNav={false}>
       <header className="samaj-header relative flex-none overflow-hidden px-[18px] pb-[18px] pt-12 text-white">
         <div className="absolute -right-[30px] -top-10 h-[150px] w-[150px] rounded-full bg-white/5" />
         <div className="relative z-2 flex items-center gap-3">

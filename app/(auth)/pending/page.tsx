@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Clock } from "lucide-react";
-import { PhoneShell } from "@/components/layout/phone-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { useLang } from "@/providers/lang-provider";
 
 export default function PendingPage() {
@@ -17,7 +17,7 @@ export default function PendingPage() {
       : "Your family registration is with the Samaj admin for approval. You will be notified on WhatsApp once approved.";
 
   return (
-    <PhoneShell>
+    <AppShell>
       <div className="flex flex-1 flex-col items-center justify-center gap-[18px] px-[34px] py-10 text-center">
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
@@ -40,6 +40,6 @@ export default function PendingPage() {
           </button>
         </div>
       </div>
-    </PhoneShell>
+    </AppShell>
   );
 }

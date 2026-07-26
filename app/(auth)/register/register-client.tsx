@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Loader2, MapPin } from "lucide-react";
-import { PhoneShell } from "@/components/layout/phone-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
@@ -176,7 +176,7 @@ export function RegisterClient({
 
   if (submitted) {
     return (
-      <PhoneShell>
+      <AppShell>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 py-9 text-center">
           <motion.div
             initial={{ scale: 0.8 }}
@@ -241,19 +241,19 @@ export function RegisterClient({
             {T("લોગિન પર જાઓ", "Go to login")}
           </Link>
         </div>
-      </PhoneShell>
+      </AppShell>
     );
   }
 
   if (addOpen) {
     return (
-      <PhoneShell>
+      <AppShell>
         <BackHeader
           title={T("નવો સભ્ય ઉમેરો", "Add new member")}
           subtitle={T("ઘરના સભ્યની માહિતી ભરો", "Fill in the household member's details")}
           onBack={() => setAddOpen(false)}
         />
-        <div className="appscroll flex-1 overflow-y-auto px-4 py-[18px] pb-6">
+        <div className="flex-1 px-4 py-[18px] pb-6">
           <Field label={`${T("પૂરું નામ", "Full name")} (${T("English", "English")}) *`}>
             <input
               className="samaj-fld"
@@ -371,12 +371,12 @@ export function RegisterClient({
             {T("સભ્ય ઉમેરો", "Add member")}
           </button>
         </div>
-      </PhoneShell>
+      </AppShell>
     );
   }
 
   return (
-    <PhoneShell>
+    <AppShell>
       <header className="samaj-header relative flex-none overflow-hidden px-[18px] pb-[18px] pt-12 text-white">
         <div className="absolute -right-[30px] -top-10 h-[150px] w-[150px] rounded-full bg-white/5" />
         <div className="relative z-2 flex items-center gap-3">
@@ -414,7 +414,7 @@ export function RegisterClient({
         </div>
       </header>
 
-      <div className="appscroll flex-1 overflow-y-auto px-4 py-4 pb-6">
+      <div className="flex-1 px-4 py-4 pb-6">
         {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
         {surnameGroups.length === 0 && (
@@ -773,7 +773,7 @@ export function RegisterClient({
           )}
         </AnimatePresence>
       </div>
-    </PhoneShell>
+    </AppShell>
   );
 }
 

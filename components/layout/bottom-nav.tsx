@@ -19,7 +19,10 @@ export function BottomNav() {
   const { t } = useLang();
 
   return (
-    <nav className="absolute bottom-0 left-0 right-0 z-20 flex border-t border-[var(--line)] bg-white px-1.5 pb-3.5 pt-2 shadow-[0_-8px_24px_-14px_rgba(36,30,27,.22)]">
+    <nav
+      className="fixed bottom-0 left-1/2 z-30 flex w-full max-w-[var(--app-max-w)] -translate-x-1/2 border-t border-[var(--line)] bg-white px-1.5 pt-2 shadow-[0_-8px_24px_-14px_rgba(36,30,27,.22)]"
+      style={{ paddingBottom: "calc(0.875rem + env(safe-area-inset-bottom))" }}
+    >
       {items.map((item) => {
         const active =
           pathname === item.href ||
