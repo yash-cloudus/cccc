@@ -10,6 +10,7 @@ import {
   AdminHint,
   AdminInput,
   AdminLabel,
+  AdminSelect,
   AdminTable,
   AdminTd,
   AdminTh,
@@ -208,17 +209,15 @@ export function ResultsClient({
       {drives.length > 1 && (
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-[11.5px] font-bold text-[var(--faint)]">Drive:</span>
-          <select
-            defaultValue={currentDrive?.id}
-            onChange={(e) => router.push(`/admin/results?drive=${e.target.value}`)}
-            className="h-9 rounded-lg border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-2 text-[13px] outline-none"
-          >
-            {drives.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.titleEn} ({d.year})
-              </option>
-            ))}
-          </select>
+          <AdminSelect
+            value={currentDrive?.id ?? ""}
+            onChange={(v) => router.push(`/admin/results?drive=${v}`)}
+            className="w-auto"
+            options={drives.map((d) => ({
+              value: d.id,
+              label: `${d.titleEn} (${d.year})`,
+            }))}
+          />
         </div>
       )}
 

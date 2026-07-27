@@ -41,6 +41,30 @@ export const REJECT_REASONS = [
   "Needs verification",
 ] as const;
 
+/**
+ * Default household relations, seeded into `DropdownOption(type="relationship")`
+ * for every community — new ones on creation, existing ones via a one-off
+ * backfill. Without this every community starts with zero relation options,
+ * so "Add family directly" / the member editor has nothing to offer beyond
+ * the empty placeholder.
+ */
+export const DEFAULT_RELATIONS: { nameEn: string; nameGu: string }[] = [
+  { nameEn: "Head", nameGu: "વડા" },
+  { nameEn: "Wife", nameGu: "પત્ની" },
+  { nameEn: "Husband", nameGu: "પતિ" },
+  { nameEn: "Son", nameGu: "પુત્ર" },
+  { nameEn: "Daughter", nameGu: "પુત્રી" },
+  { nameEn: "Father", nameGu: "પિતા" },
+  { nameEn: "Mother", nameGu: "માતા" },
+  { nameEn: "Brother", nameGu: "ભાઈ" },
+  { nameEn: "Sister", nameGu: "બહેન" },
+  { nameEn: "Grandfather", nameGu: "દાદા" },
+  { nameEn: "Grandmother", nameGu: "દાદી" },
+  { nameEn: "Daughter-in-law", nameGu: "પુત્રવધૂ" },
+  { nameEn: "Son-in-law", nameGu: "જમાઈ" },
+  { nameEn: "Other", nameGu: "અન્ય" },
+];
+
 export const ADMIN_NAV: {
   key: string;
   href: string;

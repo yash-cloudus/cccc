@@ -449,6 +449,10 @@ export function FamiliesClient({
               </AdminTd>
               <AdminTd className="text-right">
                 <span className="flex flex-wrap justify-end gap-1">
+                  <LinkAction onClick={() => router.push(`/admin/queue/${f.id}?from=families`)}>
+                    Edit
+                  </LinkAction>
+                  <span className="text-[var(--faint)]">·</span>
                   <LinkAction onClick={() => openMembers(f)}>Members</LinkAction>
                   <span className="text-[var(--faint)]">·</span>
                   <LinkAction onClick={() => toggleStatus(f)}>
@@ -472,9 +476,10 @@ export function FamiliesClient({
       )}
 
       <AdminHint>
-        Member editor: visibility overrides · mark deceased (સ્વર્ગસ્થ) · change login number ·
-        reassign head. &quot;Add family directly&quot; bypasses the registration queue. New surnames
-        are added to Surname groups automatically.
+        Edit: change head name, surname, address, or add/remove members. Member editor:
+        visibility overrides · mark deceased (સ્વર્ગસ્થ) · change login number · reassign head.
+        &quot;Add family directly&quot; bypasses the registration queue. New surnames are added to
+        Surname groups automatically.
       </AdminHint>
 
       <AdminModal
@@ -517,22 +522,20 @@ export function FamiliesClient({
         </AdminFormRow>
 
         <AdminField label="Surname group">
-          <select
+          <AdminSelect
             value={form.surnameGroupId || matchedGroup?.id || ""}
-            onChange={(e) => onPickGroup(e.target.value)}
-            className="h-[42px] w-full cursor-pointer rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none"
-          >
-            <option value="">
-              {groups.length === 0
-                ? "Will create from surname below…"
-                : "Select group — or type new surname below"}
-            </option>
-            {groups.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nameEn} · {s.nameGu}
-              </option>
-            ))}
-          </select>
+            onChange={onPickGroup}
+            className="w-full"
+            options={[
+              {
+                value: "",
+                label: groups.length === 0
+                  ? "Will create from surname below…"
+                  : "Select group — or type new surname below",
+              },
+              ...groups.map((s) => ({ value: s.id, label: `${s.nameEn} · ${s.nameGu}` })),
+            ]}
+          />
         </AdminField>
 
         {willCreateGroup && (
@@ -610,14 +613,21 @@ export function FamiliesClient({
             <AdminFormRow>
               <AdminField label="Name (ગુજરાતી)">
                 <AdminInput
+                  gujarati
                   value={m.fullNameGu}
-                  onChange={(v) => updateMemberDraft(i, { fullNameGu: v })}
+                  onChange={(v) => {
+                    updateMemberDraft(i, { fullNameGu: v });
+                    guInput(v, (gu) => updateMemberDraft(i, { fullNameGu: gu }), `member-${i}:gu`);
+                  }}
                 />
               </AdminField>
               <AdminField label="Name (English)">
                 <AdminInput
                   value={m.fullNameEn}
-                  onChange={(v) => updateMemberDraft(i, { fullNameEn: v })}
+                  onChange={(v) => {
+                    updateMemberDraft(i, { fullNameEn: v });
+                    fromEn(v, (gu) => updateMemberDraft(i, { fullNameGu: gu }), `member-${i}`);
+                  }}
                 />
               </AdminField>
             </AdminFormRow>

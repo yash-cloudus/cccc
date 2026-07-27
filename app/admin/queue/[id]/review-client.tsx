@@ -12,6 +12,7 @@ import {
   AdminHint,
   AdminInput,
   AdminLabel,
+  AdminSelect,
   FilterChip,
 } from "@/components/admin/admin-ui";
 import {
@@ -62,9 +63,15 @@ type SurnameOption = { id: string; nameEn: string; nameGu: string };
 export function ReviewClient({
   family: initial,
   surnameGroups,
+  backHref = "/admin/queue",
+  backLabel = "‹ Back to queue",
 }: {
   family: EditFamily;
   surnameGroups: SurnameOption[];
+  /** Where "back" and the post-approve/reject redirect go — the queue by
+   * default, or Families & Members when opened from there. */
+  backHref?: string;
+  backLabel?: string;
 }) {
   const router = useRouter();
   const { fromEn, guInput } = useTranslitSync();
@@ -164,7 +171,7 @@ export function ReviewClient({
       setError(res.error);
       return;
     }
-    router.push("/admin/queue");
+    router.push(backHref);
     router.refresh();
   }
 
@@ -186,24 +193,27 @@ export function ReviewClient({
       return;
     }
     setRejectOpen(false);
-    router.push("/admin/queue");
+    router.push(backHref);
     router.refresh();
   }
 
   return (
     <>
       <Link
-        href="/admin/queue"
+        href={backHref}
         className="mb-2.5 block cursor-pointer text-[12.5px] font-bold text-[var(--brand)]"
       >
-        ‹ Back to queue
+        {backLabel}
       </Link>
 
       <AdminH2 className="mb-1.5">
-        Review &amp; edit: {f.headNameGu || f.headNameEn} ({f.surnameGu || f.surnameEn})
+        {f.status === "PENDING" ? "Review & edit" : "Edit"}: {f.headNameGu || f.headNameEn} (
+        {f.surnameGu || f.surnameEn})
       </AdminH2>
       <AdminHint className="mt-0 mb-[18px]">
-        Edit any field, then Save or Approve. Approving activates family login numbers.
+        {f.status === "PENDING"
+          ? "Edit any field, then Save or Approve. Approving activates family login numbers."
+          : "Edit any field, then Save."}
       </AdminHint>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -227,17 +237,15 @@ export function ReviewClient({
             }}
           />
           <AdminLabel>Surname group</AdminLabel>
-          <select
+          <AdminSelect
             value={f.surnameGroupId}
-            onChange={(e) => setField("surnameGroupId", e.target.value)}
-            className="h-[42px] w-full rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none"
-          >
-            {surnameGroups.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nameEn} · {s.nameGu}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setField("surnameGroupId", v)}
+            className="w-full"
+            options={surnameGroups.map((s) => ({
+              value: s.id,
+              label: `${s.nameEn} · ${s.nameGu}`,
+            }))}
+          />
           <AdminLabel>Surname (English)</AdminLabel>
           <AdminInput
             value={f.surnameEn}
@@ -323,18 +331,15 @@ export function ReviewClient({
                 </div>
                 <div>
                   <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Blood group</div>
-                  <select
+                  <AdminSelect
                     value={m.bloodGroup}
-                    onChange={(e) => setMember(m.id, "bloodGroup", e.target.value)}
-                    className="h-[38px] w-full rounded-lg border border-[var(--line-field)] bg-[var(--field)] px-2 text-[12.5px] text-[var(--ink)] outline-none"
-                  >
-                    <option value="">—</option>
-                    {BLOOD_GROUPS.map((b) => (
-                      <option key={b.type} value={b.type}>
-                        {b.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setMember(m.id, "bloodGroup", v)}
+                    className="w-full"
+                    options={[
+                      { value: "", label: "—" },
+                      ...BLOOD_GROUPS.map((b) => ({ value: b.type, label: b.label })),
+                    ]}
+                  />
                 </div>
                 <div>
                   <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Occupation</div>

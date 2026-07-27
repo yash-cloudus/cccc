@@ -1,8 +1,9 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, ChevronDown, Check } from "lucide-react";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { cn } from "@/lib/utils";
+import { Select as SelectPrimitive } from "@base-ui/react/select";
 
 export function AdminH2({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -363,7 +364,7 @@ export function AdminToggle({
   );
 }
 
-/** Native select with the admin field styling (Design-Spec §11 NativeSelect). */
+/** Custom styled dropdown — replaces the native select for a polished admin UI. */
 export function AdminSelect({
   value,
   onChange,
@@ -377,22 +378,95 @@ export function AdminSelect({
   className?: string;
   ariaLabel?: string;
 }) {
+  const selected = options.find((o) => o.value === value);
+
   return (
-    <select
-      value={value}
-      aria-label={ariaLabel}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        "h-[42px] cursor-pointer rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none",
-        className,
-      )}
-    >
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+    <SelectPrimitive.Root value={value} onValueChange={(v) => onChange(v ?? "")}>
+      <SelectPrimitive.Trigger
+        aria-label={ariaLabel}
+        className={cn(
+          // Match AdminInput exactly: h-[42px], same border, radius, bg, font
+          "flex h-[42px] w-full cursor-pointer items-center justify-between gap-2 rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none",
+          "transition-colors hover:border-[var(--line-strong)] hover:bg-white",
+          "focus-visible:border-[var(--brand)] focus-visible:ring-[3px] focus-visible:ring-[rgb(var(--brand-rgb)/0.12)]",
+          "data-[popup-open]:border-[var(--brand)] data-[popup-open]:bg-white",
+          "select-none",
+          className,
+        )}
+      >
+        <SelectPrimitive.Value
+          placeholder="—"
+          className="flex-1 truncate text-left"
+        >
+          {selected?.label ?? "—"}
+        </SelectPrimitive.Value>
+        <SelectPrimitive.Icon render={<span />}>
+          <ChevronDown
+            className="size-[15px] shrink-0 text-[var(--faint)] transition-transform duration-200 [[data-popup-open]_&]:rotate-180"
+            strokeWidth={2.2}
+          />
+        </SelectPrimitive.Icon>
+      </SelectPrimitive.Trigger>
+
+      <SelectPrimitive.Portal>
+        <SelectPrimitive.Positioner
+          sideOffset={4}
+          alignItemWithTrigger={false}
+          className="isolate z-[9999]"
+        >
+          <SelectPrimitive.Popup
+            className={cn(
+              // Sizing — match trigger width, cap height so it scrolls
+              "max-h-[240px] w-(--anchor-width) min-w-[120px] overflow-y-auto",
+              // Surface
+              "rounded-[13px] border border-[var(--line-admin)] bg-white shadow-[0_8px_24px_-4px_rgba(42,35,32,0.14)]",
+              // Animations
+              "origin-(--transform-origin)",
+              "data-[starting-style]:opacity-0 data-[starting-style]:scale-95",
+              "data-[ending-style]:opacity-0 data-[ending-style]:scale-95",
+              "transition-[opacity,transform] duration-150 ease-out",
+            )}
+          >
+            <SelectPrimitive.ScrollUpArrow className="sticky top-0 z-10 flex w-full cursor-default justify-center bg-white/90 py-1 text-[var(--faint)]">
+              <ChevronDown className="size-3.5 rotate-180" strokeWidth={2.5} />
+            </SelectPrimitive.ScrollUpArrow>
+
+            <SelectPrimitive.List className="p-1">
+              {options.map((o) => (
+                <SelectPrimitive.Item
+                  key={o.value}
+                  value={o.value}
+                  className={cn(
+                    "group relative flex cursor-pointer select-none items-center gap-2 rounded-[9px] py-[7px] pr-8 pl-2.5",
+                    "text-[13px] font-medium text-[var(--ink)]",
+                    "outline-none",
+                    "transition-colors",
+                    "hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
+                    "data-[highlighted]:bg-[var(--brand-tint)] data-[highlighted]:text-[var(--brand)]",
+                    "data-[selected]:font-semibold data-[selected]:text-[var(--brand)]",
+                  )}
+                >
+                  <SelectPrimitive.ItemText className="flex-1 truncate">
+                    {o.label}
+                  </SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemIndicator
+                    render={
+                      <span className="pointer-events-none absolute right-2.5 flex size-4 items-center justify-center opacity-0 group-data-[selected]:opacity-100" />
+                    }
+                  >
+                    <Check className="size-[13px] text-[var(--brand)]" strokeWidth={2.8} />
+                  </SelectPrimitive.ItemIndicator>
+                </SelectPrimitive.Item>
+              ))}
+            </SelectPrimitive.List>
+
+            <SelectPrimitive.ScrollDownArrow className="sticky bottom-0 z-10 flex w-full cursor-default justify-center bg-white/90 py-1 text-[var(--faint)]">
+              <ChevronDown className="size-3.5" strokeWidth={2.5} />
+            </SelectPrimitive.ScrollDownArrow>
+          </SelectPrimitive.Popup>
+        </SelectPrimitive.Positioner>
+      </SelectPrimitive.Portal>
+    </SelectPrimitive.Root>
   );
 }
 

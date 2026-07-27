@@ -11,10 +11,14 @@ function ymd(d: Date | null) {
 
 export default async function ReviewRegistrationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   const { id } = await params;
+  const { from } = await searchParams;
+  const fromFamilies = from === "families";
   const community = await getActiveCommunity();
   if (!community) notFound();
 
@@ -56,6 +60,8 @@ export default async function ReviewRegistrationPage({
     <ReviewClient
       family={data}
       surnameGroups={surnameGroups.map((s) => ({ id: s.id, nameEn: s.nameEn, nameGu: s.nameGu }))}
+      backHref={fromFamilies ? "/admin/families" : "/admin/queue"}
+      backLabel={fromFamilies ? "‹ Back to Families & Members" : "‹ Back to queue"}
     />
   );
 }

@@ -4,6 +4,7 @@ import { fail, fromZod, ok, created } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { assertPlatform } from "@/lib/tenant";
 import { isValidSlug, normalizeSlug, groupingLabel } from "@/lib/platform";
+import { DEFAULT_RELATIONS } from "@/lib/constants";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -133,6 +134,18 @@ export async function POST(req: Request) {
       }
       // Default ad price setting.
       await tx.setting.create({ data: { communityId: community.id, key: "ad_banner_price", value: "2000" } });
+
+      // Household relations (Son, Wife, Father, ...) — without these the
+      // Relation dropdown in Families & Members / Add family directly starts
+      // out empty, since DropdownOption has no other seed source per community.
+      await tx.dropdownOption.createMany({
+        data: DEFAULT_RELATIONS.map((r) => ({
+          communityId: community.id,
+          type: "relationship",
+          nameEn: r.nameEn,
+          nameGu: r.nameGu,
+        })),
+      });
 
       return { community, username };
     });
