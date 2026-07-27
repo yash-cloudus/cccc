@@ -1,7 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  FileText,
+  Pencil,
+  Plus,
+  Send,
+  Trash2,
+  type LucideIcon,
+} from "lucide-react";
 import {
   AdminBtn,
   AdminH2,
@@ -10,11 +19,10 @@ import {
   AdminTable,
   AdminTd,
   AdminTh,
-  AdminToggle,
-  LinkAction,
   PillActive,
 } from "@/components/admin/admin-ui";
 import {
+  AdminCheck,
   AdminField,
   AdminFilePicker,
   AdminFormRow,
@@ -24,8 +32,44 @@ import {
 } from "@/components/admin/admin-form";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/http";
+import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
+
+/** Small icon+label action chip — action columns felt too bare as plain text links. */
+function ActionBtn({
+  icon: Icon,
+  label,
+  onClick,
+  tone = "default",
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  tone?: "default" | "danger" | "warn" | "success";
+}) {
+  const toneClass = {
+    default: "border-[var(--line-admin)] text-[var(--ink-mid)] hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
+    danger: "border-[var(--danger-tint)] text-[var(--danger)] hover:bg-[var(--danger-tint)]",
+    warn: "border-[var(--gold-tint)] text-[var(--warn)] hover:bg-[var(--gold-tint)]",
+    success: "border-[var(--success-tint)] text-[var(--success)] hover:bg-[var(--success-tint)]",
+  }[tone];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={cn(
+        "flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap transition-colors",
+        toneClass,
+      )}
+    >
+      <Icon className="size-3.5" strokeWidth={2.3} />
+      {label}
+    </button>
+  );
+}
 
 export type NewsRow = {
   id: string;
@@ -73,7 +117,7 @@ const emptyDraft: Draft = {
   documentName: "",
   isPinned: false,
   isPublished: true,
-  sendNotification: false,
+  sendNotification: true,
 };
 
 /** ✓ / — cell used for the Cover and PDF columns. */
@@ -98,6 +142,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
   const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<NewsRow[]>(initialRows);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [preview, setPreview] = useState<NewsRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -309,19 +354,21 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 )}
               </AdminTd>
               <AdminTd className="text-right">
-                <span className="flex flex-wrap justify-end gap-2">
-                  <LinkAction
-                    onClick={() => window.open(`/news/${n.id}`, "_blank", "noopener")}
-                  >
-                    Preview
-                  </LinkAction>
-                  <LinkAction onClick={() => togglePublished(n)}>
-                    {n.isPublished ? "Unpublish" : "Publish"}
-                  </LinkAction>
-                  <LinkAction onClick={() => openEdit(n)}>Edit</LinkAction>
-                  <LinkAction danger onClick={() => remove(n.id)}>
-                    Delete
-                  </LinkAction>
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  <ActionBtn icon={Eye} label="Preview" onClick={() => setPreview(n)} />
+                  <ActionBtn
+                    icon={n.isPublished ? EyeOff : Send}
+                    label={n.isPublished ? "Unpublish" : "Publish"}
+                    tone={n.isPublished ? "warn" : "success"}
+                    onClick={() => togglePublished(n)}
+                  />
+                  <ActionBtn icon={Pencil} label="Edit" onClick={() => openEdit(n)} />
+                  <ActionBtn
+                    icon={Trash2}
+                    label="Delete"
+                    tone="danger"
+                    onClick={() => remove(n.id)}
+                  />
                 </span>
               </AdminTd>
             </tr>
@@ -458,23 +505,17 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
             )}
 
             <div className="flex flex-wrap gap-5">
-              <label className="flex items-center gap-2 text-[12.5px] font-bold text-[var(--ink-mid)]">
-                <AdminToggle
-                  on={draft.isPinned}
-                  label="Pin to top"
-                  onChange={(v) => setDraft({ ...draft, isPinned: v })}
-                />
-                Pin to top
-              </label>
+              <AdminCheck
+                checked={draft.isPinned}
+                label="Pin to top"
+                onChange={(v) => setDraft({ ...draft, isPinned: v })}
+              />
               {!draft.id && (
-                <label className="flex items-center gap-2 text-[12.5px] font-bold text-[var(--ink-mid)]">
-                  <AdminToggle
-                    on={draft.sendNotification}
-                    label="Send notification"
-                    onChange={(v) => setDraft({ ...draft, sendNotification: v })}
-                  />
-                  Send notification
-                </label>
+                <AdminCheck
+                  checked={draft.sendNotification}
+                  label="Send notification"
+                  onChange={(v) => setDraft({ ...draft, sendNotification: v })}
+                />
               )}
             </div>
 
@@ -482,6 +523,67 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
               <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>
             )}
           </>
+        )}
+      </AdminModal>
+
+      <AdminModal
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        title="Preview"
+        subtitle="How this post appears in the User App."
+        width="lg"
+      >
+        {preview && (
+          <div className="overflow-hidden rounded-2xl border border-[var(--line-admin)]">
+            <div className="flex h-[160px] items-center justify-center overflow-hidden bg-[linear-gradient(150deg,#8E2230,#B24C3B)] text-white">
+              {preview.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview.imageUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <FileText className="size-11" strokeWidth={1.6} />
+              )}
+            </div>
+            <div className="p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                {preview.isPinned && (
+                  <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--gold-tint)] px-2 py-0.5 text-[10.5px] font-extrabold text-[var(--warn)]">
+                    📌 Pinned
+                  </span>
+                )}
+                {preview.isPublished ? (
+                  <PillActive>Published</PillActive>
+                ) : (
+                  <span className="text-xs font-bold text-[var(--warn)]">Draft</span>
+                )}
+              </div>
+              <h3 className="mt-2 font-[family-name:var(--font-noto-serif-gujarati)] text-lg font-bold text-[var(--ink)]">
+                {preview.titleGu || preview.titleEn}
+              </h3>
+              <p className="mt-1 text-[11.5px] font-semibold text-[var(--faint)]">
+                {preview.publishedAt}
+                {preview.author ? ` · ${preview.author}` : ""}
+              </p>
+              <p className="mt-3 whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
+                {preview.contentGu || preview.contentEn}
+              </p>
+
+              {preview.documentUrl && (
+                <a
+                  href={preview.documentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 flex items-center gap-3 rounded-xl border border-[var(--line-admin)] p-3"
+                >
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-[var(--info-tint)] text-[var(--info)]">
+                    <FileText className="size-[18px]" strokeWidth={1.85} />
+                  </div>
+                  <span className="text-[13px] font-bold text-[var(--ink)]">
+                    {preview.documentName || "View document"}
+                  </span>
+                </a>
+              )}
+            </div>
+          </div>
         )}
       </AdminModal>
     </>

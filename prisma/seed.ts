@@ -457,7 +457,8 @@ async function seedCommunityData(
         titleEn: "Patotsav 2025",
         titleGu: "\u0AAA\u0ABE\u0A9F\u0ACB\u0AA4\u0ACD\u0AB8\u0AB5 2025",
         description: "Community celebration photos",
-        albumDate: new Date("2025-12-15"),
+        startDate: new Date("2025-12-15"),
+        endDate: new Date("2025-12-17"),
         accent: "#8E2230",
         coverUrl: "https://images.unsplash.com/photo-1511632765486-a01980e01a18?w=800",
         images: {

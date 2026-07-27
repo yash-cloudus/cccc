@@ -18,7 +18,7 @@ export default async function GalleryPage() {
     photoCount: a._count.images,
     cover: a.coverUrl ?? a.images[0]?.imageUrl ?? null,
     accent: a.accent,
-    dateISO: a.albumDate?.toISOString() ?? null,
+    dateISO: a.startDate?.toISOString() ?? null,
   }));
 
   return <GalleryClient rows={rows} />;
