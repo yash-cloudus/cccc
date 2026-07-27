@@ -32,7 +32,8 @@ export type AlbumRow = {
   titleGu: string | null;
   coverUrl: string | null;
   accent: string | null;
-  albumDateISO: string | null;
+  startDateISO: string | null;
+  endDateISO: string | null;
   youtubeUrl: string | null;
   description: string | null;
   isVisible: boolean;
@@ -45,7 +46,8 @@ type Draft = {
   id: string | null;
   titleEn: string;
   titleGu: string;
-  albumDate: string;
+  startDate: string;
+  endDate: string;
   accent: string;
   coverUrl: string;
   youtubeUrl: string;
@@ -58,7 +60,8 @@ const emptyDraft: Draft = {
   id: null,
   titleEn: "",
   titleGu: "",
-  albumDate: "",
+  startDate: "",
+  endDate: "",
   accent: "#8E2230",
   coverUrl: "",
   youtubeUrl: "",
@@ -66,6 +69,11 @@ const emptyDraft: Draft = {
   isVisible: true,
   images: [],
 };
+
+/** Past-end-date albums are lazily flipped to `isVisible: false` server-side
+ * on next read; this just lets the card show *why* it's hidden. */
+const isExpired = (endDateISO: string | null) =>
+  !!endDateISO && new Date(endDateISO).getTime() < Date.now();
 
 /** Album accent colours — same set as Admin.dc.html `accentOpts`. */
 const ACCENTS = [
@@ -94,7 +102,8 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       id: a.id,
       titleEn: a.titleEn,
       titleGu: a.titleGu || "",
-      albumDate: a.albumDateISO ? a.albumDateISO.slice(0, 10) : "",
+      startDate: a.startDateISO ? a.startDateISO.slice(0, 10) : "",
+      endDate: a.endDateISO ? a.endDateISO.slice(0, 10) : "",
       accent: a.accent || "#8E2230",
       coverUrl: a.coverUrl || "",
       youtubeUrl: a.youtubeUrl || "",
@@ -117,13 +126,17 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
     if (!draft.titleGu.trim() && !draft.titleEn.trim()) {
       return setError("Folder name is required");
     }
+    if (draft.startDate && draft.endDate && draft.endDate < draft.startDate) {
+      return setError("End date can't be before start date");
+    }
     setBusy(true);
     setError(null);
 
     const payload = {
       titleEn: draft.titleEn.trim() || draft.titleGu.trim(),
       titleGu: draft.titleGu.trim() || undefined,
-      albumDate: draft.albumDate || undefined,
+      startDate: draft.startDate || undefined,
+      endDate: draft.endDate || undefined,
       accent: draft.accent || undefined,
       coverUrl: draft.coverUrl || undefined,
       youtubeUrl: draft.youtubeUrl || undefined,
@@ -150,8 +163,9 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       isVisible: draft.isVisible,
       photos: draft.images.length,
       images: draft.images.map((imageUrl) => ({ imageUrl, caption: null })),
-      albumDateISO: draft.albumDate || null,
-      date: draft.albumDate ? fmtDate(draft.albumDate) : "—",
+      startDateISO: draft.startDate || null,
+      endDateISO: draft.endDate || null,
+      date: draft.startDate ? fmtDate(draft.startDate) : "—",
     };
 
     setRows((prev) =>
@@ -186,7 +200,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   return (
     <>
       <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
-        <AdminH2 className="mb-0">Gallery — albums</AdminH2>
+        <AdminH2 className="mb-0">Event Gallery — albums</AdminH2>
         <AdminBtn onClick={openCreate}>
           <Plus className="size-4" />
           Create album (folder)
@@ -194,60 +208,67 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       </div>
 
       <AdminHint className="mt-0 mb-5 max-w-3xl text-[12.5px]">
-        Create a folder with a name &amp; date, then upload multiple images into it. Photos appear
-        in the User App under that album.
+        Create a folder with a name, start &amp; end date, then upload multiple images into it.
+        Photos appear in the User App under that album until the end date passes, after which the
+        album is automatically deactivated.
       </AdminHint>
 
       {error && !draft && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
-        {rows.map((a) => (
-          <article
-            key={a.id}
-            className="flex flex-col overflow-hidden rounded-2xl border border-[var(--line-admin)] bg-white"
-          >
-            <div className="relative h-[132px] bg-[var(--surface-admin)]">
-              {a.coverUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.coverUrl} alt="" className="size-full object-cover" />
-              ) : (
-                <span className="flex size-full items-center justify-center">
-                  <ImageIcon className="size-8 text-[var(--faint-soft)]" strokeWidth={1.6} />
-                </span>
-              )}
-              <span
-                className={cn(
-                  "absolute top-2.5 right-2.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold",
-                  a.isVisible
-                    ? "bg-[var(--success-tint)] text-[var(--success)]"
-                    : "bg-[var(--line-soft)] text-[var(--muted)]",
+        {rows.map((a) => {
+          const expired = isExpired(a.endDateISO);
+          const statusLabel = a.isVisible ? "Visible" : expired ? "Expired" : "Hidden";
+          return (
+            <article
+              key={a.id}
+              className="flex flex-col overflow-hidden rounded-2xl border border-[var(--line-admin)] bg-white"
+            >
+              <div className="relative h-[132px] bg-[var(--surface-admin)]">
+                {a.coverUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.coverUrl} alt="" className="size-full object-cover" />
+                ) : (
+                  <span className="flex size-full items-center justify-center">
+                    <ImageIcon className="size-8 text-[var(--faint-soft)]" strokeWidth={1.6} />
+                  </span>
                 )}
-              >
-                {a.isVisible ? "Visible" : "Hidden"}
-              </span>
-            </div>
-
-            <div className="flex min-w-0 flex-1 flex-col p-3.5">
-              <h3 className="truncate text-[14px] font-extrabold text-[var(--ink)]">
-                {a.titleGu || a.titleEn}
-              </h3>
-              <p className="mt-0.5 text-[11.5px] font-semibold text-[var(--faint)]">
-                {a.date} · {a.photos} photo{a.photos === 1 ? "" : "s"}
-                {a.youtubeUrl ? " · video" : ""}
-              </p>
-
-              <div className="mt-3 flex flex-wrap gap-2.5 border-t border-[var(--line-soft)] pt-3">
-                <LinkAction onClick={() => openEdit(a)}>Upload / manage</LinkAction>
-                <LinkAction onClick={() => toggleVisible(a)}>
-                  {a.isVisible ? "Hide" : "Show"}
-                </LinkAction>
-                <LinkAction danger onClick={() => remove(a.id)}>
-                  Delete
-                </LinkAction>
+                <span
+                  className={cn(
+                    "absolute top-2.5 right-2.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                    a.isVisible
+                      ? "bg-[var(--success-tint)] text-[var(--success)]"
+                      : expired
+                        ? "bg-[var(--danger-tint)] text-[var(--danger)]"
+                        : "bg-[var(--line-soft)] text-[var(--muted)]",
+                  )}
+                >
+                  {statusLabel}
+                </span>
               </div>
-            </div>
-          </article>
-        ))}
+
+              <div className="flex min-w-0 flex-1 flex-col p-3.5">
+                <h3 className="truncate text-[14px] font-extrabold text-[var(--ink)]">
+                  {a.titleGu || a.titleEn}
+                </h3>
+                <p className="mt-0.5 text-[11.5px] font-semibold text-[var(--faint)]">
+                  {a.date} · {a.photos} photo{a.photos === 1 ? "" : "s"}
+                  {a.youtubeUrl ? " · video" : ""}
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2.5 border-t border-[var(--line-soft)] pt-3">
+                  <LinkAction onClick={() => openEdit(a)}>Upload / manage</LinkAction>
+                  <LinkAction onClick={() => toggleVisible(a)}>
+                    {a.isVisible ? "Hide" : "Show"}
+                  </LinkAction>
+                  <LinkAction danger onClick={() => remove(a.id)}>
+                    Delete
+                  </LinkAction>
+                </div>
+              </div>
+            </article>
+          );
+        })}
       </div>
 
       {rows.length === 0 && (
@@ -257,14 +278,15 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       )}
 
       <AdminHint>
-        Album = title + date + description + cover. Long videos = YouTube link inside album.
+        Album = title + start/end date + description + cover. Long videos = YouTube link inside
+        album. End date reached → album auto-deactivates (not visible in the User App).
       </AdminHint>
 
       <AdminModal
         open={draft !== null}
         onClose={() => setDraft(null)}
         title={draft?.id ? "Edit album" : "Create album"}
-        subtitle="Folder name, date & description."
+        subtitle="Folder name, start/end date & description."
         footer={
           <AdminModalActions
             onSave={saveAlbum}
@@ -300,22 +322,30 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
             </AdminField>
 
             <AdminFormRow>
-              <AdminField label="Date">
+              <AdminField label="Start date">
                 <AdminInput
                   type="date"
-                  value={draft.albumDate}
-                  onChange={(v) => setDraft({ ...draft, albumDate: v })}
+                  value={draft.startDate}
+                  onChange={(v) => setDraft({ ...draft, startDate: v })}
                 />
               </AdminField>
-              <AdminField label="Accent color">
-                <AdminSelect
-                  value={draft.accent}
-                  onChange={(v) => setDraft({ ...draft, accent: v })}
-                  className="w-full"
-                  options={ACCENTS}
+              <AdminField label="End date" hint="Album auto-deactivates after this date">
+                <AdminInput
+                  type="date"
+                  value={draft.endDate}
+                  onChange={(v) => setDraft({ ...draft, endDate: v })}
                 />
               </AdminField>
             </AdminFormRow>
+
+            <AdminField label="Accent color">
+              <AdminSelect
+                value={draft.accent}
+                onChange={(v) => setDraft({ ...draft, accent: v })}
+                className="w-full"
+                options={ACCENTS}
+              />
+            </AdminField>
 
             <AdminField label="Description (ગુજરાતી)">
               <AdminInput

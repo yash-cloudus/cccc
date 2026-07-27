@@ -8,10 +8,17 @@ export async function GET() {
   try {
     const communityId = await getActiveCommunityId();
     if (!communityId) return ok([]);
+
+    // Lazily deactivate albums whose end date has passed — no cron needed.
+    await prisma.galleryAlbum.updateMany({
+      where: { communityId, isVisible: true, endDate: { lt: new Date() } },
+      data: { isVisible: false },
+    });
+
     const items = await prisma.galleryAlbum.findMany({
       where: { communityId },
       include: { images: true, videos: true, _count: { select: { images: true } } },
-      orderBy: { albumDate: "desc" },
+      orderBy: { startDate: "desc" },
     });
     return ok(items);
   } catch (e) {
@@ -25,7 +32,8 @@ const schema = z.object({
   titleGu: z.string().optional(),
   description: z.string().optional(),
   coverUrl: z.string().optional(),
-  albumDate: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
   accent: z.string().optional(),
   isVisible: z.boolean().optional(),
   youtubeUrl: z.string().optional(),
@@ -50,7 +58,8 @@ export async function POST(req: Request) {
         youtubeUrl: body.youtubeUrl,
         accent: body.accent,
         isVisible: body.isVisible ?? true,
-        albumDate: body.albumDate ? new Date(body.albumDate) : undefined,
+        startDate: body.startDate ? new Date(body.startDate) : undefined,
+        endDate: body.endDate ? new Date(body.endDate) : undefined,
         images: body.images?.length
           ? { create: body.images.map((img, i) => ({ ...img, sortOrder: i })) }
           : undefined,
@@ -75,7 +84,8 @@ const patchSchema = z.object({
   youtubeUrl: z.string().optional(),
   description: z.string().optional(),
   accent: z.string().optional(),
-  albumDate: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
   /** Full replace of the album's photos, in display order. Omit to leave untouched. */
   images: z
     .array(z.object({ imageUrl: z.string().min(1), caption: z.string().optional() }))
@@ -89,9 +99,13 @@ export async function PATCH(req: Request) {
       return fail("Forbidden", 403);
     }
     const communityId = await getWritableCommunityId();
-    const { id, images, albumDate, ...rest } = patchSchema.parse(await req.json());
-    // albumDate arrives as an ISO/date string; Prisma needs a Date.
-    const data = { ...rest, ...(albumDate ? { albumDate: new Date(albumDate) } : {}) };
+    const { id, images, startDate, endDate, ...rest } = patchSchema.parse(await req.json());
+    // startDate/endDate arrive as ISO/date strings; Prisma needs a Date.
+    const data = {
+      ...rest,
+      ...(startDate ? { startDate: new Date(startDate) } : {}),
+      ...(endDate ? { endDate: new Date(endDate) } : {}),
+    };
     const existing = await prisma.galleryAlbum.findFirst({
       where: { id, communityId },
       select: { id: true },
