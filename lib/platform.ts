@@ -46,6 +46,19 @@ export function generatePassword(length = 12): string {
 }
 
 /**
+ * Memorable admin password: first name + "@" + first 4 digits of the mobile
+ * number, e.g. name "Bob Patel" + phone "9319912345" → "bob@9319".
+ * Falls back to a random 4-digit tail when the phone isn't filled in yet.
+ */
+export function generateNamePhonePassword(name: string, phone: string): string {
+  const namePart =
+    (name || "").trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z0-9]/g, "") || "admin";
+  const digits = (phone || "").replace(/\D/g, "");
+  const phonePart = digits.slice(0, 4) || String(Math.floor(1000 + Math.random() * 9000));
+  return `${namePart}@${phonePart}`;
+}
+
+/**
  * The unit a community groups its families by — surname for a Parivar app,
  * village for a Gam app.
  *

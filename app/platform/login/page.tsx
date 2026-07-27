@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Loader2 } from "lucide-react";
+import { Eye, EyeOff, LayoutGrid, Loader2 } from "lucide-react";
 import { ROOT_DOMAIN } from "@/lib/constants";
 
 function PlatformLoginForm() {
@@ -10,6 +10,7 @@ function PlatformLoginForm() {
   const params = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -68,19 +69,31 @@ function PlatformLoginForm() {
               autoFocus
               autoComplete="username"
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="cloudus"
+              placeholder="example"
             />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold text-[var(--platform-muted)]">Password</span>
-            <input
-              className="mafld"
-              type="password"
-              value={password}
-              autoComplete="current-password"
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                className="mafld"
+                style={{ paddingRight: 40 }}
+                type={showPassword ? "text" : "password"}
+                value={password}
+                autoComplete="current-password"
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-[var(--platform-muted)]"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
+              </button>
+            </div>
           </label>
           <button
             type="submit"
