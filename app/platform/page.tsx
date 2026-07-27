@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Download, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, Settings, ChevronLeft, X } from "lucide-react";
+import { Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, ChevronLeft, X } from "lucide-react";
 import { PRIMARY_COLORS, SECONDARY_COLORS, ROOT_DOMAIN } from "@/lib/constants";
 import {
   communityAdminHostLabel,
@@ -9,6 +9,7 @@ import {
   communitySiteHostLabel,
   communityUrl,
   defaultAdminUsername,
+  generateNamePhonePassword,
   normalizeSlug,
   plural,
 } from "@/lib/platform";
@@ -48,6 +49,12 @@ type ApiCommunity = {
 type View = "apps" | "create" | "settings";
 type UIType = "parivar" | "gam";
 
+/** Distinct accent per app type so Parivar/Gam are visually distinguishable at a glance. */
+const TYPE_BADGE: Record<"PARIVAR" | "GAM", { tint: string; text: string; solid: string }> = {
+  PARIVAR: { tint: "bg-[var(--violet-tint)]", text: "text-[var(--violet)]", solid: "bg-[var(--violet)]" },
+  GAM: { tint: "bg-[var(--info-tint)]", text: "text-[var(--info)]", solid: "bg-[var(--info)]" },
+};
+
 type Form = {
   nameEn: string;
   nameGu: string;
@@ -57,7 +64,7 @@ type Form = {
   primary: string;
   secondary: string;
   subdomain: string;
-  status: "LIVE" | "DRAFT";
+  status: "LIVE" | "DRAFT" | "SUSPENDED";
   adminName: string;
   adminPhone: string;
   adminUsername: string;
@@ -86,6 +93,8 @@ export default function PlatformPage() {
   const { guInput } = useTranslitSync();
   const [view, setView] = useState<View>("apps");
   const [apps, setApps] = useState<ApiCommunity[]>([]);
+  const [appSearch, setAppSearch] = useState("");
+  const [appTypeFilter, setAppTypeFilter] = useState<"all" | "PARIVAR" | "GAM">("all");
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [f, setF] = useState<Form>(blankForm());
@@ -101,6 +110,8 @@ export default function PlatformPage() {
   } | null>(null);
   const [nameSyncing, setNameSyncing] = useState<"en2gu" | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const translitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const translitToken = useRef(0);
   const logoFileRef = useRef<HTMLInputElement | null>(null);
@@ -152,6 +163,20 @@ export default function PlatformPage() {
   }, [load]);
 
   const liveCount = apps.filter((a) => a.status === "LIVE").length;
+
+  const filteredApps = useMemo(() => {
+    const needle = appSearch.trim().toLowerCase();
+    return apps.filter((a) => {
+      if (appTypeFilter !== "all" && a.type !== appTypeFilter) return false;
+      if (!needle) return true;
+      return (
+        a.nameEn.toLowerCase().includes(needle) ||
+        (a.nameGu || "").toLowerCase().includes(needle) ||
+        a.slug.toLowerCase().includes(needle)
+      );
+    });
+  }, [apps, appSearch, appTypeFilter]);
+
   const isGam = f.type === "gam";
   const logoInitial = f.logoText || (f.nameGu || f.nameEn || "").trim().charAt(0) || "?";
   const sub = normalizeSlug(f.subdomain) || "your_app";
@@ -164,6 +189,29 @@ export default function PlatformPage() {
 
   function setField<K extends keyof Form>(key: K, value: Form[K]) {
     setF((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function usernameTaken(name: string): boolean {
+    const n = name.trim().toLowerCase();
+    if (!n) return false;
+    return apps.some((a) => a.id !== editingId && (a.owner?.username || "").toLowerCase() === n);
+  }
+
+  function genUsername() {
+    const slug = normalizeSlug(f.subdomain) || normalizeSlug(f.nameEn) || "community";
+    const base = defaultAdminUsername(slug);
+    let candidate = base;
+    let i = 2;
+    while (usernameTaken(candidate)) {
+      candidate = `${base}${i}`;
+      i++;
+    }
+    setF((prev) => ({ ...prev, adminUsername: candidate, _userTouched: true }));
+  }
+
+  function genAdminPassword() {
+    setShowAdminPassword(true);
+    setField("adminPassword", generateNamePhonePassword(f.adminName, f.adminPhone));
   }
 
   /** English name → Gujarati name via /api/i18n/transliterate (debounced). */
@@ -279,7 +327,7 @@ export default function PlatformPage() {
       primary: a.primaryColor,
       secondary: a.secondaryColor,
       subdomain: a.slug,
-      status: a.status === "DRAFT" ? "DRAFT" : "LIVE",
+      status: a.status,
       adminName: a.owner?.name || "",
       adminPhone: a.owner?.mobile || "",
       adminUsername: a.owner?.username || defaultAdminUsername(a.slug),
@@ -415,6 +463,10 @@ export default function PlatformPage() {
   }
 
   async function openApp(slug: string) {
+    // Open the tab synchronously (inside the click handler) so browsers don't
+    // treat it as a blocked popup once we redirect it after the await below.
+    const win = window.open("", "_blank");
+    if (win) win.opener = null;
     try {
       const res = await fetch("/api/platform/launch", {
         method: "POST",
@@ -423,16 +475,21 @@ export default function PlatformPage() {
       });
       const json = await res.json();
       if (json?.success && json?.data?.url) {
-        window.location.href = json.data.url as string;
+        if (win) win.location.href = json.data.url as string;
+        else window.open(json.data.url as string, "_blank", "noopener,noreferrer");
         return;
       }
     } catch {
       /* fall through */
     }
-    window.location.href = communityUrl(slug, "/dashboard");
+    const fallback = communityUrl(slug, "/dashboard");
+    if (win) win.location.href = fallback;
+    else window.open(fallback, "_blank", "noopener,noreferrer");
   }
 
   async function openAdmin(slug: string) {
+    const win = window.open("", "_blank");
+    if (win) win.opener = null;
     try {
       const res = await fetch("/api/platform/launch", {
         method: "POST",
@@ -441,13 +498,40 @@ export default function PlatformPage() {
       });
       const json = await res.json();
       if (json?.success && json?.data?.url) {
-        window.location.href = json.data.url as string;
+        if (win) win.location.href = json.data.url as string;
+        else window.open(json.data.url as string, "_blank", "noopener,noreferrer");
         return;
       }
     } catch {
       /* fall through */
     }
-    window.location.href = communityAdminUrl(slug, "/admin");
+    const fallback = communityAdminUrl(slug, "/admin");
+    if (win) win.location.href = fallback;
+    else window.open(fallback, "_blank", "noopener,noreferrer");
+  }
+
+  /** Quick Active/Deactive flip from the app card — persists straight to the DB. */
+  async function toggleAppStatus(a: ApiCommunity) {
+    const nextStatus = a.status === "LIVE" ? "SUSPENDED" : "LIVE";
+    setTogglingId(a.id);
+    try {
+      const res = await fetch(`/api/platform/communities/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const json = await res.json();
+      if (json?.success) {
+        setApps((prev) => prev.map((x) => (x.id === a.id ? { ...x, status: nextStatus } : x)));
+        if (editingId === a.id) setField("status", nextStatus);
+      } else {
+        setError(json.error || "Failed to update app status.");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setTogglingId(null);
+    }
   }
 
   async function logout() {
@@ -641,13 +725,49 @@ export default function PlatformPage() {
                 </>
               ) : (
                 <>
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                    <div>
+                  <div className="mb-5 flex flex-wrap items-center gap-3">
+                    <div className="mr-auto">
                       <h2 className="m-0 text-[22px] font-extrabold text-[var(--platform-ink)]">Your apps</h2>
                       <p className="mt-1 text-[13px] text-[var(--platform-muted)]">
                         Every Gam / Parivar app you run on the platform
                       </p>
                     </div>
+
+                    <div className="relative min-w-0 flex-1 sm:max-w-[340px]">
+                      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--platform-muted)]" />
+                      <input
+                        value={appSearch}
+                        onChange={(e) => setAppSearch(e.target.value)}
+                        placeholder="Search Gam / Parivar by name…"
+                        className="h-11 w-full rounded-xl border-[1.5px] border-[var(--platform-line)] bg-white pr-3 pl-9 text-[13.5px] text-[var(--platform-ink)] outline-none focus:border-[var(--platform)]"
+                      />
+                    </div>
+
+                    <div className="flex overflow-hidden rounded-xl border-[1.5px] border-[var(--platform-line)] bg-white">
+                      {(
+                        [
+                          { key: "PARIVAR", label: "Parivar" },
+                          { key: "GAM", label: "Gam" },
+                        ] as const
+                      ).map((opt) => {
+                        const active = appTypeFilter === opt.key;
+                        const badge = TYPE_BADGE[opt.key];
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setAppTypeFilter(active ? "all" : opt.key)}
+                            className={cn(
+                              "h-11 cursor-pointer px-4 text-[13px] font-bold whitespace-nowrap last:border-l-[1.5px] last:border-[var(--platform-line)]",
+                              active ? cn(badge.solid, "text-white") : cn(badge.tint, badge.text),
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     <button
                       type="button"
                       onClick={startCreate}
@@ -662,9 +782,14 @@ export default function PlatformPage() {
                     <div className="flex items-center gap-2 py-16 text-sm text-[var(--platform-muted)]">
                       <Loader2 className="size-4 animate-spin" /> Loading apps…
                     </div>
+                  ) : filteredApps.length === 0 && apps.length > 0 ? (
+                    <div className="flex flex-col items-center gap-1.5 py-16 text-center">
+                      <span className="text-[13.5px] font-bold text-[var(--platform-ink)]">No apps match your search</span>
+                      <span className="text-[12.5px] text-[var(--platform-muted)]">Try a different name or clear the filter.</span>
+                    </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
-                      {apps.map((a) => (
+                      {filteredApps.map((a) => (
                         <div
                           key={a.id}
                           className="rounded-2xl border border-[var(--platform-line)] bg-white p-4 shadow-[0_2px_5px_rgba(30,25,40,.05)]"
@@ -692,28 +817,25 @@ export default function PlatformPage() {
                                 {communityAdminHostLabel(a.slug)}
                               </div>
                             </div>
-                            <span
-                              className={cn(
-                                "shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-extrabold",
-                                a.status === "LIVE"
-                                  ? "bg-[var(--success-tint)] text-[var(--success)]"
-                                  : "bg-[#F1EFEA] text-[var(--platform-muted)]",
-                              )}
-                            >
-                              {a.status === "LIVE" ? "Live" : a.status === "DRAFT" ? "Draft" : "Suspended"}
-                            </span>
                           </div>
 
                           <div className="mb-3.5 flex flex-wrap gap-2">
-                            <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
+                            <span
+                              className={cn(
+                                "rounded-lg px-2.5 py-1 text-[11.5px] font-bold",
+                                TYPE_BADGE[a.type].tint,
+                                TYPE_BADGE[a.type].text,
+                              )}
+                            >
                               {a.type === "GAM" ? "Gam · ગામ" : "Parivar · પરિવાર"}
                             </span>
-                            {/* Live grouping count: villages for a Gam app,
-                                surname groups for a Parivar app. */}
+                            {/* Live grouping count: a Gam app is one fixed village with many
+                                surnames, so show surname diversity. A Parivar app is one fixed
+                                surname spread across many villages, so show village diversity. */}
                             <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
                               {a.type === "GAM"
-                                ? `${a._count?.villageAreas ?? 0} ${plural(a._count?.villageAreas ?? 0, "village")}`
-                                : `${a._count?.surnameGroups ?? 0} ${plural(a._count?.surnameGroups ?? 0, "surname")}`}
+                                ? `${a._count?.surnameGroups ?? 0} ${plural(a._count?.surnameGroups ?? 0, "surname")}`
+                                : `${a._count?.villageAreas ?? 0} ${plural(a._count?.villageAreas ?? 0, "village")}`}
                             </span>
                             <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
                               {a._count?.families ?? 0} {plural(a._count?.families ?? 0, "family", "families")}
@@ -742,6 +864,9 @@ export default function PlatformPage() {
                             >
                               Open app
                             </button>
+                          </div>
+
+                          <div className="mt-2.5 flex items-center">
                             <button
                               type="button"
                               onClick={() => openAdmin(a.slug)}
@@ -749,6 +874,12 @@ export default function PlatformPage() {
                             >
                               Open admin
                             </button>
+                            <StatusToggle
+                              active={a.status === "LIVE"}
+                              busy={togglingId === a.id}
+                              onToggle={() => toggleAppStatus(a)}
+                              className="ml-auto"
+                            />
                           </div>
                         </div>
                       ))}
@@ -796,7 +927,22 @@ export default function PlatformPage() {
                   </div>
                 )}
 
-                <Section label="BASIC DETAILS" />
+                {editing && (
+                  <div className="mb-5 flex items-center justify-between gap-3 rounded-[13px] border border-[var(--platform-line)] bg-[var(--platform-surface)] px-4 py-3">
+                    <div>
+                      <div className="text-[13px] font-extrabold text-[var(--platform-ink)]">App status</div>
+                      <div className="text-[11.5px] font-semibold text-[var(--platform-muted)]">
+                        Saved with the rest of this form when you click Save changes.
+                      </div>
+                    </div>
+                    <StatusToggle
+                      active={f.status === "LIVE"}
+                      onToggle={() => setField("status", f.status === "LIVE" ? "SUSPENDED" : "LIVE")}
+                    />
+                  </div>
+                )}
+
+                <Section label="BASIC DETAILS" emphasis />
                 <Field label="App name (English) *">
                   <div className="relative">
                     <input
@@ -1012,29 +1158,64 @@ export default function PlatformPage() {
                 </div>
                 <div className="mb-2 grid grid-cols-2 gap-3.5 max-sm:grid-cols-1">
                   <Field label="Username *">
-                    <input
-                      className="mafld"
-                      value={f.adminUsername}
-                      placeholder={defaultAdminUsername(sub)}
-                      autoComplete="off"
-                      onChange={(e) =>
-                        setF((prev) => ({
-                          ...prev,
-                          adminUsername: e.target.value.replace(/\s+/g, "_").toLowerCase(),
-                          _userTouched: true,
-                        }))
-                      }
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        className="mafld flex-1"
+                        value={f.adminUsername}
+                        placeholder={defaultAdminUsername(sub)}
+                        autoComplete="off"
+                        onChange={(e) =>
+                          setF((prev) => ({
+                            ...prev,
+                            adminUsername: e.target.value.replace(/\s+/g, "_").toLowerCase(),
+                            _userTouched: true,
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        onClick={genUsername}
+                        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-3 text-[12px] font-bold text-[var(--platform-muted)]"
+                      >
+                        <RefreshCw className="size-3.5" /> Generate
+                      </button>
+                    </div>
+                    {usernameTaken(f.adminUsername) && (
+                      <p className="mt-1.5 text-[11.5px] font-bold text-[var(--danger)]">
+                        ⚠ This username already exists. Choose another one.
+                      </p>
+                    )}
                   </Field>
                   <Field label={editing ? "New password" : "Password *"}>
-                    <input
-                      className="mafld"
-                      type="text"
-                      value={f.adminPassword}
-                      placeholder={editing ? "Leave blank to keep current" : "admin"}
-                      autoComplete="new-password"
-                      onChange={(e) => setField("adminPassword", e.target.value)}
-                    />
+                    <div className="flex gap-2">
+                      <div className="relative min-w-0 flex-1">
+                        <input
+                          className="mafld"
+                          style={{ paddingRight: 38 }}
+                          type={showAdminPassword ? "text" : "password"}
+                          value={f.adminPassword}
+                          placeholder={editing ? "Leave blank to keep current" : "Enter or generate"}
+                          autoComplete="new-password"
+                          onChange={(e) => setField("adminPassword", e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPassword((v) => !v)}
+                          className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-[var(--platform-muted)]"
+                          aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                          tabIndex={-1}
+                        >
+                          {showAdminPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={genAdminPassword}
+                        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-3 text-[12px] font-bold text-[var(--platform-muted)]"
+                      >
+                        <RefreshCw className="size-3.5" /> Generate
+                      </button>
+                    </div>
                   </Field>
                 </div>
                 {editing && (
@@ -1292,8 +1473,17 @@ function Row({ label, value, mono }: { label: string; value: string; mono?: bool
   );
 }
 
-function Section({ label }: { label: string }) {
-  return <div className="mb-3 mt-1.5 text-xs font-extrabold tracking-wide text-[var(--platform-muted)]">{label}</div>;
+function Section({ label, emphasis }: { label: string; emphasis?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "mb-3 mt-1.5 font-extrabold tracking-wide text-[var(--platform-muted)]",
+        emphasis ? "text-[15px] text-[var(--platform-ink)]" : "text-xs",
+      )}
+    >
+      {label}
+    </div>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -1301,6 +1491,51 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div className="mb-3.5">
       <div className="mb-1.5 text-xs font-bold text-[var(--platform-muted)]">{label}</div>
       {children}
+    </div>
+  );
+}
+
+/** Active/Deactive switch — status label above a toggle pill. */
+function StatusToggle({
+  active,
+  busy,
+  onToggle,
+  className,
+}: {
+  active: boolean;
+  busy?: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-row items-center gap-1.5 opacity-80", className)}>
+      <span
+        className={cn(
+          "rounded-full px-2 py-px text-[9.5px] font-bold",
+          active ? "bg-[var(--success-tint)] text-[var(--success)]" : "bg-[var(--danger-tint-soft)] text-[var(--danger)]",
+        )}
+      >
+        {active ? "Active" : "Deactive"}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={active}
+        aria-label={active ? "Deactivate app" : "Activate app"}
+        disabled={busy}
+        onClick={onToggle}
+        className={cn(
+          "relative h-[18px] w-8 shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+          active ? "bg-[#8FCFA6]" : "bg-[#D8D5CE]",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 left-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform",
+            active && "translate-x-[14px]",
+          )}
+        />
+      </button>
     </div>
   );
 }
