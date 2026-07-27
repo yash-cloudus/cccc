@@ -600,7 +600,8 @@ model GalleryAlbum {
   description String?        @db.Text
   coverUrl    String?
   accent      String?
-  albumDate   DateTime?
+  startDate   DateTime?
+  endDate     DateTime?
   youtubeUrl  String?
   isVisible   Boolean        @default(true)
   createdAt   DateTime       @default(now())

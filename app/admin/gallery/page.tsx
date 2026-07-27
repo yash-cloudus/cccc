@@ -16,14 +16,15 @@ export default async function GalleryPage() {
     titleGu: a.titleGu,
     coverUrl: a.coverUrl,
     accent: a.accent,
-    albumDateISO: a.albumDate ? a.albumDate.toISOString() : null,
+    startDateISO: a.startDate ? a.startDate.toISOString() : null,
+    endDateISO: a.endDate ? a.endDate.toISOString() : null,
     youtubeUrl: a.youtubeUrl,
     description: a.description,
     isVisible: a.isVisible,
     photos: a._count.images,
     images: a.images.map((i) => ({ imageUrl: i.imageUrl, caption: i.caption })),
-    date: a.albumDate
-      ? new Date(a.albumDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
+    date: a.startDate
+      ? new Date(a.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
       : "—",
   }));
 
