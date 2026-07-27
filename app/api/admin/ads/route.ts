@@ -25,6 +25,14 @@ const schema = z.object({
   priority: z.number().int().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  name: z.string().min(2).max(120).optional(),
+  pitch: z.string().max(2000).optional().nullable(),
+  imageUrl: z.string().max(500).optional().nullable(),
+  linkUrl: z.string().max(500).optional().nullable(),
+  ownerName: z.string().max(120).optional().nullable(),
+  ownerMobile: z.string().max(20).optional().nullable(),
+  category: z.string().max(120).optional().nullable(),
+  payStatus: z.string().max(40).optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -44,6 +52,14 @@ export async function PATCH(req: Request) {
         priority: body.priority,
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined,
+        name: body.name,
+        pitch: body.pitch === undefined ? undefined : body.pitch,
+        imageUrl: body.imageUrl === undefined ? undefined : body.imageUrl,
+        linkUrl: body.linkUrl === undefined ? undefined : body.linkUrl,
+        ownerName: body.ownerName === undefined ? undefined : body.ownerName,
+        ownerMobile: body.ownerMobile === undefined ? undefined : body.ownerMobile,
+        category: body.category === undefined ? undefined : body.category,
+        payStatus: body.payStatus,
       },
     });
     return ok(item);
