@@ -15,6 +15,8 @@ import {
 import { downloadCredentialsPdf } from "@/lib/credentials-pdf";
 import { tintPrimary } from "@/lib/platform-types";
 import { cn } from "@/lib/utils";
+import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { TooltipProvider, WithTooltip } from "@/components/ui/tooltip";
 
 type ApiCommunity = {
@@ -81,6 +83,7 @@ const blankForm = (): Form => ({
 });
 
 export default function PlatformPage() {
+  const { guInput } = useTranslitSync();
   const [view, setView] = useState<View>("apps");
   const [apps, setApps] = useState<ApiCommunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,7 +99,7 @@ export default function PlatformPage() {
     ownerName: string;
     ownerPhone: string;
   } | null>(null);
-  const [nameSyncing, setNameSyncing] = useState<"en2gu" | "gu2en" | null>(null);
+  const [nameSyncing, setNameSyncing] = useState<"en2gu" | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
   const translitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const translitToken = useRef(0);
@@ -163,17 +166,15 @@ export default function PlatformPage() {
     setF((prev) => ({ ...prev, [key]: value }));
   }
 
-  /** Bidirectional name sync: EN↔GU via /api/i18n/transliterate (debounced). */
-  function scheduleNameSync(direction: "en2gu" | "gu2en", text: string) {
+  /** English name → Gujarati name via /api/i18n/transliterate (debounced). */
+  function scheduleNameSync(direction: "en2gu", text: string) {
     if (translitTimer.current) clearTimeout(translitTimer.current);
     const token = ++translitToken.current;
     translitTimer.current = setTimeout(async () => {
       const trimmed = text.trim();
       if (!trimmed) {
         if (token !== translitToken.current) return;
-        setF((prev) =>
-          direction === "en2gu" ? { ...prev, nameGu: "" } : { ...prev, nameEn: "" },
-        );
+        setF((prev) => ({ ...prev, nameGu: "" }));
         setNameSyncing(null);
         return;
       }
@@ -188,17 +189,7 @@ export default function PlatformPage() {
         if (token !== translitToken.current) return;
         if (!json.success || typeof json.data?.result !== "string") return;
         const result = json.data.result as string;
-        setF((prev) => {
-          if (direction === "en2gu") return { ...prev, nameGu: result };
-          const nextSub = prev._subTouched ? prev.subdomain : normalizeSlug(result);
-          const slug = normalizeSlug(nextSub) || normalizeSlug(result);
-          return {
-            ...prev,
-            nameEn: result,
-            subdomain: nextSub,
-            adminUsername: prev._userTouched ? prev.adminUsername : (slug ? defaultAdminUsername(slug) : prev.adminUsername),
-          };
-        });
+        setF((prev) => ({ ...prev, nameGu: result }));
       } catch {
         /* keep last value; local fallback is server-side */
       } finally {
@@ -221,9 +212,17 @@ export default function PlatformPage() {
     scheduleNameSync("en2gu", v);
   }
 
+  /**
+   * Gujarati name field = Gujarati phonetic keyboard.
+   *
+   * Typing Latin here converts to Gujarati in place, once a space completes a
+   * word. It deliberately does NOT write back to the English name (or the
+   * derived subdomain) — that reverse sync used to overwrite what the user had
+   * already typed in English.
+   */
   function onNameGuChange(v: string) {
     setF((prev) => ({ ...prev, nameGu: v }));
-    scheduleNameSync("gu2en", v);
+    guInput(v, (gu) => setF((prev) => ({ ...prev, nameGu: gu })), "appName:gu");
   }
 
   async function uploadLogo(file: File) {
@@ -806,25 +805,23 @@ export default function PlatformPage() {
                       placeholder="Mota Zinzuda Samaj"
                       onChange={(e) => onNameEnChange(e.target.value)}
                     />
-                    {nameSyncing === "gu2en" && (
-                      <Loader2 className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-[var(--platform-muted)]" />
-                    )}
                   </div>
                 </Field>
                 <Field label="App name (ગુજરાતી)">
                   <div className="relative">
-                    <input
-                      className="mafld font-[family-name:var(--font-noto-serif-gujarati)]"
+                    <GujaratiInput
+                      inputClassName="mafld font-[family-name:var(--font-noto-serif-gujarati)]"
                       value={f.nameGu}
                       placeholder="મોટા ઝીંઝુડા સમાજ"
-                      onChange={(e) => onNameGuChange(e.target.value)}
+                      onChange={onNameGuChange}
                     />
                     {nameSyncing === "en2gu" && (
                       <Loader2 className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-[var(--platform-muted)]" />
                     )}
                   </div>
                   <p className="mt-1.5 text-[11px] font-medium text-[#A0A5B0]">
-                    Type either side — the other fills automatically (names use phonetic Gujarati).
+                    English fills this automatically. You can also type here directly — Latin
+                    becomes Gujarati as you type (press space after each word).
                   </p>
                 </Field>
 

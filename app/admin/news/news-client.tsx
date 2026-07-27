@@ -94,7 +94,7 @@ function HasCell({ on, href, label }: { on: boolean; href?: string | null; label
 }
 
 export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<NewsRow[]>(initialRows);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -350,10 +350,11 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
           <>
             <AdminField label="Title (ગુજરાતી)" required>
               <AdminInput
+                gujarati
                 value={draft.titleGu}
                 onChange={(v) => {
                   setDraft((d) => (d ? { ...d, titleGu: v } : d));
-                  fromGu(v, (en) => setDraft((d) => (d ? { ...d, titleEn: en } : d)), "title");
+                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
                 }}
               />
             </AdminField>
@@ -392,7 +393,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 onChange={(e) => {
                   const v = e.target.value;
                   setDraft((d) => (d ? { ...d, contentGu: v } : d));
-                  fromGu(v, (en) => setDraft((d) => (d ? { ...d, contentEn: en } : d)), "content");
+                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
                 }}
                 className="min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />

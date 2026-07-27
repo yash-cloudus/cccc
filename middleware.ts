@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
-import { COOKIE_ACCESS, COMMUNITY_ADMIN_ROLES } from "@/lib/constants";
+import { COOKIE_ACCESS, COOKIE_ACTIVE_COMMUNITY, COMMUNITY_ADMIN_ROLES } from "@/lib/constants";
 import { withSecurityHeaders } from "@/lib/security/headers";
 import {
   communityAdminUrl,
   communitySiteUrl,
+  effectiveHost,
   mainAdminUrl,
   parseHost,
   type HostKind,
@@ -68,18 +69,46 @@ const MEMBER_PATHS = [
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const host = req.headers.get("host");
-  const parsed = parseHost(host);
+  const host = effectiveHost(req.headers);
+  const parsed = parseHost(host, pathname);
   const c = req.nextUrl.searchParams.get("c");
 
+  // Single-host mode has no slug in the hostname, so the tenant comes from
+  // ?c=<slug> or the active-community cookie set by login / the launch bridge.
+  const cookieSlug = req.cookies.get(COOKIE_ACTIVE_COMMUNITY)?.value || null;
+  const effectiveSlug = parsed.slug || (parsed.singleHost ? c || cookieSlug : null);
+
   const requestHeaders = new Headers(req.headers);
-  if (parsed.slug) requestHeaders.set("x-community-slug", parsed.slug);
+  if (effectiveSlug) requestHeaders.set("x-community-slug", effectiveSlug);
   requestHeaders.set("x-host-kind", parsed.kind);
 
   const finish = (res: NextResponse) => {
     if (pathname.startsWith("/api/")) withCors(res);
     return withSecurityHeaders(res);
   };
+
+  /**
+   * On a single-host origin (dev tunnel, LAN IP, preview URL) there are no
+   * wildcard subdomains, so every cross-panel hop stays on this origin and
+   * carries ?c=<slug> instead. Redirecting to admin.{slug}.<host> there only
+   * produces ERR_CONNECTION_REFUSED.
+   */
+  const sameOrigin = (path: string, slug?: string | null) => {
+    const url = req.nextUrl.clone();
+    url.pathname = path;
+    if (slug) url.searchParams.set("c", slug);
+    return finish(NextResponse.redirect(url));
+  };
+  const toSite = (slug: string, path: string) =>
+    parsed.singleHost
+      ? sameOrigin(path, slug)
+      : finish(NextResponse.redirect(communitySiteUrl(slug, path)));
+  const toAdmin = (slug: string, path: string) =>
+    parsed.singleHost
+      ? sameOrigin(path, slug)
+      : finish(NextResponse.redirect(communityAdminUrl(slug, path)));
+  const toMain = (path: string) =>
+    parsed.singleHost ? sameOrigin(path) : finish(NextResponse.redirect(mainAdminUrl(path)));
 
   const next = () => finish(NextResponse.next({ request: { headers: requestHeaders } }));
 
@@ -107,18 +136,18 @@ export async function middleware(req: NextRequest) {
   if (parsed.kind === "main") {
     // /login = Main Admin login (no /platform/login in the address bar)
     if (pathname === "/login" || pathname === "/platform/login") {
-      if (c) return finish(NextResponse.redirect(communitySiteUrl(c, "/login")));
+      if (c) return toSite(c, "/login");
       return rewrite("/platform/login");
     }
 
     // Member routes on apex → community host (with ?c=) or Main Admin login
     if (MEMBER_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-      if (c) return finish(NextResponse.redirect(communitySiteUrl(c, pathname)));
+      if (c) return toSite(c, pathname);
       return redirectPath("/login");
     }
 
     if (pathname.startsWith("/admin")) {
-      if (c) return finish(NextResponse.redirect(communityAdminUrl(c, pathname)));
+      if (c) return toAdmin(c, pathname);
       return redirectPath("/login");
     }
 
@@ -145,10 +174,10 @@ export async function middleware(req: NextRequest) {
       pathname.startsWith("/menu") ||
       pathname.startsWith("/profile")
     ) {
-      return finish(NextResponse.redirect(communitySiteUrl(parsed.slug, pathname)));
+      return toSite(parsed.slug, pathname);
     }
     if (pathname.startsWith("/platform")) {
-      return finish(NextResponse.redirect(mainAdminUrl("/login")));
+      return toMain("/login");
     }
   }
 
@@ -161,7 +190,7 @@ export async function middleware(req: NextRequest) {
       return finish(NextResponse.redirect(communityAdminUrl(parsed.slug, pathname)));
     }
     if (pathname.startsWith("/platform")) {
-      return finish(NextResponse.redirect(mainAdminUrl("/login")));
+      return toMain("/login");
     }
   }
 

@@ -12,6 +12,7 @@ import { api } from "@/lib/http";
 import { bloodToEnum, pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 
 type Group = { id: string; nameEn: string; nameGu: string | null };
 type Village = { id: string; nameEn: string; nameGu: string | null };
@@ -46,7 +47,7 @@ export function RegisterClient({
 }) {
   const { lang } = useLang();
   const router = useRouter();
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const T = (g: string, e: string) => (lang === "gu" ? g : e);
 
   const [step, setStep] = useState(1);
@@ -267,13 +268,12 @@ export function RegisterClient({
             />
           </Field>
           <Field label={`${T("પૂરું નામ", "Full name")} (${T("ગુજરાતી", "Gujarati")})`}>
-            <input
-              className="samaj-fld"
+            <GujaratiInput
+              inputClassName="samaj-fld"
               value={newMember.nameGu}
-              onChange={(e) => {
-                const v = e.target.value;
+              onChange={(v) => {
                 setNewMember((prev) => ({ ...prev, nameGu: v }));
-                fromGu(v, (en) => setNewMember((prev) => ({ ...prev, name: en })), "newMember");
+                guInput(v, (gu) => setNewMember((prev) => ({ ...prev, nameGu: gu })), "newMember:gu");
               }}
             />
           </Field>
@@ -493,7 +493,7 @@ export function RegisterClient({
                   onChange={(e) => {
                     const v = e.target.value;
                     setForm((prev) => ({ ...prev, addrGu: v }));
-                    fromGu(v, (en) => setForm((prev) => ({ ...prev, addr: en })), "addr");
+                    guInput(v, (gu) => setForm((prev) => ({ ...prev, addrGu: gu })), "addr:gu");
                   }}
                   placeholder={T("ગુજરાતીમાં…", "In Gujarati…")}
                 />
@@ -580,7 +580,7 @@ export function RegisterClient({
                   onChange={(e) => {
                     const v = e.target.value;
                     setForm((prev) => ({ ...prev, elderGu: v }));
-                    fromGu(v, (en) => setForm((prev) => ({ ...prev, elder: en })), "elder");
+                    guInput(v, (gu) => setForm((prev) => ({ ...prev, elderGu: gu })), "elder:gu");
                   }}
                 />
               </Field>
@@ -642,13 +642,12 @@ export function RegisterClient({
                   />
                 </Field>
                 <Field label={`${T("પૂરું નામ", "Full name")} (${T("ગુજરાતી", "Gujarati")})`}>
-                  <input
-                    className="samaj-fld"
+                  <GujaratiInput
+                    inputClassName="samaj-fld"
                     value={form.m1nameGu}
-                    onChange={(e) => {
-                      const v = e.target.value;
+                    onChange={(v) => {
                       setForm((prev) => ({ ...prev, m1nameGu: v }));
-                      fromGu(v, (en) => setForm((prev) => ({ ...prev, m1name: en })), "m1");
+                      guInput(v, (gu) => setForm((prev) => ({ ...prev, m1nameGu: gu })), "m1:gu");
                     }}
                   />
                 </Field>

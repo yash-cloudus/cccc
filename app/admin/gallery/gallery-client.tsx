@@ -76,7 +76,7 @@ const ACCENTS = [
 ];
 
 export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<AlbumRow[]>(initialRows);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -271,11 +271,12 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
           <>
             <AdminField label="Folder name (ગુજરાતી)" required>
               <AdminInput
+                gujarati
                 value={draft.titleGu}
                 placeholder="દા.ત. પાટોત્સવ 2026"
                 onChange={(v) => {
                   setDraft((d) => (d ? { ...d, titleGu: v } : d));
-                  fromGu(v, (en) => setDraft((d) => (d ? { ...d, titleEn: en } : d)));
+                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
                 }}
               />
             </AdminField>

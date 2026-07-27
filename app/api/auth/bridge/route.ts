@@ -9,7 +9,7 @@ import { getClientIp } from "@/lib/api";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { COOKIE_ACTIVE_COMMUNITY, PLATFORM_ROLE } from "@/lib/constants";
 import { communityAdminUrl, communitySiteUrl, mainAdminUrl } from "@/lib/host";
-import { parseHost } from "@/lib/host";
+import { effectiveHost, parseHost, requestOrigin } from "@/lib/host";
 
 export const dynamic = "force-dynamic";
 
@@ -27,18 +27,30 @@ function safeNext(raw: string | null, target: "admin" | "app") {
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get("token");
-  const host = req.headers.get("host");
-  const parsed = parseHost(host);
+  const host = effectiveHost(req.headers);
+  const parsed = parseHost(host, url.pathname);
   const ip = getClientIp(req);
+
+  const origin = requestOrigin(req);
+
+  /** Same-origin URL for single-host mode; absolute tenant URL otherwise. */
+  const dest = (target: "admin" | "app", slug: string, path: string) => {
+    if (!parsed.singleHost) {
+      return target === "admin" ? communityAdminUrl(slug, path) : communitySiteUrl(slug, path);
+    }
+    const u = new URL(path, origin);
+    u.searchParams.set("c", slug); // set, not append — never duplicates
+    return u.toString();
+  };
 
   const failRedirect = (target: "admin" | "app" | null, slug: string | null) => {
     if (slug && target === "admin") {
-      return NextResponse.redirect(communityAdminUrl(slug, "/admin/login"));
+      return NextResponse.redirect(dest("admin", slug, "/admin/login"));
     }
     if (slug && target === "app") {
-      return NextResponse.redirect(communitySiteUrl(slug, "/login"));
+      return NextResponse.redirect(dest("app", slug, "/login"));
     }
-    return NextResponse.redirect(mainAdminUrl("/login"));
+    return NextResponse.redirect(parsed.singleHost ? new URL("/login", origin).toString() : mainAdminUrl("/login"));
   };
 
   try {
@@ -49,15 +61,20 @@ export async function GET(req: Request) {
 
     const launch = await consumeLaunchToken(token);
 
-    // Host must match the community the token was minted for
-    if (!parsed.slug || parsed.slug !== launch.communitySlug) {
-      return failRedirect(launch.target, launch.communitySlug);
-    }
-    if (launch.target === "admin" && parsed.kind !== "admin") {
-      return failRedirect(launch.target, launch.communitySlug);
-    }
-    if (launch.target === "app" && parsed.kind !== "site") {
-      return failRedirect(launch.target, launch.communitySlug);
+    // On a canonical host the subdomain identifies the tenant, so it must match
+    // the community the token was minted for. A single-host origin carries no
+    // slug in the hostname — there the signed, one-time token IS the authority
+    // (it names communityId + slug and is still verified below).
+    if (!parsed.singleHost) {
+      if (!parsed.slug || parsed.slug !== launch.communitySlug) {
+        return failRedirect(launch.target, launch.communitySlug);
+      }
+      if (launch.target === "admin" && parsed.kind !== "admin") {
+        return failRedirect(launch.target, launch.communitySlug);
+      }
+      if (launch.target === "app" && parsed.kind !== "site") {
+        return failRedirect(launch.target, launch.communitySlug);
+      }
     }
 
     const user = await prisma.user.findFirst({
@@ -121,12 +138,7 @@ export async function GET(req: Request) {
     });
 
     const next = safeNext(url.searchParams.get("next"), launch.target);
-    const dest =
-      launch.target === "admin"
-        ? communityAdminUrl(community.slug, next)
-        : communitySiteUrl(community.slug, next);
-
-    return NextResponse.redirect(dest);
+    return NextResponse.redirect(dest(launch.target, community.slug, next));
   } catch (e) {
     console.error("bridge error", e);
     return failRedirect(parsed.kind === "admin" ? "admin" : "app", parsed.slug);

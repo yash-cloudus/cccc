@@ -21,7 +21,72 @@ export type ParsedHost = {
   /** Community slug when kind is "site" or "admin". */
   slug: string | null;
   hostname: string;
+  /**
+   * True when the host is NOT part of the configured wildcard root domain —
+   * a VS Code dev tunnel, a LAN IP, a preview URL. Such a host has exactly
+   * one name and no wildcard DNS, so `admin.{slug}.<host>` cannot resolve.
+   * In this mode panels are selected by path and the tenant comes from
+   * `?c=` / the active-community cookie / the session.
+   */
+  singleHost: boolean;
 };
+
+/** Member-site paths, used to pick a panel when routing by path. */
+const MEMBER_PATH_PREFIXES = [
+  "/dashboard",
+  "/directory",
+  "/news",
+  "/gallery",
+  "/business",
+  "/menu",
+  "/profile",
+  "/about",
+  "/ads",
+  "/results",
+  "/education",
+  "/blood-group",
+  "/donation",
+  "/notifications",
+  "/otp",
+  "/register",
+  "/pending",
+];
+
+/**
+ * The hostname the CLIENT actually used.
+ *
+ * A tunnel or reverse proxy rewrites `Host` to the upstream it dials — a VS
+ * Code dev tunnel sends `Host: localhost:3000` and puts the public name in
+ * `x-forwarded-host`. Trusting `Host` alone therefore makes a tunnel request
+ * look local, and every generated link points at the visitor's own machine.
+ *
+ * Note this header is client-settable when not behind a trusted proxy. It only
+ * decides which URL we *build*; tenant access is enforced by the session JWT
+ * (see getActiveCommunity), so a forged value cannot reach another community's
+ * data.
+ */
+export function effectiveHost(headers: {
+  get(name: string): string | null;
+}): string | null {
+  const fwd = headers.get("x-forwarded-host");
+  if (fwd) return fwd.split(",")[0].trim();
+  return headers.get("host");
+}
+
+/**
+ * True when `hostHeader` belongs to the configured ROOT_DOMAIN scheme, i.e.
+ * wildcard subdomain routing actually resolves for it.
+ */
+export function isCanonicalHost(hostHeader: string | null | undefined): boolean {
+  if (!hostHeader) return false;
+  const h = stripPort(hostHeader);
+  if (isBareLocal(h)) return true;
+  const root = ROOT_DOMAIN.toLowerCase();
+  if (root === "localhost" || root.endsWith(".localhost")) {
+    return h === "localhost" || h.endsWith(".localhost");
+  }
+  return h === root || h.endsWith(`.${root}`);
+}
 
 const RESERVED_TOP = new Set(["www", "platform", "api", "mail", "static", "assets", "app"]);
 
@@ -34,17 +99,40 @@ function isBareLocal(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
 
+/** Which panel a path belongs to, used only in single-host mode. */
+function kindFromPath(pathname?: string): HostKind {
+  if (!pathname) return "main";
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
+  if (pathname === "/platform" || pathname.startsWith("/platform/")) return "main";
+  if (MEMBER_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return "site";
+  }
+  return "main";
+}
+
 /**
  * Parse a Host header into Main Admin / member site / community admin.
  * Safe for middleware (no Node-only APIs).
  */
-export function parseHost(hostHeader: string | null | undefined): ParsedHost {
-  if (!hostHeader) return { kind: "unknown", slug: null, hostname: "" };
+export function parseHost(
+  hostHeader: string | null | undefined,
+  pathname?: string,
+): ParsedHost {
+  if (!hostHeader) return { kind: "unknown", slug: null, hostname: "", singleHost: false };
   const hostname = stripPort(hostHeader);
 
   // Local apex → Main Admin
   if (isBareLocal(hostname)) {
-    return { kind: "main", slug: null, hostname };
+    return { kind: "main", slug: null, hostname, singleHost: false };
+  }
+
+  // Host outside the configured root domain (dev tunnel / IP / preview URL).
+  // There is no wildcard DNS here, so never derive a slug from the hostname —
+  // doing so used to turn "h8wnp-3000.inc1.devtunnels.ms" into the community
+  // "h8wnp-3000" and redirect to a host that does not exist. Pick the panel
+  // from the path instead; the tenant comes from ?c= / cookie / session.
+  if (!isCanonicalHost(hostname)) {
+    return { kind: kindFromPath(pathname), slug: null, hostname, singleHost: true };
   }
 
   const parts = hostname.split(".").filter(Boolean);
@@ -53,7 +141,7 @@ export function parseHost(hostHeader: string | null | undefined): ParsedHost {
   if (parts.length >= 3 && parts[parts.length - 1] === "localhost" && parts[0] === "admin") {
     const slug = parts[1];
     if (slug && !RESERVED_TOP.has(slug) && slug !== "admin") {
-      return { kind: "admin", slug, hostname };
+      return { kind: "admin", slug, hostname, singleHost: false };
     }
   }
 
@@ -61,9 +149,9 @@ export function parseHost(hostHeader: string | null | undefined): ParsedHost {
   if (parts.length === 2 && parts[1] === "localhost") {
     const slug = parts[0];
     if (slug && !RESERVED_TOP.has(slug) && slug !== "admin") {
-      return { kind: "site", slug, hostname };
+      return { kind: "site", slug, hostname, singleHost: false };
     }
-    return { kind: "main", slug: null, hostname };
+    return { kind: "main", slug: null, hostname, singleHost: false };
   }
 
   // Production-style: need at least domain.tld (2) or more
@@ -71,7 +159,7 @@ export function parseHost(hostHeader: string | null | undefined): ParsedHost {
   if (parts.length >= 4 && parts[0] === "admin") {
     const slug = parts[1];
     if (slug && !RESERVED_TOP.has(slug)) {
-      return { kind: "admin", slug, hostname };
+      return { kind: "admin", slug, hostname, singleHost: false };
     }
   }
 
@@ -80,19 +168,35 @@ export function parseHost(hostHeader: string | null | undefined): ParsedHost {
     const sub = parts[0];
     if (sub === "www" || sub === "platform") {
       // www / legacy platform → Main Admin
-      return { kind: "main", slug: null, hostname };
+      return { kind: "main", slug: null, hostname, singleHost: false };
     }
     if (sub !== "admin" && !RESERVED_TOP.has(sub)) {
-      return { kind: "site", slug: sub, hostname };
+      return { kind: "site", slug: sub, hostname, singleHost: false };
     }
   }
 
   // Apex community.in (2 parts) → Main Admin
   if (parts.length <= 2) {
-    return { kind: "main", slug: null, hostname };
+    return { kind: "main", slug: null, hostname, singleHost: false };
   }
 
-  return { kind: "unknown", slug: null, hostname };
+  return { kind: "unknown", slug: null, hostname, singleHost: false };
+}
+
+/**
+ * Origin the client actually used, taken from the Host header.
+ *
+ * `new URL(req.url).origin` is the *internal* origin Next.js was reached on
+ * (localhost:3000), which is wrong behind a tunnel or reverse proxy — links
+ * built from it point back at the server's own loopback address.
+ */
+export function requestOrigin(req: Request): string {
+  const host = effectiveHost(req.headers) || "";
+  const fwdProto = req.headers.get("x-forwarded-proto");
+  const proto =
+    fwdProto?.split(",")[0].trim() ||
+    (isBareLocal(stripPort(host)) || host.startsWith("127.") ? "http" : "https");
+  return host ? `${proto}://${host}` : new URL(req.url).origin;
 }
 
 /** Protocol for absolute URLs (http on localhost, https in production). */

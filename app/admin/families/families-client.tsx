@@ -150,7 +150,7 @@ export function FamiliesClient({
   relations?: string[];
 }) {
   const router = useRouter();
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<FamilyRow[]>(initialRows);
   const [groups, setGroups] = useState<SurnameOption[]>(initialGroups);
   const [query, setQuery] = useState("");
@@ -199,18 +199,8 @@ export function FamiliesClient({
 
   function applySurnameGu(v: string) {
     setForm((prev) => ({ ...prev, surnameGu: v }));
-    fromGu(
-      v,
-      (en) => {
-        const match = matchGroup(groups, en);
-        setForm((prev) => ({
-          ...prev,
-          surnameEn: en,
-          surnameGroupId: match?.id ?? "",
-        }));
-      },
-      "surname",
-    );
+    // Gujarati keyboard only — the English surname is never overwritten from here.
+    guInput(v, (gu) => setForm((prev) => ({ ...prev, surnameGu: gu })), "surname:gu");
   }
 
   function updateMemberDraft(index: number, patch: Partial<MemberDraft>) {
@@ -507,10 +497,11 @@ export function FamiliesClient({
         <AdminFormRow>
           <AdminField label="Head name (ગુજરાતી)">
             <AdminInput
+              gujarati
               value={form.headNameGu}
               onChange={(v) => {
                 setForm((prev) => ({ ...prev, headNameGu: v }));
-                fromGu(v, (en) => setForm((prev) => ({ ...prev, headNameEn: en })), "head");
+                guInput(v, (gu) => setForm((prev) => ({ ...prev, surnameGu: gu })), "surname:gu");
               }}
             />
           </AdminField>
@@ -561,7 +552,7 @@ export function FamiliesClient({
             <AdminInput value={form.surnameEn} onChange={applySurnameEn} />
           </AdminField>
           <AdminField label="Surname (ગુજરાતી)">
-            <AdminInput value={form.surnameGu} onChange={applySurnameGu} />
+            <AdminInput gujarati value={form.surnameGu} onChange={applySurnameGu} />
           </AdminField>
         </AdminFormRow>
 

@@ -67,7 +67,7 @@ export function ReviewClient({
   surnameGroups: SurnameOption[];
 }) {
   const router = useRouter();
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [f, setF] = useState<EditFamily>(structuredClone(initial));
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -219,10 +219,11 @@ export function ReviewClient({
           />
           <AdminLabel>Head name (ગુજરાતી)</AdminLabel>
           <AdminInput
+            gujarati
             value={f.headNameGu}
             onChange={(v) => {
               setField("headNameGu", v);
-              fromGu(v, (en) => setField("headNameEn", en), "head");
+              guInput(v, (gu) => setField("headNameGu", gu), "head:gu");
             }}
           />
           <AdminLabel>Surname group</AdminLabel>
@@ -247,10 +248,11 @@ export function ReviewClient({
           />
           <AdminLabel>Surname (ગુજરાતી)</AdminLabel>
           <AdminInput
+            gujarati
             value={f.surnameGu}
             onChange={(v) => {
               setField("surnameGu", v);
-              fromGu(v, (en) => setField("surnameEn", en), "surname");
+              guInput(v, (gu) => setField("surnameGu", gu), "surname:gu");
             }}
           />
           <AdminLabel>City</AdminLabel>
@@ -299,7 +301,7 @@ export function ReviewClient({
                     value={m.fullNameGu}
                     onChange={(v) => {
                       setMember(m.id, "fullNameGu", v);
-                      fromGu(v, (en) => setMember(m.id, "fullNameEn", en), `member-${m.id}`);
+                      guInput(v, (gu) => setMember(m.id, "fullNameGu", gu), `member-${m.id}:gu`);
                     }}
                   />
                 </div>

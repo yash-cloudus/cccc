@@ -60,7 +60,7 @@ export function ResultsClient({
   entries: EntryRow[];
 }) {
   const router = useRouter();
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [entries, setEntries] = useState<EntryRow[]>(initialEntries);
   const [marks, setMarks] = useState<Record<string, { total: string; obtained: string }>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -490,10 +490,11 @@ export function ResultsClient({
             />
             <AdminLabel>Title (ગુજરાતી)</AdminLabel>
             <AdminInput
+              gujarati
               value={draft.titleGu}
               onChange={(v) => {
                 setDraft((prev) => ({ ...prev, titleGu: v }));
-                fromGu(v, (en) => setDraft((prev) => ({ ...prev, titleEn: en })));
+                guInput(v, (gu) => setDraft((prev) => ({ ...prev, titleGu: gu })), "gu");
               }}
             />
             <AdminLabel>Year *</AdminLabel>

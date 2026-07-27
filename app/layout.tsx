@@ -6,7 +6,7 @@ import { CommunityProvider } from "@/providers/community-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { getActiveCommunity } from "@/lib/tenant";
 import { brandIconDataUri, toCommunityBrand } from "@/lib/community-brand";
-import { parseHost } from "@/lib/host";
+import { effectiveHost, parseHost } from "@/lib/host";
 import { communityThemeVars } from "@/lib/color";
 import "./globals.css";
 
@@ -38,7 +38,7 @@ const notoSerifGu = Noto_Serif_Gujarati({
  */
 export async function generateMetadata(): Promise<Metadata> {
   const hdrs = await headers();
-  const host = hdrs.get("host") || "";
+  const host = effectiveHost(hdrs) || "";
   const proto = hdrs.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
   const metadataBase = host ? new URL(`${proto}://${host}`) : undefined;
   const isAdminHost = (hdrs.get("x-host-kind") || parseHost(host).kind) === "admin";

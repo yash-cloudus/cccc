@@ -63,7 +63,7 @@ export function InfoClient({
   infoSections: InfoSection[];
   villages: Village[];
 }) {
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [globalPhones, setGlobalPhones] = useState(initialGlobal);
   const [logoUrl, setLogoUrl] = useState(initialLogo);
   const [bannerUrl, setBannerUrl] = useState(initialBanner);
@@ -516,10 +516,11 @@ export function InfoClient({
               />
               <AdminLabel>Name (ગુજરાતી)</AdminLabel>
               <AdminInput
+                gujarati
                 value={committeeEdit.nameGu}
                 onChange={(v) => {
                   setCommitteeEdit((prev) => (prev ? { ...prev, nameGu: v } : prev));
-                  fromGu(v, (en) => setCommitteeEdit((prev) => (prev ? { ...prev, nameEn: en } : prev)));
+                  guInput(v, (gu) => setCommitteeEdit((prev) => (prev ? { ...prev, nameGu: gu } : prev)), "gu");
                 }}
               />
               <div className="mt-4 flex gap-2.5">
@@ -555,10 +556,11 @@ export function InfoClient({
               />
               <AdminLabel>Title (ગુજરાતી)</AdminLabel>
               <AdminInput
+                gujarati
                 value={infoEdit.titleGu}
                 onChange={(v) => {
                   setInfoEdit((prev) => (prev ? { ...prev, titleGu: v } : prev));
-                  fromGu(v, (en) => setInfoEdit((prev) => (prev ? { ...prev, titleEn: en } : prev)), "title");
+                  guInput(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, titleGu: gu } : prev)), "title:gu");
                 }}
               />
               <AdminLabel>Body (English)</AdminLabel>
@@ -577,7 +579,7 @@ export function InfoClient({
                 onChange={(e) => {
                   const v = e.target.value;
                   setInfoEdit((prev) => (prev ? { ...prev, bodyGu: v } : prev));
-                  fromGu(v, (en) => setInfoEdit((prev) => (prev ? { ...prev, bodyEn: en } : prev)), "body");
+                  guInput(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, bodyGu: gu } : prev)), "body:gu");
                 }}
                 className="mb-2 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
@@ -612,10 +614,11 @@ export function InfoClient({
               />
               <AdminLabel>Name (ગુજરાતી) *</AdminLabel>
               <AdminInput
+                gujarati
                 value={villageAdd.nameGu}
                 onChange={(v) => {
                   setVillageAdd((prev) => (prev ? { ...prev, nameGu: v } : prev));
-                  fromGu(v, (en) => setVillageAdd((prev) => (prev ? { ...prev, nameEn: en } : prev)));
+                  guInput(v, (gu) => setVillageAdd((prev) => (prev ? { ...prev, nameGu: gu } : prev)), "gu");
                 }}
               />
               <div className="mt-4 flex gap-2.5">

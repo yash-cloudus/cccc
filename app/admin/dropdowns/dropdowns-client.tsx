@@ -76,7 +76,7 @@ const CATEGORIES: Category[] = [
 type EditState = { id: string | null; nameEn: string; nameGu: string } | null;
 
 export function DropdownsClient({ initialRows }: { initialRows: Record<string, DropdownRow[]> }) {
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<Record<string, DropdownRow[]>>(initialRows);
   const [catId, setCatId] = useState<CategoryId>("surname");
   const [q, setQ] = useState("");
@@ -298,10 +298,11 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
               />
               <AdminLabel>ગુજરાતી *</AdminLabel>
               <AdminInput
+                gujarati
                 value={edit.nameGu}
                 onChange={(v) => {
                   setEdit((prev) => (prev ? { ...prev, nameGu: v } : prev));
-                  fromGu(v, (en) => setEdit((prev) => (prev ? { ...prev, nameEn: en } : prev)));
+                  guInput(v, (gu) => setEdit((prev) => (prev ? { ...prev, nameGu: gu } : prev)), "gu");
                 }}
               />
               {error && (

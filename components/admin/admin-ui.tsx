@@ -1,6 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
+import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { cn } from "@/lib/utils";
 
 export function AdminH2({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -282,29 +283,50 @@ export function AdminLabel({ children }: { children: React.ReactNode }) {
   return <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">{children}</div>;
 }
 
+const ADMIN_INPUT_CLASS =
+  "h-[42px] w-full rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none";
+
 export function AdminInput({
   value,
   onChange,
   type = "text",
   className,
   placeholder,
+  gujarati,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
   type?: string;
   className?: string;
   placeholder?: string;
+  /** Adds the on-screen Gujarati keyboard button at the trailing edge. */
+  gujarati?: boolean;
+  onBlur?: () => void;
 }) {
+  if (gujarati) {
+    return (
+      <GujaratiInput
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        inputClassName={cn(
+          ADMIN_INPUT_CLASS,
+          "font-[family-name:var(--font-noto-sans-gujarati)]",
+          className,
+        )}
+      />
+    );
+  }
   return (
     <input
       type={type}
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        "h-[42px] w-full rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none",
-        className
-      )}
+      onBlur={onBlur}
+      className={cn(ADMIN_INPUT_CLASS, className)}
     />
   );
 }
