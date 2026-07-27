@@ -70,22 +70,32 @@ export function AdminModalActions({
   onSave,
   onCancel,
   saveLabel = "Save",
+  cancelLabel = "Cancel",
+  variant = "primary",
   busy,
   disabled,
 }: {
   onSave: () => void;
   onCancel: () => void;
   saveLabel?: string;
+  cancelLabel?: string;
+  /** "danger" for destructive confirms (delete, deactivate) — red instead of brand. */
+  variant?: "primary" | "danger";
   busy?: boolean;
   disabled?: boolean;
 }) {
   return (
     <>
-      <AdminBtn className="flex-1 justify-center" onClick={onSave} disabled={busy || disabled}>
+      <AdminBtn
+        variant={variant === "danger" ? "danger" : "primary"}
+        className="flex-1 justify-center"
+        onClick={onSave}
+        disabled={busy || disabled}
+      >
         {busy ? <Loader2 className="size-4 animate-spin" /> : saveLabel}
       </AdminBtn>
       <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={onCancel}>
-        Cancel
+        {cancelLabel}
       </AdminBtn>
     </>
   );

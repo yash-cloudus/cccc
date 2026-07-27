@@ -22,6 +22,7 @@ import {
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 
 export type AlbumImage = { imageUrl: string; caption: string | null };
 
@@ -170,7 +171,13 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Delete this album?")) return;
+    const ok = await confirmDialog({
+      title: "Delete this album?",
+      description: "All photos in it will be removed too.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/gallery?id=${id}`);
     if (!res.ok) return setError(res.error);
     setRows((prev) => prev.filter((r) => r.id !== id));

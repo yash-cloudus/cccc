@@ -11,11 +11,14 @@ export default async function FamiliesPage() {
 
   // No status filter: the table shows a Status column and lets an admin
   // deactivate/reactivate a family, so non-approved rows must be visible here.
-  const [families, surnameGroups, relationOptions] = await Promise.all([
-    getFamilies(community.id),
-    getSurnameGroups(community.id),
-    getDropdownOptions(community.id, "relationship"),
-  ]);
+  const [families, surnameGroups, relationOptions, occupationOptions, degreeOptions] =
+    await Promise.all([
+      getFamilies(community.id),
+      getSurnameGroups(community.id),
+      getDropdownOptions(community.id, "relationship"),
+      getDropdownOptions(community.id, "occupation"),
+      getDropdownOptions(community.id, "degree"),
+    ]);
 
   const rows: FamilyRow[] = families.map((f) => ({
     id: f.id,
@@ -34,6 +37,8 @@ export default async function FamiliesPage() {
       initialRows={rows}
       surnameGroups={surnameGroups.map((s) => ({ id: s.id, nameEn: s.nameEn, nameGu: s.nameGu }))}
       relations={relationOptions.filter((o) => o.isActive).map((o) => o.nameGu || o.nameEn)}
+      occupations={occupationOptions.filter((o) => o.isActive).map((o) => o.nameGu || o.nameEn)}
+      educations={degreeOptions.filter((o) => o.isActive).map((o) => o.nameGu || o.nameEn)}
     />
   );
 }

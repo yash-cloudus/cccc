@@ -25,6 +25,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 
 export type NewsRow = {
   id: string;
@@ -208,7 +209,12 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Delete this post?")) return;
+    const ok = await confirmDialog({
+      title: "Delete this post?",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/news/${id}`);
     if (!res.ok) return setError(res.error);
     setRows((prev) => prev.filter((r) => r.id !== id));

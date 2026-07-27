@@ -27,6 +27,7 @@ import {
 } from "@/components/admin/admin-form";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 
 export type AdStatus =
   | "PENDING"
@@ -209,7 +210,12 @@ export function AdsClient({
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Delete this advertisement?")) return;
+    const ok = await confirmDialog({
+      title: "Delete this advertisement?",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/admin/ads?id=${id}`);
     if (!res.ok) {
       toast.error(res.error || "Could not delete");

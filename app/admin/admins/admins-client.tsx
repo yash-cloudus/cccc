@@ -30,6 +30,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 
 export type AdminRow = {
   id: string;
@@ -291,7 +292,12 @@ export function AdminsClient({
 
   async function resetPassword() {
     if (!editRow) return;
-    if (!window.confirm(`Reset password for ${editRow.name} to “admin”?`)) return;
+    const ok = await confirmDialog({
+      title: `Reset password for ${editRow.name}?`,
+      description: "Their password will be set back to “admin”.",
+      confirmLabel: "Reset password",
+    });
+    if (!ok) return;
     setBusy(true);
     setError(null);
     const res = await api.patch<{ updated: boolean; password?: string }>(`/api/admin/admins`, {
@@ -307,7 +313,12 @@ export function AdminsClient({
   async function remove(row: AdminRow) {
     const blocked = guardReason(row);
     if (blocked) return setError(blocked);
-    if (!window.confirm(`Remove admin ${row.name}?`)) return;
+    const ok = await confirmDialog({
+      title: `Remove admin ${row.name}?`,
+      confirmLabel: "Remove",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/admin/admins?id=${row.id}`);
     if (!res.ok) return setError(res.error);
     setRows((prev) => prev.filter((r) => r.id !== row.id));

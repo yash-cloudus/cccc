@@ -27,6 +27,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
+import { DropdownWithOther, commitOtherValue } from "@/components/admin/dropdown-with-other";
 
 export type FamilyStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -105,6 +107,14 @@ export type MemberDraft = {
   mobile: string;
   dateOfBirth: string;
   bloodGroup: string;
+  occupation: string;
+  /** Free text shown when `occupation === OTHER`. */
+  occupationCustom: string;
+  /** "વ્યવસાય / ધંધો" — the specific job/trade, always free text. */
+  occupationOther: string;
+  education: string;
+  educationCustom: string;
+  hasWhatsApp: boolean;
 };
 
 function blankMemberDraft(): MemberDraft {
@@ -115,6 +125,12 @@ function blankMemberDraft(): MemberDraft {
     mobile: "",
     dateOfBirth: "",
     bloodGroup: "",
+    occupation: "",
+    occupationCustom: "",
+    occupationOther: "",
+    education: "",
+    educationCustom: "",
+    hasWhatsApp: true,
   };
 }
 
@@ -143,11 +159,17 @@ export function FamiliesClient({
   initialRows,
   surnameGroups: initialGroups,
   relations = [],
+  occupations: initialOccupations = [],
+  educations: initialEducations = [],
 }: {
   initialRows: FamilyRow[];
   surnameGroups: SurnameOption[];
   /** Relation options from Dropdown lists → Relationship. */
   relations?: string[];
+  /** Occupation options from Dropdown lists → Occupation. */
+  occupations?: string[];
+  /** Degree options from Dropdown lists → Degree. */
+  educations?: string[];
 }) {
   const router = useRouter();
   const { fromEn, guInput } = useTranslitSync();
@@ -158,6 +180,23 @@ export function FamiliesClient({
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState(() => blankForm());
   const [addBusy, setAddBusy] = useState(false);
+
+  // Kept in state so an option created via "Other" shows up in the list
+  // immediately, without waiting for a page refresh.
+  const [occupations, setOccupations] = useState<string[]>(initialOccupations);
+  const [educations, setEducations] = useState<string[]>(initialEducations);
+
+  useEffect(() => setOccupations(initialOccupations), [initialOccupations]);
+  useEffect(() => setEducations(initialEducations), [initialEducations]);
+
+  const occupationChoices = useMemo(
+    () => occupations.map((o) => ({ value: o, label: o })),
+    [occupations],
+  );
+  const educationChoices = useMemo(
+    () => educations.map((e) => ({ value: e, label: e })),
+    [educations],
+  );
 
   const [membersOf, setMembersOf] = useState<FamilyRow | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -228,6 +267,37 @@ export function FamiliesClient({
     setAddBusy(true);
     setError(null);
 
+    const keptMembers = form.members.filter((m) => m.fullNameEn.trim() || m.fullNameGu.trim());
+
+    // Persist any "Other" text into Dropdown lists first, so the saved member
+    // stores the same value the masters list now offers.
+    const resolved = await Promise.all(
+      keptMembers.map(async (m) => ({
+        occupation: await commitOtherValue(
+          "occupation",
+          m.occupation,
+          m.occupationCustom,
+          occupationChoices,
+        ),
+        education: await commitOtherValue(
+          "degree",
+          m.education,
+          m.educationCustom,
+          educationChoices,
+        ),
+      })),
+    );
+
+    // Reflect newly-created options in the local lists right away.
+    const newOccupations = resolved
+      .map((r) => r.occupation)
+      .filter((v) => v && !occupations.includes(v));
+    const newEducations = resolved
+      .map((r) => r.education)
+      .filter((v) => v && !educations.includes(v));
+    if (newOccupations.length) setOccupations((prev) => [...prev, ...newOccupations]);
+    if (newEducations.length) setEducations((prev) => [...prev, ...newEducations]);
+
     const payload = {
       headNameEn: form.headNameEn.trim(),
       headNameGu: form.headNameGu.trim() || undefined,
@@ -238,16 +308,19 @@ export function FamiliesClient({
       city: form.city.trim() || undefined,
       nativeElderNameEn: form.nativePlace.trim() || undefined,
       email: form.email.trim() || undefined,
-      members: form.members
-        .filter((m) => m.fullNameEn.trim() || m.fullNameGu.trim())
-        .map((m) => ({
-          fullNameEn: m.fullNameEn.trim() || m.fullNameGu.trim(),
-          fullNameGu: m.fullNameGu.trim() || undefined,
-          relation: m.relation || undefined,
-          mobile: m.mobile || undefined,
-          dateOfBirth: m.dateOfBirth || undefined,
-          bloodGroup: m.bloodGroup || undefined,
-        })),
+      members: keptMembers.map((m, i) => ({
+        fullNameEn: m.fullNameEn.trim() || m.fullNameGu.trim(),
+        fullNameGu: m.fullNameGu.trim() || undefined,
+        relation: m.relation || undefined,
+        mobile: m.mobile || undefined,
+        dateOfBirth: m.dateOfBirth || undefined,
+        bloodGroup: m.bloodGroup || undefined,
+        occupation: resolved[i].occupation || undefined,
+        occupationOther: m.occupationOther.trim() || undefined,
+        education: resolved[i].education || undefined,
+        currentlyAt: form.city.trim() || undefined,
+        hasWhatsApp: m.hasWhatsApp,
+      })),
     };
 
     const res = await api.post<CreatedFamily>(`/api/admin/families`, payload);
@@ -354,7 +427,13 @@ export function FamiliesClient({
 
   async function deleteFamily(row: FamilyRow) {
     const label = row.headGu || row.headEn;
-    if (!window.confirm(`Delete ${label}'s family? This cannot be undone.`)) return;
+    const ok = await confirmDialog({
+      title: `Delete ${label}'s family?`,
+      description: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/families/${row.id}`);
     if (res.ok) setRows((prev) => prev.filter((f) => f.id !== row.id));
     else setError(res.error);
@@ -369,7 +448,12 @@ export function FamiliesClient({
     const next: FamilyStatus = row.status === "APPROVED" ? "REJECTED" : "APPROVED";
     const verb = next === "APPROVED" ? "Reactivate" : "Deactivate";
     const label = row.headGu || row.headEn;
-    if (!window.confirm(`${verb} ${label}'s family?`)) return;
+    const ok = await confirmDialog({
+      title: `${verb} ${label}'s family?`,
+      confirmLabel: verb,
+      tone: next === "REJECTED" ? "danger" : "primary",
+    });
+    if (!ok) return;
 
     setRows((prev) => prev.map((f) => (f.id === row.id ? { ...f, status: next } : f)));
     const res = await api.patch(`/api/families/${row.id}`, { status: next });
@@ -486,7 +570,7 @@ export function FamiliesClient({
         open={addOpen}
         onClose={() => setAddOpen(false)}
         title="Add family directly"
-        subtitle="Bypasses the registration queue — the family is approved immediately."
+        // subtitle="Bypasses the registration queue — the family is approved immediately."
         width="lg"
         footer={
           <AdminModalActions
@@ -671,6 +755,48 @@ export function FamiliesClient({
                 />
               </AdminField>
             </AdminFormRow>
+
+            {/* વ્યવસાય — same pattern as the member registration form. */}
+            <DropdownWithOther
+              label="Occupation · વ્યવસાય"
+              value={m.occupation}
+              otherValue={m.occupationCustom}
+              options={occupationChoices}
+              otherPlaceholder="e.g. Trade, Job, Farming…"
+              onChange={(v) => updateMemberDraft(i, { occupation: v })}
+              onOtherChange={(v) => updateMemberDraft(i, { occupationCustom: v })}
+            />
+
+            <AdminField
+              label="Work / business · વ્યવસાય / ધંધો"
+              hint="The specific job or trade."
+            >
+              <AdminInput
+                value={m.occupationOther}
+                placeholder="દા.ત. સોફ્ટવેર એન્જિનિયર, શિક્ષક, ડૉક્ટર…"
+                onChange={(v) => updateMemberDraft(i, { occupationOther: v })}
+              />
+            </AdminField>
+
+            <DropdownWithOther
+              label="Education · અભ્યાસ"
+              value={m.education}
+              otherValue={m.educationCustom}
+              options={educationChoices}
+              otherPlaceholder="e.g. B.COM, B.A., Diploma…"
+              onChange={(v) => updateMemberDraft(i, { education: v })}
+              onOtherChange={(v) => updateMemberDraft(i, { educationCustom: v })}
+            />
+
+            <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-[var(--ink-mid)]">
+              <input
+                type="checkbox"
+                checked={m.hasWhatsApp}
+                onChange={(e) => updateMemberDraft(i, { hasWhatsApp: e.target.checked })}
+                className="size-4 accent-[var(--wa)]"
+              />
+              આ નંબર પર WhatsApp છે
+            </label>
           </div>
         ))}
 

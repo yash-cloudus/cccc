@@ -21,6 +21,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 
 export type DropdownRow = {
   id: string;
@@ -147,11 +148,16 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
 
   async function remove(row: DropdownRow) {
     if (!cat.api) return;
-    const warn =
-      row.inUse > 0
-        ? `${row.nameEn} is used by ${row.inUse} record(s). Delete anyway?`
-        : `Delete "${row.nameEn}"?`;
-    if (!window.confirm(warn)) return;
+    const ok = await confirmDialog({
+      title: `Delete “${row.nameEn}”?`,
+      description:
+        row.inUse > 0
+          ? `This option is used by ${row.inUse} record(s). Deleting it won't change those records, but it will no longer appear in the app's dropdowns.`
+          : undefined,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
 
     const res = await api.del(`/api/admin/${cat.api}?id=${row.id}`);
     if (!res.ok) {

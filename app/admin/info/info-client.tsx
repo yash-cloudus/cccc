@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 
 type Committee = { id: string; nameEn: string; nameGu: string | null; members: number };
 type InfoSection = {
@@ -162,7 +163,12 @@ export function InfoClient({
   }
 
   async function deleteCommittee(id: string) {
-    if (!window.confirm("Delete this committee?")) return;
+    const ok = await confirmDialog({
+      title: "Delete this committee?",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/admin/committees?id=${id}`);
     if (!res.ok) return setError(res.error);
     setCommittees((prev) => prev.filter((c) => c.id !== id));
@@ -192,7 +198,12 @@ export function InfoClient({
   }
 
   async function deleteInfo(id: string) {
-    if (!window.confirm("Delete this info page?")) return;
+    const ok = await confirmDialog({
+      title: "Delete this info page?",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/admin/info-sections?id=${id}`);
     if (!res.ok) return setError(res.error);
     setInfo((prev) => prev.filter((s) => s.id !== id));

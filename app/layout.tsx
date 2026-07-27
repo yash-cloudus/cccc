@@ -4,6 +4,7 @@ import { Manrope, Noto_Sans_Gujarati, Noto_Serif_Gujarati } from "next/font/goog
 import { LangProvider } from "@/providers/lang-provider";
 import { CommunityProvider } from "@/providers/community-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmDialogHost } from "@/components/admin/confirm-dialog";
 import { getActiveCommunity } from "@/lib/tenant";
 import { brandIconDataUri, toCommunityBrand } from "@/lib/community-brand";
 import { effectiveHost, parseHost } from "@/lib/host";
@@ -110,6 +111,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <LangProvider>
             {children}
             <Toaster />
+            <ConfirmDialogHost />
           </LangProvider>
         </CommunityProvider>
       </body>
