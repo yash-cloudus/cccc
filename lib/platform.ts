@@ -1,5 +1,9 @@
 import { ROOT_DOMAIN } from "@/lib/constants";
-import { communityAdminUrl as adminUrlOf, communitySiteUrl as siteUrlOf } from "@/lib/host";
+import {
+  communityAdminUrl as adminUrlOf,
+  communitySiteUrl as siteUrlOf,
+  isCanonicalHost,
+} from "@/lib/host";
 
 export const RESERVED_SLUGS = ["platform", "www", "admin", "api", "app", "mail", "static", "assets"];
 
@@ -41,12 +45,54 @@ export function generatePassword(length = 12): string {
   return out;
 }
 
-export function groupingLabel(type: "PARIVAR" | "GAM", count = 24): string {
-  return `${count} ${type === "GAM" ? "Gam" : "Parivar"}`;
+/**
+ * Memorable admin password: first name + "@" + first 4 digits of the mobile
+ * number, e.g. name "Bob Patel" + phone "9319912345" → "bob@9319".
+ * Falls back to a random 4-digit tail when the phone isn't filled in yet.
+ */
+export function generateNamePhonePassword(name: string, phone: string): string {
+  const namePart =
+    (name || "").trim().split(/\s+/)[0]?.toLowerCase().replace(/[^a-z0-9]/g, "") || "admin";
+  const digits = (phone || "").replace(/\D/g, "");
+  const phonePart = digits.slice(0, 4) || String(Math.floor(1000 + Math.random() * 9000));
+  return `${namePart}@${phonePart}`;
+}
+
+/**
+ * The unit a community groups its families by — surname for a Parivar app,
+ * village for a Gam app.
+ *
+ * This used to return `"24 Parivar"` from a hardcoded `count = 24`, so every
+ * community advertised a fabricated number that never changed. Counts are now
+ * read live from the DB (`_count.surnameGroups` / `_count.villageAreas`); this
+ * only names the unit.
+ */
+export function groupingLabel(type: "PARIVAR" | "GAM"): string {
+  return type === "GAM" ? "Village" : "Surname";
+}
+
+/** Naive English pluraliser for card labels. */
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return n === 1 ? one : many;
 }
 
 /** Display-only website host (no scheme), e.g. saurashtra_patel.community.in */
+/**
+ * Address the CURRENT viewer would actually use.
+ *
+ * On a single-host origin (dev tunnel, LAN IP) there is no wildcard DNS, so
+ * printing `{slug}.localhost` shows an address that cannot be opened from
+ * another machine. There the label follows the origin in the address bar.
+ */
+function singleHostLabel(path: string): string | null {
+  if (typeof window === "undefined") return null;
+  if (isCanonicalHost(window.location.host)) return null;
+  return `${window.location.host}${path}`;
+}
+
 export function communitySiteHostLabel(slug: string): string {
+  const live = singleHostLabel(`/?c=${slug}`);
+  if (live) return live;
   if (ROOT_DOMAIN === "localhost" || ROOT_DOMAIN.endsWith(".localhost")) {
     return `${slug}.localhost`;
   }
@@ -55,6 +101,8 @@ export function communitySiteHostLabel(slug: string): string {
 
 /** Display-only admin host (no scheme), e.g. admin.saurashtra_patel.community.in */
 export function communityAdminHostLabel(slug: string): string {
+  const live = singleHostLabel(`/admin?c=${slug}`);
+  if (live) return live;
   if (ROOT_DOMAIN === "localhost" || ROOT_DOMAIN.endsWith(".localhost")) {
     return `admin.${slug}.localhost`;
   }

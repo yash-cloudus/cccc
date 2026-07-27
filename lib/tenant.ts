@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccessToken } from "@/lib/auth/cookies";
 import { verifyToken, type JwtPayload } from "@/lib/auth/jwt";
 import { COOKIE_ACTIVE_COMMUNITY, COMMUNITY_ADMIN_ROLES } from "@/lib/constants";
-import { parseHost } from "@/lib/host";
+import { effectiveHost, parseHost } from "@/lib/host";
 
 /** Read the current JWT payload without throwing (null when absent/invalid). */
 export async function getSessionPayload(): Promise<JwtPayload | null> {
@@ -31,7 +31,7 @@ async function resolveSlugFromRequest(): Promise<string | null> {
   const fromMw = hdrs.get("x-community-slug");
   if (fromMw) return fromMw;
 
-  const parsed = parseHost(hdrs.get("host"));
+  const parsed = parseHost(effectiveHost(hdrs));
   // Main Admin apex must not inherit a random tenant from cookie for branding.
   if (parsed.kind === "main") return null;
 
@@ -59,7 +59,7 @@ export async function getActiveCommunity(): Promise<Community | null> {
   }
 
   const hdrs = await headers();
-  const hostKind = hdrs.get("x-host-kind") || parseHost(hdrs.get("host")).kind;
+  const hostKind = hdrs.get("x-host-kind") || parseHost(effectiveHost(hdrs)).kind;
   if (hostKind === "main") return null;
 
   const slug = await resolveSlugFromRequest();

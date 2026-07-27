@@ -18,9 +18,9 @@ const AD_GRADIENTS = [
   "linear-gradient(120deg,#7A2E5C,#B0417E)",
   "linear-gradient(120deg,#1F4C6B,#3D7BA0)",
   "linear-gradient(120deg,#B15A16,#E09A3A)",
-  "linear-gradient(120deg,#4E7A45,#6BA85E)",
+  "linear-gradient(120deg,var(--leaf),#6BA85E)",
   "linear-gradient(120deg,#8E2230,#B24C3B)",
-  "linear-gradient(120deg,#6A4E9C,#8E6FC0)",
+  "linear-gradient(120deg,var(--violet),#8E6FC0)",
 ];
 
 export function AdsClient({ rows }: { rows: AdRow[] }) {
@@ -51,7 +51,7 @@ export function AdsClient({ rows }: { rows: AdRow[] }) {
 
       <div className="px-4 py-4 pb-8">
         {rows.length === 0 ? (
-          <p className="py-16 text-center text-[13.5px] text-[#938C80]">
+          <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
             {lang === "gu" ? "હાલમાં કોઈ જાહેરાત નથી." : "No ads right now."}
           </p>
         ) : (

@@ -17,6 +17,8 @@ export async function GET() {
           website: true,
           descEn: true,
           descGu: true,
+          logoUrl: true,
+          bannerUrl: true,
         },
       }),
       prisma.setting.findMany({ where: { communityId } }),
@@ -37,6 +39,9 @@ const schema = z.object({
   website: z.string().optional(),
   descEn: z.string().optional(),
   descGu: z.string().optional(),
+  // Branding images shown on the member app's Community Information screen.
+  logoUrl: z.string().optional(),
+  bannerUrl: z.string().optional(),
   settings: z.record(z.string(), z.string()).optional(),
 });
 

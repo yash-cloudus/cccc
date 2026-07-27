@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 type Branding = {
   slug: string;
@@ -14,12 +14,13 @@ type Branding = {
   secondaryColor: string;
 };
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const [brand, setBrand] = useState<Branding | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -76,25 +77,25 @@ export default function AdminLoginPage() {
             )}
           </span>
           <div className="min-w-0">
-            <div className="truncate text-[15px] font-extrabold text-[#2A2320]">
+            <div className="truncate text-[15px] font-extrabold text-[var(--ink)]">
               {brand?.nameGu || brand?.nameEn || "Community Admin"}
             </div>
-            <div className="text-[11.5px] font-semibold text-[#938C80]">Community Admin Panel</div>
+            <div className="text-[11.5px] font-semibold text-[var(--faint)]">Community Admin Panel</div>
           </div>
         </div>
 
-        <h1 className="text-xl font-extrabold text-[#2A2320]">Admin sign in</h1>
-        <p className="mt-1 text-[13px] text-[#938C80]">Use the username &amp; password you were given.</p>
+        <h1 className="text-xl font-extrabold text-[var(--ink)]">Admin sign in</h1>
+        <p className="mt-1 text-[13px] text-[var(--faint)]">Use the username &amp; password you were given.</p>
 
         {error && (
-          <div className="mt-4 rounded-[11px] border border-[#F1C4C4] bg-[#FCECEC] px-3.5 py-2.5 text-[13px] font-semibold text-[#B0303A]">
+          <div className="mt-4 rounded-[11px] border border-[var(--danger-line)] bg-[var(--danger-tint-soft)] px-3.5 py-2.5 text-[13px] font-semibold text-[var(--danger)]">
             {error}
           </div>
         )}
 
         <form onSubmit={submit} className="mt-5 space-y-3.5">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-[#8B8375]">Username</span>
+            <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">Username</span>
             <input
               className="mafld"
               value={username}
@@ -105,15 +106,27 @@ export default function AdminLoginPage() {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-[#8B8375]">Password</span>
-            <input
-              className="mafld"
-              type="password"
-              value={password}
-              autoComplete="current-password"
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-            />
+            <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">Password</span>
+            <div className="relative">
+              <input
+                className="mafld"
+                style={{ paddingRight: 40 }}
+                type={showPassword ? "text" : "password"}
+                value={password}
+                autoComplete="current-password"
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-[var(--faint)]"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
+              </button>
+            </div>
           </label>
           <button
             type="submit"
@@ -126,7 +139,7 @@ export default function AdminLoginPage() {
           </button>
         </form>
 
-        <p className="mt-4 text-center text-[12px] text-[#938C80]">
+        <p className="mt-4 text-center text-[12px] text-[var(--faint)]">
           Members sign in with mobile + OTP on the{" "}
           <a href="/login" className="font-bold" style={{ color: primary }}>
             main app
@@ -135,5 +148,13 @@ export default function AdminLoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense>
+      <AdminLoginForm />
+    </Suspense>
   );
 }

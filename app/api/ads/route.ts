@@ -2,7 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { created, fail, fromZod, ok } from "@/lib/api";
 import { requireSession } from "@/lib/auth/session";
-import { getActiveCommunityId, getWritableCommunityId } from "@/lib/tenant";
+import { getActiveCommunityId, getWritableCommunityId, isCommunityAdmin } from "@/lib/tenant";
 
 export async function GET(req: Request) {
   try {
@@ -28,11 +28,18 @@ const schema = z.object({
   pitch: z.string().optional(),
   imageUrl: z.string().optional(),
   linkUrl: z.string().optional(),
+  ownerName: z.string().max(120).optional(),
+  ownerMobile: z.string().max(20).optional(),
+  category: z.string().max(120).optional(),
+  type: z.enum(["premium", "general"]).optional(),
   startDate: z.string(),
   endDate: z.string(),
   priority: z.number().int().optional(),
   paymentProof: z.string().optional(),
   upiQrUrl: z.string().optional(),
+  // NOTE: `source` is deliberately NOT accepted from the body — it is derived
+  // from the caller's role below, so a member cannot pass source:"admin" and
+  // make their own submission look admin-created.
 });
 
 export async function POST(req: Request) {
@@ -40,6 +47,7 @@ export async function POST(req: Request) {
     const session = await requireSession();
     const communityId = await getWritableCommunityId();
     const body = schema.parse(await req.json());
+    const isAdmin = isCommunityAdmin(session);
     const ad = await prisma.advertisement.create({
       data: {
         communityId,
@@ -48,6 +56,11 @@ export async function POST(req: Request) {
         pitch: body.pitch,
         imageUrl: body.imageUrl,
         linkUrl: body.linkUrl,
+        ownerName: body.ownerName,
+        ownerMobile: body.ownerMobile,
+        category: body.category,
+        type: body.type ?? "general",
+        source: isAdmin ? "admin" : "user",
         startDate: new Date(body.startDate),
         endDate: new Date(body.endDate),
         priority: body.priority ?? 0,

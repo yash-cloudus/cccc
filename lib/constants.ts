@@ -41,21 +41,47 @@ export const REJECT_REASONS = [
   "Needs verification",
 ] as const;
 
+/**
+ * Default household relations, seeded into `DropdownOption(type="relationship")`
+ * for every community — new ones on creation, existing ones via a one-off
+ * backfill. Without this every community starts with zero relation options,
+ * so "Add family directly" / the member editor has nothing to offer beyond
+ * the empty placeholder.
+ */
+export const DEFAULT_RELATIONS: { nameEn: string; nameGu: string }[] = [
+  { nameEn: "Head", nameGu: "વડા" },
+  { nameEn: "Wife", nameGu: "પત્ની" },
+  { nameEn: "Husband", nameGu: "પતિ" },
+  { nameEn: "Son", nameGu: "પુત્ર" },
+  { nameEn: "Daughter", nameGu: "પુત્રી" },
+  { nameEn: "Father", nameGu: "પિતા" },
+  { nameEn: "Mother", nameGu: "માતા" },
+  { nameEn: "Brother", nameGu: "ભાઈ" },
+  { nameEn: "Sister", nameGu: "બહેન" },
+  { nameEn: "Grandfather", nameGu: "દાદા" },
+  { nameEn: "Grandmother", nameGu: "દાદી" },
+  { nameEn: "Daughter-in-law", nameGu: "પુત્રવધૂ" },
+  { nameEn: "Son-in-law", nameGu: "જમાઈ" },
+  { nameEn: "Other", nameGu: "અન્ય" },
+];
+
 export const ADMIN_NAV: {
   key: string;
   href: string;
   label: string;
-  badge?: boolean;
+  /** Key into the badge counts map (see getAdminNavBadges) — omit for no badge. */
+  badge?: "queue" | "ads";
 }[] = [
   { key: "dash", href: "/admin", label: "Dashboard" },
-  { key: "queue", href: "/admin/queue", label: "Registration queue", badge: true },
+  { key: "queue", href: "/admin/queue", label: "Registration queue", badge: "queue" },
   { key: "families", href: "/admin/families", label: "Families & Members" },
   { key: "drop", href: "/admin/dropdowns", label: "Dropdown lists" },
   { key: "gallery", href: "/admin/gallery", label: "Gallery" },
   { key: "news", href: "/admin/news", label: "News" },
-  { key: "ads", href: "/admin/ads", label: "Ads" },
+  { key: "ads", href: "/admin/ads", label: "Advertisements", badge: "ads" },
   { key: "info", href: "/admin/info", label: "Community info" },
   { key: "results", href: "/admin/results", label: "Result drive" },
+  { key: "settings", href: "/admin/settings", label: "Settings" },
   { key: "admins", href: "/admin/admins", label: "Admins & roles" },
 ];
 

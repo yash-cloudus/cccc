@@ -132,6 +132,47 @@ export async function PUT(req: Request, { params }: Params) {
   }
 }
 
+/**
+ * Status-only update (activate / deactivate from Families & Members).
+ *
+ * Deliberately separate from PUT: PUT is a full family+members replace, so
+ * routing a one-field status flip through it risks touching member rows.
+ */
+export async function PATCH(req: Request, { params }: Params) {
+  try {
+    const { id } = await params;
+    const session = await requireSession();
+    if (!hasRole(session, ["OWNER", "DATA_MANAGER", "MODERATOR", "ADMIN"])) {
+      return fail("Forbidden", 403);
+    }
+    const communityId = await getWritableCommunityId();
+
+    const { status, rejectReason } = z
+      .object({
+        status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
+        rejectReason: z.string().max(500).optional(),
+      })
+      .parse(await req.json());
+
+    const res = await prisma.family.updateMany({
+      where: { id, communityId },
+      data: {
+        status,
+        rejectReason: status === "REJECTED" ? rejectReason : null,
+        approvedAt: status === "APPROVED" ? new Date() : undefined,
+      },
+    });
+    if (res.count === 0) return fail("Family not found", 404);
+    return ok({ id, status });
+  } catch (e) {
+    if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);
+    if ((e as Error).message === "FORBIDDEN") return fail("Forbidden", 403);
+    if (e instanceof z.ZodError) return fromZod(e);
+    console.error(e);
+    return fail("Failed to update family status", 500);
+  }
+}
+
 export async function DELETE(_req: Request, { params }: Params) {
   try {
     const { id } = await params;

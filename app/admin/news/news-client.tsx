@@ -1,24 +1,31 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   AdminBtn,
   AdminH2,
   AdminHint,
   AdminInput,
-  AdminLabel,
   AdminTable,
   AdminTd,
   AdminTh,
+  AdminToggle,
   LinkAction,
   PillActive,
 } from "@/components/admin/admin-ui";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
+import {
+  AdminField,
+  AdminFilePicker,
+  AdminFormRow,
+  AdminModal,
+  AdminModalActions,
+  AdminSegmented,
+} from "@/components/admin/admin-form";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 
 export type NewsRow = {
   id: string;
@@ -27,19 +34,27 @@ export type NewsRow = {
   contentEn: string;
   contentGu: string | null;
   imageUrl: string | null;
+  documentUrl: string | null;
+  documentName: string | null;
   isPinned: boolean;
   isPublished: boolean;
   notificationSent: boolean;
   publishedAt: string;
+  publishedAtISO: string;
+  author: string | null;
 };
 
 type Draft = {
   id: string | null;
+  publishDate: string;
+  author: string;
   titleEn: string;
   titleGu: string;
   contentEn: string;
   contentGu: string;
   imageUrl: string;
+  documentUrl: string;
+  documentName: string;
   isPinned: boolean;
   isPublished: boolean;
   sendNotification: boolean;
@@ -47,18 +62,40 @@ type Draft = {
 
 const emptyDraft: Draft = {
   id: null,
+  publishDate: new Date().toISOString().slice(0, 10),
+  author: "",
   titleEn: "",
   titleGu: "",
   contentEn: "",
   contentGu: "",
   imageUrl: "",
+  documentUrl: "",
+  documentName: "",
   isPinned: false,
   isPublished: true,
   sendNotification: false,
 };
 
+/** ✓ / — cell used for the Cover and PDF columns. */
+function HasCell({ on, href, label }: { on: boolean; href?: string | null; label: string }) {
+  if (!on) return <span className="text-[var(--faint)]">—</span>;
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="text-xs font-bold text-[var(--info)] underline"
+      >
+        {label}
+      </a>
+    );
+  }
+  return <span className="text-xs font-bold text-[var(--success)]">✓</span>;
+}
+
 export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<NewsRow[]>(initialRows);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,11 +110,15 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
     setError(null);
     setDraft({
       id: r.id,
+      publishDate: r.publishedAtISO ? r.publishedAtISO.slice(0, 10) : "",
+      author: r.author || "",
       titleEn: r.titleEn,
       titleGu: r.titleGu || "",
       contentEn: r.contentEn,
       contentGu: r.contentGu || "",
       imageUrl: r.imageUrl || "",
+      documentUrl: r.documentUrl || "",
+      documentName: r.documentName || "",
       isPinned: r.isPinned,
       isPublished: r.isPublished,
       sendNotification: false,
@@ -100,8 +141,13 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         contentEn: draft.contentEn,
         contentGu: draft.contentGu || undefined,
         imageUrl: draft.imageUrl || undefined,
+        documentUrl: draft.documentUrl || undefined,
+        documentName: draft.documentName || undefined,
         isPinned: draft.isPinned,
         isPublished: draft.isPublished,
+        publishedAt: draft.publishDate
+          ? new Date(draft.publishDate).toISOString()
+          : undefined,
       });
       setBusy(false);
       if (!res.ok) return setError(res.error);
@@ -128,20 +174,29 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         contentEn: draft.contentEn,
         contentGu: draft.contentGu || undefined,
         imageUrl: draft.imageUrl || undefined,
+        documentUrl: draft.documentUrl || undefined,
+        documentName: draft.documentName || undefined,
         isPinned: draft.isPinned,
         isPublished: draft.isPublished,
         sendNotification: draft.sendNotification,
+        publishedAt: draft.publishDate
+          ? new Date(draft.publishDate).toISOString()
+          : undefined,
       });
       setBusy(false);
       if (!res.ok) return setError(res.error);
       setRows((prev) => [
         {
           id: res.data.id,
+          publishedAtISO: draft.publishDate || new Date().toISOString(),
+          author: draft.author || null,
           titleEn: draft.titleEn,
           titleGu: draft.titleGu || null,
           contentEn: draft.contentEn,
           contentGu: draft.contentGu || null,
           imageUrl: draft.imageUrl || null,
+          documentUrl: draft.documentUrl || null,
+          documentName: draft.documentName || null,
           isPinned: draft.isPinned,
           isPublished: draft.isPublished,
           notificationSent: draft.sendNotification,
@@ -154,11 +209,30 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Delete this post?")) return;
+    const ok = await confirmDialog({
+      title: "Delete this post?",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/news/${id}`);
     if (!res.ok) return setError(res.error);
     setRows((prev) => prev.filter((r) => r.id !== id));
   }
+
+  /** Optimistic row-level flag flip, rolled back if the API rejects it. */
+  async function toggleFlag(row: NewsRow, field: "isPinned" | "isPublished") {
+    const next = !row[field];
+    setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, [field]: next } : r)));
+    const res = await api.put(`/api/news/${row.id}`, { [field]: next });
+    if (!res.ok) {
+      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, [field]: !next } : r)));
+      setError(res.error);
+    }
+  }
+
+  const togglePinned = (row: NewsRow) => toggleFlag(row, "isPinned");
+  const togglePublished = (row: NewsRow) => toggleFlag(row, "isPublished");
 
   return (
     <>
@@ -168,7 +242,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         New post
       </AdminBtn>
 
-      {error && !draft && <p className="mb-3 text-[13px] font-semibold text-[#B0303A]">{error}</p>}
+      {error && !draft && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
       <AdminTable>
         <thead>
@@ -176,34 +250,74 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
             <AdminTh>Title</AdminTh>
             <AdminTh>Date</AdminTh>
             <AdminTh>Status</AdminTh>
+            <AdminTh>Cover</AdminTh>
+            <AdminTh>PDF</AdminTh>
+            <AdminTh>Pinned</AdminTh>
             <AdminTh>Notify?</AdminTh>
-            <AdminTh></AdminTh>
+            <AdminTh className="text-right">Actions</AdminTh>
           </tr>
         </thead>
         <tbody>
           {rows.map((n) => (
             <tr key={n.id}>
-              <AdminTd>
-                {n.isPinned && "📌 "}
+              <AdminTd className="font-semibold text-[var(--ink)]">
                 {n.titleGu || n.titleEn}
               </AdminTd>
-              <AdminTd>{n.publishedAt}</AdminTd>
+              <AdminTd className="whitespace-nowrap">{n.publishedAt}</AdminTd>
               <AdminTd>
                 {n.isPublished ? (
                   <PillActive>Published</PillActive>
                 ) : (
-                  <span className="text-[#B0801E]">Draft</span>
+                  <span className="text-xs font-bold text-[var(--warn)]">Draft</span>
                 )}
+              </AdminTd>
+              <AdminTd>
+                {n.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={n.imageUrl}
+                    alt=""
+                    className="h-8 w-[52px] rounded-md border border-[var(--line)] object-cover"
+                  />
+                ) : (
+                  <span className="text-[var(--faint)]">—</span>
+                )}
+              </AdminTd>
+              <AdminTd>
+                <HasCell
+                  on={!!n.documentUrl}
+                  href={n.documentUrl}
+                  label={n.documentName || "PDF"}
+                />
+              </AdminTd>
+              <AdminTd>
+                <button
+                  type="button"
+                  onClick={() => togglePinned(n)}
+                  className="cursor-pointer text-base leading-none"
+                  aria-label={n.isPinned ? "Unpin post" : "Pin post"}
+                  title={n.isPinned ? "Unpin" : "Pin to top"}
+                >
+                  {n.isPinned ? "📌" : <span className="text-[var(--faint)]">—</span>}
+                </button>
               </AdminTd>
               <AdminTd>
                 {n.notificationSent ? (
                   <PillActive>✓ sent</PillActive>
                 ) : (
-                  <span className="text-[#938C80]">—</span>
+                  <span className="text-[var(--faint)]">—</span>
                 )}
               </AdminTd>
-              <AdminTd>
-                <span className="flex gap-2">
+              <AdminTd className="text-right">
+                <span className="flex flex-wrap justify-end gap-2">
+                  <LinkAction
+                    onClick={() => window.open(`/news/${n.id}`, "_blank", "noopener")}
+                  >
+                    Preview
+                  </LinkAction>
+                  <LinkAction onClick={() => togglePublished(n)}>
+                    {n.isPublished ? "Unpublish" : "Publish"}
+                  </LinkAction>
                   <LinkAction onClick={() => openEdit(n)}>Edit</LinkAction>
                   <LinkAction danger onClick={() => remove(n.id)}>
                     Delete
@@ -216,7 +330,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
       </AdminTable>
 
       {rows.length === 0 && (
-        <p className="py-6 text-center text-[11.5px] text-[#938C80]">No news posts yet.</p>
+        <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">No news posts yet.</p>
       )}
 
       <AdminHint>
@@ -224,87 +338,152 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         important updates only.
       </AdminHint>
 
-      <Dialog open={draft !== null} onOpenChange={(o) => !o && setDraft(null)}>
-        <DialogContent className="max-h-[90vh] max-w-[520px] overflow-y-auto rounded-2xl sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">
-              {draft?.id ? "Edit post" : "New post"}
-            </DialogTitle>
-          </DialogHeader>
-          {draft && (
-            <div>
-              <AdminLabel>Title (English) *</AdminLabel>
+      <AdminModal
+        open={draft !== null}
+        onClose={() => setDraft(null)}
+        title={draft?.id ? "Edit post" : "New post"}
+        subtitle="Shows live in the User App News section."
+        footer={
+          <AdminModalActions
+            onSave={save}
+            onCancel={() => setDraft(null)}
+            busy={busy}
+            saveLabel="Save"
+          />
+        }
+      >
+        {draft && (
+          <>
+            <AdminField label="Title (ગુજરાતી)" required>
+              <AdminInput
+                gujarati
+                value={draft.titleGu}
+                onChange={(v) => {
+                  setDraft((d) => (d ? { ...d, titleGu: v } : d));
+                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
+                }}
+              />
+            </AdminField>
+
+            <AdminField label="Title (English)">
               <AdminInput
                 value={draft.titleEn}
                 onChange={(v) => {
-                  setDraft((prev) => (prev ? { ...prev, titleEn: v } : prev));
-                  fromEn(v, (gu) => setDraft((prev) => (prev ? { ...prev, titleGu: gu } : prev)), "title");
+                  setDraft((d) => (d ? { ...d, titleEn: v } : d));
+                  fromEn(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title");
                 }}
               />
-              <AdminLabel>Title (ગુજરાતી)</AdminLabel>
-              <AdminInput
-                value={draft.titleGu}
-                onChange={(v) => {
-                  setDraft((prev) => (prev ? { ...prev, titleGu: v } : prev));
-                  fromGu(v, (en) => setDraft((prev) => (prev ? { ...prev, titleEn: en } : prev)), "title");
-                }}
-              />
-              <AdminLabel>Content (English) *</AdminLabel>
-              <Textarea
-                value={draft.contentEn}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setDraft((prev) => (prev ? { ...prev, contentEn: v } : prev));
-                  fromEn(v, (gu) => setDraft((prev) => (prev ? { ...prev, contentGu: gu } : prev)), "content");
-                }}
-                className="mb-2 min-h-[80px] border-[#EDE4D4] bg-[#FCFAF6] text-[13px]"
-              />
-              <AdminLabel>Content (ગુજરાતી)</AdminLabel>
+            </AdminField>
+
+            <AdminFormRow>
+              <AdminField label="Date">
+                <AdminInput
+                  type="date"
+                  value={draft.publishDate}
+                  onChange={(v) => setDraft({ ...draft, publishDate: v })}
+                />
+              </AdminField>
+              <AdminField label="Author">
+                <AdminInput
+                  value={draft.author}
+                  placeholder="સમાજ એડમિન"
+                  onChange={(v) => setDraft({ ...draft, author: v })}
+                />
+              </AdminField>
+            </AdminFormRow>
+
+            <AdminField label="Description (ગુજરાતી)" required>
               <Textarea
                 value={draft.contentGu}
+                placeholder="સમાચારની વિગત…"
                 onChange={(e) => {
                   const v = e.target.value;
-                  setDraft((prev) => (prev ? { ...prev, contentGu: v } : prev));
-                  fromGu(v, (en) => setDraft((prev) => (prev ? { ...prev, contentEn: en } : prev)), "content");
+                  setDraft((d) => (d ? { ...d, contentGu: v } : d));
+                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
                 }}
-                className="mb-2 min-h-[80px] border-[#EDE4D4] bg-[#FCFAF6] text-[13px]"
+                className="min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
-              <AdminLabel>Image URL</AdminLabel>
-              <AdminInput value={draft.imageUrl} onChange={(v) => setDraft({ ...draft, imageUrl: v })} />
+            </AdminField>
 
-              <div className="mt-3 flex flex-wrap gap-5">
-                <label className="flex items-center gap-2 text-[12.5px] font-bold text-[#57524A]">
-                  <Switch checked={draft.isPinned} onCheckedChange={(v) => setDraft({ ...draft, isPinned: v })} />
-                  Pin to top
-                </label>
-                <label className="flex items-center gap-2 text-[12.5px] font-bold text-[#57524A]">
-                  <Switch checked={draft.isPublished} onCheckedChange={(v) => setDraft({ ...draft, isPublished: v })} />
-                  Published
-                </label>
-                {!draft.id && (
-                  <label className="flex items-center gap-2 text-[12.5px] font-bold text-[#57524A]">
-                    <Switch
-                      checked={draft.sendNotification}
-                      onCheckedChange={(v) => setDraft({ ...draft, sendNotification: v })}
-                    />
-                    Send notification
-                  </label>
-                )}
-              </div>
+            <AdminField label="Description (English)">
+              <Textarea
+                value={draft.contentEn}
+                placeholder="News description…"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDraft((d) => (d ? { ...d, contentEn: v } : d));
+                  fromEn(v, (gu) => setDraft((d) => (d ? { ...d, contentGu: gu } : d)), "content");
+                }}
+                className="min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
+              />
+            </AdminField>
 
-              {error && <p className="mt-3 text-[12.5px] font-semibold text-[#B0303A]">{error}</p>}
-              <div className="mt-4 flex gap-2.5">
-                <AdminBtn className="flex-1 justify-center" onClick={save}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : "Save"}
-                </AdminBtn>
-                <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setDraft(null)}>
-                  Cancel
-                </AdminBtn>
-              </div>
+            <AdminField label="Status">
+              <AdminSegmented
+                value={draft.isPublished ? "published" : "draft"}
+                onChange={(v) => setDraft({ ...draft, isPublished: v === "published" })}
+                options={[
+                  { value: "draft", label: "Draft" },
+                  { value: "published", label: "Published" },
+                ]}
+              />
+            </AdminField>
+
+            <AdminField label="Cover image">
+              <AdminFilePicker
+                value={draft.imageUrl}
+                folder="news"
+                onChange={(url) => setDraft((d) => (d ? { ...d, imageUrl: url } : d))}
+              />
+            </AdminField>
+
+            <AdminField label="PDF attachment">
+              <AdminFilePicker
+                value={draft.documentUrl}
+                accept="application/pdf"
+                folder="news"
+                label="Choose file"
+                preview={false}
+                onChange={(url) => setDraft((d) => (d ? { ...d, documentUrl: url } : d))}
+              />
+            </AdminField>
+
+            {draft.documentUrl && (
+              <AdminField label="PDF label" hint="Shown instead of the raw link">
+                <AdminInput
+                  value={draft.documentName}
+                  onChange={(v) => setDraft({ ...draft, documentName: v })}
+                />
+              </AdminField>
+            )}
+
+            <div className="flex flex-wrap gap-5">
+              <label className="flex items-center gap-2 text-[12.5px] font-bold text-[var(--ink-mid)]">
+                <AdminToggle
+                  on={draft.isPinned}
+                  label="Pin to top"
+                  onChange={(v) => setDraft({ ...draft, isPinned: v })}
+                />
+                Pin to top
+              </label>
+              {!draft.id && (
+                <label className="flex items-center gap-2 text-[12.5px] font-bold text-[var(--ink-mid)]">
+                  <AdminToggle
+                    on={draft.sendNotification}
+                    label="Send notification"
+                    onChange={(v) => setDraft({ ...draft, sendNotification: v })}
+                  />
+                  Send notification
+                </label>
+              )}
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+
+            {error && (
+              <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>
+            )}
+          </>
+        )}
+      </AdminModal>
     </>
   );
 }

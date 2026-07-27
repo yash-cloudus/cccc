@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Download, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, Settings, ChevronLeft, X } from "lucide-react";
+import { Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, ChevronLeft, X } from "lucide-react";
 import { PRIMARY_COLORS, SECONDARY_COLORS, ROOT_DOMAIN } from "@/lib/constants";
 import {
   communityAdminHostLabel,
@@ -9,11 +9,15 @@ import {
   communitySiteHostLabel,
   communityUrl,
   defaultAdminUsername,
+  generateNamePhonePassword,
   normalizeSlug,
+  plural,
 } from "@/lib/platform";
 import { downloadCredentialsPdf } from "@/lib/credentials-pdf";
 import { tintPrimary } from "@/lib/platform-types";
 import { cn } from "@/lib/utils";
+import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { TooltipProvider, WithTooltip } from "@/components/ui/tooltip";
 
 type ApiCommunity = {
@@ -28,7 +32,12 @@ type ApiCommunity = {
   primaryColor: string;
   secondaryColor: string;
   groupingLabel: string | null;
-  _count?: { families: number; users: number };
+  _count?: {
+    families: number;
+    users: number;
+    surnameGroups: number;
+    villageAreas: number;
+  };
   owner?: {
     id: string;
     username: string | null;
@@ -40,6 +49,12 @@ type ApiCommunity = {
 type View = "apps" | "create" | "settings";
 type UIType = "parivar" | "gam";
 
+/** Distinct accent per app type so Parivar/Gam are visually distinguishable at a glance. */
+const TYPE_BADGE: Record<"PARIVAR" | "GAM", { tint: string; text: string; solid: string }> = {
+  PARIVAR: { tint: "bg-[var(--violet-tint)]", text: "text-[var(--violet)]", solid: "bg-[var(--violet)]" },
+  GAM: { tint: "bg-[var(--info-tint)]", text: "text-[var(--info)]", solid: "bg-[var(--info)]" },
+};
+
 type Form = {
   nameEn: string;
   nameGu: string;
@@ -49,7 +64,7 @@ type Form = {
   primary: string;
   secondary: string;
   subdomain: string;
-  status: "LIVE" | "DRAFT";
+  status: "LIVE" | "DRAFT" | "SUSPENDED";
   adminName: string;
   adminPhone: string;
   adminUsername: string;
@@ -75,8 +90,11 @@ const blankForm = (): Form => ({
 });
 
 export default function PlatformPage() {
+  const { guInput } = useTranslitSync();
   const [view, setView] = useState<View>("apps");
   const [apps, setApps] = useState<ApiCommunity[]>([]);
+  const [appSearch, setAppSearch] = useState("");
+  const [appTypeFilter, setAppTypeFilter] = useState<"all" | "PARIVAR" | "GAM">("all");
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [f, setF] = useState<Form>(blankForm());
@@ -90,8 +108,10 @@ export default function PlatformPage() {
     ownerName: string;
     ownerPhone: string;
   } | null>(null);
-  const [nameSyncing, setNameSyncing] = useState<"en2gu" | "gu2en" | null>(null);
+  const [nameSyncing, setNameSyncing] = useState<"en2gu" | null>(null);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const translitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const translitToken = useRef(0);
   const logoFileRef = useRef<HTMLInputElement | null>(null);
@@ -143,6 +163,20 @@ export default function PlatformPage() {
   }, [load]);
 
   const liveCount = apps.filter((a) => a.status === "LIVE").length;
+
+  const filteredApps = useMemo(() => {
+    const needle = appSearch.trim().toLowerCase();
+    return apps.filter((a) => {
+      if (appTypeFilter !== "all" && a.type !== appTypeFilter) return false;
+      if (!needle) return true;
+      return (
+        a.nameEn.toLowerCase().includes(needle) ||
+        (a.nameGu || "").toLowerCase().includes(needle) ||
+        a.slug.toLowerCase().includes(needle)
+      );
+    });
+  }, [apps, appSearch, appTypeFilter]);
+
   const isGam = f.type === "gam";
   const logoInitial = f.logoText || (f.nameGu || f.nameEn || "").trim().charAt(0) || "?";
   const sub = normalizeSlug(f.subdomain) || "your_app";
@@ -157,17 +191,38 @@ export default function PlatformPage() {
     setF((prev) => ({ ...prev, [key]: value }));
   }
 
-  /** Bidirectional name sync: EN↔GU via /api/i18n/transliterate (debounced). */
-  function scheduleNameSync(direction: "en2gu" | "gu2en", text: string) {
+  function usernameTaken(name: string): boolean {
+    const n = name.trim().toLowerCase();
+    if (!n) return false;
+    return apps.some((a) => a.id !== editingId && (a.owner?.username || "").toLowerCase() === n);
+  }
+
+  function genUsername() {
+    const slug = normalizeSlug(f.subdomain) || normalizeSlug(f.nameEn) || "community";
+    const base = defaultAdminUsername(slug);
+    let candidate = base;
+    let i = 2;
+    while (usernameTaken(candidate)) {
+      candidate = `${base}${i}`;
+      i++;
+    }
+    setF((prev) => ({ ...prev, adminUsername: candidate, _userTouched: true }));
+  }
+
+  function genAdminPassword() {
+    setShowAdminPassword(true);
+    setField("adminPassword", generateNamePhonePassword(f.adminName, f.adminPhone));
+  }
+
+  /** English name → Gujarati name via /api/i18n/transliterate (debounced). */
+  function scheduleNameSync(direction: "en2gu", text: string) {
     if (translitTimer.current) clearTimeout(translitTimer.current);
     const token = ++translitToken.current;
     translitTimer.current = setTimeout(async () => {
       const trimmed = text.trim();
       if (!trimmed) {
         if (token !== translitToken.current) return;
-        setF((prev) =>
-          direction === "en2gu" ? { ...prev, nameGu: "" } : { ...prev, nameEn: "" },
-        );
+        setF((prev) => ({ ...prev, nameGu: "" }));
         setNameSyncing(null);
         return;
       }
@@ -182,17 +237,7 @@ export default function PlatformPage() {
         if (token !== translitToken.current) return;
         if (!json.success || typeof json.data?.result !== "string") return;
         const result = json.data.result as string;
-        setF((prev) => {
-          if (direction === "en2gu") return { ...prev, nameGu: result };
-          const nextSub = prev._subTouched ? prev.subdomain : normalizeSlug(result);
-          const slug = normalizeSlug(nextSub) || normalizeSlug(result);
-          return {
-            ...prev,
-            nameEn: result,
-            subdomain: nextSub,
-            adminUsername: prev._userTouched ? prev.adminUsername : (slug ? defaultAdminUsername(slug) : prev.adminUsername),
-          };
-        });
+        setF((prev) => ({ ...prev, nameGu: result }));
       } catch {
         /* keep last value; local fallback is server-side */
       } finally {
@@ -215,9 +260,17 @@ export default function PlatformPage() {
     scheduleNameSync("en2gu", v);
   }
 
+  /**
+   * Gujarati name field = Gujarati phonetic keyboard.
+   *
+   * Typing Latin here converts to Gujarati in place, once a space completes a
+   * word. It deliberately does NOT write back to the English name (or the
+   * derived subdomain) — that reverse sync used to overwrite what the user had
+   * already typed in English.
+   */
   function onNameGuChange(v: string) {
     setF((prev) => ({ ...prev, nameGu: v }));
-    scheduleNameSync("gu2en", v);
+    guInput(v, (gu) => setF((prev) => ({ ...prev, nameGu: gu })), "appName:gu");
   }
 
   async function uploadLogo(file: File) {
@@ -274,7 +327,7 @@ export default function PlatformPage() {
       primary: a.primaryColor,
       secondary: a.secondaryColor,
       subdomain: a.slug,
-      status: a.status === "DRAFT" ? "DRAFT" : "LIVE",
+      status: a.status,
       adminName: a.owner?.name || "",
       adminPhone: a.owner?.mobile || "",
       adminUsername: a.owner?.username || defaultAdminUsername(a.slug),
@@ -410,6 +463,10 @@ export default function PlatformPage() {
   }
 
   async function openApp(slug: string) {
+    // Open the tab synchronously (inside the click handler) so browsers don't
+    // treat it as a blocked popup once we redirect it after the await below.
+    const win = window.open("", "_blank");
+    if (win) win.opener = null;
     try {
       const res = await fetch("/api/platform/launch", {
         method: "POST",
@@ -418,16 +475,21 @@ export default function PlatformPage() {
       });
       const json = await res.json();
       if (json?.success && json?.data?.url) {
-        window.location.href = json.data.url as string;
+        if (win) win.location.href = json.data.url as string;
+        else window.open(json.data.url as string, "_blank", "noopener,noreferrer");
         return;
       }
     } catch {
       /* fall through */
     }
-    window.location.href = communityUrl(slug, "/dashboard");
+    const fallback = communityUrl(slug, "/dashboard");
+    if (win) win.location.href = fallback;
+    else window.open(fallback, "_blank", "noopener,noreferrer");
   }
 
   async function openAdmin(slug: string) {
+    const win = window.open("", "_blank");
+    if (win) win.opener = null;
     try {
       const res = await fetch("/api/platform/launch", {
         method: "POST",
@@ -436,13 +498,40 @@ export default function PlatformPage() {
       });
       const json = await res.json();
       if (json?.success && json?.data?.url) {
-        window.location.href = json.data.url as string;
+        if (win) win.location.href = json.data.url as string;
+        else window.open(json.data.url as string, "_blank", "noopener,noreferrer");
         return;
       }
     } catch {
       /* fall through */
     }
-    window.location.href = communityAdminUrl(slug, "/admin");
+    const fallback = communityAdminUrl(slug, "/admin");
+    if (win) win.location.href = fallback;
+    else window.open(fallback, "_blank", "noopener,noreferrer");
+  }
+
+  /** Quick Active/Deactive flip from the app card — persists straight to the DB. */
+  async function toggleAppStatus(a: ApiCommunity) {
+    const nextStatus = a.status === "LIVE" ? "SUSPENDED" : "LIVE";
+    setTogglingId(a.id);
+    try {
+      const res = await fetch(`/api/platform/communities/${a.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const json = await res.json();
+      if (json?.success) {
+        setApps((prev) => prev.map((x) => (x.id === a.id ? { ...x, status: nextStatus } : x)));
+        if (editingId === a.id) setField("status", nextStatus);
+      } else {
+        setError(json.error || "Failed to update app status.");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setTogglingId(null);
+    }
   }
 
   async function logout() {
@@ -473,7 +562,7 @@ export default function PlatformPage() {
         >
           <nav
             className={cn(
-              "flex h-full w-full flex-col overflow-y-auto overflow-x-hidden bg-[#12141A] py-3.5 text-white",
+              "flex h-full w-full flex-col overflow-y-auto overflow-x-hidden bg-[var(--platform-ink-deep)] py-3.5 text-white",
               collapsed ? "items-center" : "",
             )}
           >
@@ -491,7 +580,7 @@ export default function PlatformPage() {
                   }}
                   aria-label={collapsed ? "Open sidebar" : "Platform"}
                   className={cn(
-                    "flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-[#5865F2] to-[#3D4CE0] transition-transform duration-300 hover:scale-[1.03]",
+                    "flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-[var(--platform-bright)] to-[var(--platform)] transition-transform duration-300 hover:scale-[1.03]",
                     collapsed && "cursor-pointer ring-offset-2 hover:ring-2 hover:ring-white/20",
                   )}
                 >
@@ -531,8 +620,8 @@ export default function PlatformPage() {
                         "flex cursor-pointer items-center rounded-[10px] text-[13.5px] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
                         collapsed ? "size-10 justify-center p-0" : "h-10 w-full gap-2.5 px-2.5 text-left",
                         active
-                          ? "bg-gradient-to-br from-[#5865F2] to-[#3D4CE0] font-bold text-white"
-                          : "font-semibold text-[#8E93A0] hover:bg-white/5",
+                          ? "bg-gradient-to-br from-[var(--platform-bright)] to-[var(--platform)] font-bold text-white"
+                          : "font-semibold text-[var(--platform-muted)] hover:bg-white/5",
                       )}
                     >
                       <Icon className="size-[18px] shrink-0" strokeWidth={2.1} />
@@ -595,7 +684,7 @@ export default function PlatformPage() {
               type="button"
               onClick={toggleCollapsed}
               aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
-              className="absolute top-10 -right-3 z-30 flex size-6 cursor-pointer items-center justify-center rounded-md border border-[#fff] bg-[#3D4CE0] text-[#ffff] shadow-[0_1px_3px_rgba(0,0,0,.35)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 hover:bg-[#ffff] hover:text-[#3D4CE0]"
+              className="absolute top-10 -right-3 z-30 flex size-6 cursor-pointer items-center justify-center rounded-md border border-[#fff] bg-[var(--platform)] text-[#ffff] shadow-[0_1px_3px_rgba(0,0,0,.35)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 hover:bg-[#ffff] hover:text-[var(--platform)]"
             >
               <ChevronLeft
                 className={cn(
@@ -613,40 +702,76 @@ export default function PlatformPage() {
             <div className="p-[26px_30px] max-md:p-4">
               {view === "settings" ? (
                 <>
-                  <h2 className="m-0 text-[22px] font-extrabold text-[#22252B]">Platform settings</h2>
-                  <p className="mt-1 text-[13px] text-[#8E93A0]">
+                  <h2 className="m-0 text-[22px] font-extrabold text-[var(--platform-ink)]">Platform settings</h2>
+                  <p className="mt-1 text-[13px] text-[var(--platform-muted)]">
                     Global platform options for {ROOT_DOMAIN}
                   </p>
-                  <div className="mt-5 rounded-2xl border border-[#ECEAF0] bg-white p-5 shadow-[0_2px_5px_rgba(30,25,40,.05)]">
-                    <div className="mb-4 text-xs font-extrabold tracking-wide text-[#8E93A0]">PLATFORM</div>
+                  <div className="mt-5 rounded-2xl border border-[var(--platform-line)] bg-white p-5 shadow-[0_2px_5px_rgba(30,25,40,.05)]">
+                    <div className="mb-4 text-xs font-extrabold tracking-wide text-[var(--platform-muted)]">PLATFORM</div>
                     <div className="grid gap-3 md:grid-cols-2">
                       <label className="block">
-                        <span className="mb-1.5 block text-xs font-bold text-[#8E93A0]">Root domain</span>
+                        <span className="mb-1.5 block text-xs font-bold text-[var(--platform-muted)]">Root domain</span>
                         <input className="mafld" defaultValue={ROOT_DOMAIN} readOnly />
                       </label>
                       <label className="block">
-                        <span className="mb-1.5 block text-xs font-bold text-[#8E93A0]">Support email</span>
+                        <span className="mb-1.5 block text-xs font-bold text-[var(--platform-muted)]">Support email</span>
                         <input className="mafld" defaultValue={`support@${ROOT_DOMAIN}`} />
                       </label>
                     </div>
-                    <p className="mt-4 text-[12.5px] font-medium text-[#8E93A0]">
+                    <p className="mt-4 text-[12.5px] font-medium text-[var(--platform-muted)]">
                       Apps are managed from Your apps. Branding is per-app and applies live across every screen.
                     </p>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="m-0 text-[22px] font-extrabold text-[#22252B]">Your apps</h2>
-                      <p className="mt-1 text-[13px] text-[#8E93A0]">
+                  <div className="mb-5 flex flex-wrap items-center gap-3">
+                    <div className="mr-auto">
+                      <h2 className="m-0 text-[22px] font-extrabold text-[var(--platform-ink)]">Your apps</h2>
+                      <p className="mt-1 text-[13px] text-[var(--platform-muted)]">
                         Every Gam / Parivar app you run on the platform
                       </p>
                     </div>
+
+                    <div className="relative min-w-0 flex-1 sm:max-w-[340px]">
+                      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--platform-muted)]" />
+                      <input
+                        value={appSearch}
+                        onChange={(e) => setAppSearch(e.target.value)}
+                        placeholder="Search Gam / Parivar by name…"
+                        className="h-11 w-full rounded-xl border-[1.5px] border-[var(--platform-line)] bg-white pr-3 pl-9 text-[13.5px] text-[var(--platform-ink)] outline-none focus:border-[var(--platform)]"
+                      />
+                    </div>
+
+                    <div className="flex overflow-hidden rounded-xl border-[1.5px] border-[var(--platform-line)] bg-white">
+                      {(
+                        [
+                          { key: "PARIVAR", label: "Parivar" },
+                          { key: "GAM", label: "Gam" },
+                        ] as const
+                      ).map((opt) => {
+                        const active = appTypeFilter === opt.key;
+                        const badge = TYPE_BADGE[opt.key];
+                        return (
+                          <button
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setAppTypeFilter(active ? "all" : opt.key)}
+                            className={cn(
+                              "h-11 cursor-pointer px-4 text-[13px] font-bold whitespace-nowrap last:border-l-[1.5px] last:border-[var(--platform-line)]",
+                              active ? cn(badge.solid, "text-white") : cn(badge.tint, badge.text),
+                            )}
+                          >
+                            {opt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     <button
                       type="button"
                       onClick={startCreate}
-                      className="inline-flex h-auto cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-[#5865F2] to-[#3D4CE0] px-[18px] py-3 text-[13.5px] font-extrabold text-white"
+                      className="inline-flex h-auto cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-br from-[var(--platform-bright)] to-[var(--platform)] px-[18px] py-3 text-[13.5px] font-extrabold text-white"
                     >
                       <Plus className="size-[17px]" strokeWidth={2.3} />
                       Create app
@@ -654,15 +779,20 @@ export default function PlatformPage() {
                   </div>
 
                   {loading ? (
-                    <div className="flex items-center gap-2 py-16 text-sm text-[#8E93A0]">
+                    <div className="flex items-center gap-2 py-16 text-sm text-[var(--platform-muted)]">
                       <Loader2 className="size-4 animate-spin" /> Loading apps…
+                    </div>
+                  ) : filteredApps.length === 0 && apps.length > 0 ? (
+                    <div className="flex flex-col items-center gap-1.5 py-16 text-center">
+                      <span className="text-[13.5px] font-bold text-[var(--platform-ink)]">No apps match your search</span>
+                      <span className="text-[12.5px] text-[var(--platform-muted)]">Try a different name or clear the filter.</span>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-[repeat(auto-fill,minmax(300px,1fr))]">
-                      {apps.map((a) => (
+                      {filteredApps.map((a) => (
                         <div
                           key={a.id}
-                          className="rounded-2xl border border-[#ECEAF0] bg-white p-4 shadow-[0_2px_5px_rgba(30,25,40,.05)]"
+                          className="rounded-2xl border border-[var(--platform-line)] bg-white p-4 shadow-[0_2px_5px_rgba(30,25,40,.05)]"
                         >
                           <div className="mb-3.5 flex items-center gap-3">
                             <div
@@ -677,39 +807,41 @@ export default function PlatformPage() {
                               )}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <div className="truncate text-[15px] font-extrabold text-[#22252B]">
+                              <div className="truncate text-[15px] font-extrabold text-[var(--platform-ink)]">
                                 {a.nameGu || a.nameEn}
                               </div>
-                              <div className="mt-px text-xs font-semibold text-[#8E93A0]">
+                              <div className="mt-px text-xs font-semibold text-[var(--platform-muted)]">
                                 {communitySiteHostLabel(a.slug)}
                               </div>
                               <div className="mt-0.5 truncate text-[10.5px] font-semibold text-[#B4B8C4]">
                                 {communityAdminHostLabel(a.slug)}
                               </div>
                             </div>
-                            <span
-                              className={cn(
-                                "shrink-0 rounded-full px-2.5 py-0.5 text-[10.5px] font-extrabold",
-                                a.status === "LIVE"
-                                  ? "bg-[#E4F5E9] text-[#1E9E52]"
-                                  : "bg-[#F1EFEA] text-[#8E93A0]",
-                              )}
-                            >
-                              {a.status === "LIVE" ? "Live" : a.status === "DRAFT" ? "Draft" : "Suspended"}
-                            </span>
                           </div>
 
                           <div className="mb-3.5 flex flex-wrap gap-2">
-                            <span className="rounded-lg bg-[#F4F3F7] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
+                            <span
+                              className={cn(
+                                "rounded-lg px-2.5 py-1 text-[11.5px] font-bold",
+                                TYPE_BADGE[a.type].tint,
+                                TYPE_BADGE[a.type].text,
+                              )}
+                            >
                               {a.type === "GAM" ? "Gam · ગામ" : "Parivar · પરિવાર"}
                             </span>
-                            {a.groupingLabel && (
-                              <span className="rounded-lg bg-[#F4F3F7] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
-                                {a.groupingLabel}
-                              </span>
-                            )}
-                            <span className="rounded-lg bg-[#F4F3F7] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
-                              {a._count?.families ?? 0} families
+                            {/* Live grouping count: a Gam app is one fixed village with many
+                                surnames, so show surname diversity. A Parivar app is one fixed
+                                surname spread across many villages, so show village diversity. */}
+                            <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
+                              {a.type === "GAM"
+                                ? `${a._count?.surnameGroups ?? 0} ${plural(a._count?.surnameGroups ?? 0, "surname")}`
+                                : `${a._count?.villageAreas ?? 0} ${plural(a._count?.villageAreas ?? 0, "village")}`}
+                            </span>
+                            <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
+                              {a._count?.families ?? 0} {plural(a._count?.families ?? 0, "family", "families")}
+                            </span>
+                            <span className="rounded-lg bg-[var(--platform-surface)] px-2.5 py-1 text-[11.5px] font-bold text-[#6B6E78]">
+                              {a._count?.users ?? 0} {plural(a._count?.users ?? 0, "member")}
                             </span>
                           </div>
 
@@ -721,24 +853,33 @@ export default function PlatformPage() {
                             <button
                               type="button"
                               onClick={() => editApp(a.id)}
-                              className="cursor-pointer rounded-[10px] border-[1.5px] border-[#E0DACC] bg-white px-3.5 py-2 text-xs font-extrabold text-[#57524A]"
+                              className="cursor-pointer rounded-[10px] border-[1.5px] border-[var(--line-input)] bg-white px-3.5 py-2 text-xs font-extrabold text-[var(--ink-mid)]"
                             >
                               Edit
                             </button>
                             <button
                               type="button"
                               onClick={() => openApp(a.slug)}
-                              className="cursor-pointer rounded-[10px] border-[1.5px] border-[#E0DACC] bg-white px-3.5 py-2 text-xs font-extrabold text-[#57524A]"
+                              className="cursor-pointer rounded-[10px] border-[1.5px] border-[var(--line-input)] bg-white px-3.5 py-2 text-xs font-extrabold text-[var(--ink-mid)]"
                             >
                               Open app
                             </button>
+                          </div>
+
+                          <div className="mt-2.5 flex items-center">
                             <button
                               type="button"
                               onClick={() => openAdmin(a.slug)}
-                              className="cursor-pointer rounded-[10px] bg-gradient-to-br from-[#5865F2] to-[#3D4CE0] px-3.5 py-2 text-xs font-extrabold text-white"
+                              className="cursor-pointer rounded-[10px] bg-gradient-to-br from-[var(--platform-bright)] to-[var(--platform)] px-3.5 py-2 text-xs font-extrabold text-white"
                             >
                               Open admin
                             </button>
+                            <StatusToggle
+                              active={a.status === "LIVE"}
+                              busy={togglingId === a.id}
+                              onToggle={() => toggleAppStatus(a)}
+                              className="ml-auto"
+                            />
                           </div>
                         </div>
                       ))}
@@ -746,9 +887,9 @@ export default function PlatformPage() {
                       <button
                         type="button"
                         onClick={startCreate}
-                        className="flex min-h-[150px] cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-[#C9C6D4] bg-[#FBFBFE] text-[#5865F2]"
+                        className="flex min-h-[150px] cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-[#C9C6D4] bg-[#FBFBFE] text-[var(--platform-bright)]"
                       >
-                        <span className="flex size-11 items-center justify-center rounded-[13px] bg-[#EEF0FE]">
+                        <span className="flex size-11 items-center justify-center rounded-[13px] bg-[var(--platform-tint)]">
                           <Plus className="size-[22px]" strokeWidth={2.3} />
                         </span>
                         <span className="text-sm font-extrabold">Create a new app</span>
@@ -762,31 +903,46 @@ export default function PlatformPage() {
 
           {view === "create" && (
             <div className="flex min-h-full max-lg:flex-col">
-              <div className="min-w-0 flex-1 border-r border-[#ECEAF0] p-[26px_30px] max-md:p-4 max-lg:border-r-0">
+              <div className="min-w-0 flex-1 border-r border-[var(--platform-line)] p-[26px_30px] max-md:p-4 max-lg:border-r-0">
                 <button
                   type="button"
                   onClick={() => {
                     setView("apps");
                     setEditingId(null);
                   }}
-                  className="mb-3 cursor-pointer text-[12.5px] font-bold text-[#5865F2]"
+                  className="mb-3 cursor-pointer text-[12.5px] font-bold text-[var(--platform-bright)]"
                 >
                   ‹ All apps
                 </button>
-                <h2 className="m-0 text-[22px] font-extrabold text-[#22252B]">
+                <h2 className="m-0 text-[22px] font-extrabold text-[var(--platform-ink)]">
                   {editing ? "Edit app" : "Create a new app"}
                 </h2>
-                <p className="mb-[22px] mt-1 text-[13px] text-[#8E93A0]">
+                <p className="mb-[22px] mt-1 text-[13px] text-[var(--platform-muted)]">
                   Set the branding & type. The app configures itself automatically.
                 </p>
 
                 {error && (
-                  <div className="mb-4 rounded-[11px] border border-[#F1C4C4] bg-[#FCECEC] px-3.5 py-2.5 text-[13px] font-semibold text-[#B0303A]">
+                  <div className="mb-4 rounded-[11px] border border-[var(--danger-line)] bg-[var(--danger-tint-soft)] px-3.5 py-2.5 text-[13px] font-semibold text-[var(--danger)]">
                     {error}
                   </div>
                 )}
 
-                <Section label="BASIC DETAILS" />
+                {editing && (
+                  <div className="mb-5 flex items-center justify-between gap-3 rounded-[13px] border border-[var(--platform-line)] bg-[var(--platform-surface)] px-4 py-3">
+                    <div>
+                      <div className="text-[13px] font-extrabold text-[var(--platform-ink)]">App status</div>
+                      <div className="text-[11.5px] font-semibold text-[var(--platform-muted)]">
+                        Saved with the rest of this form when you click Save changes.
+                      </div>
+                    </div>
+                    <StatusToggle
+                      active={f.status === "LIVE"}
+                      onToggle={() => setField("status", f.status === "LIVE" ? "SUSPENDED" : "LIVE")}
+                    />
+                  </div>
+                )}
+
+                <Section label="BASIC DETAILS" emphasis />
                 <Field label="App name (English) *">
                   <div className="relative">
                     <input
@@ -795,30 +951,28 @@ export default function PlatformPage() {
                       placeholder="Mota Zinzuda Samaj"
                       onChange={(e) => onNameEnChange(e.target.value)}
                     />
-                    {nameSyncing === "gu2en" && (
-                      <Loader2 className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-[#8E93A0]" />
-                    )}
                   </div>
                 </Field>
                 <Field label="App name (ગુજરાતી)">
                   <div className="relative">
-                    <input
-                      className="mafld font-[family-name:var(--font-noto-serif-gujarati)]"
+                    <GujaratiInput
+                      inputClassName="mafld font-[family-name:var(--font-noto-serif-gujarati)]"
                       value={f.nameGu}
                       placeholder="મોટા ઝીંઝુડા સમાજ"
-                      onChange={(e) => onNameGuChange(e.target.value)}
+                      onChange={onNameGuChange}
                     />
                     {nameSyncing === "en2gu" && (
-                      <Loader2 className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-[#8E93A0]" />
+                      <Loader2 className="absolute right-3 top-1/2 size-3.5 -translate-y-1/2 animate-spin text-[var(--platform-muted)]" />
                     )}
                   </div>
                   <p className="mt-1.5 text-[11px] font-medium text-[#A0A5B0]">
-                    Type either side — the other fills automatically (names use phonetic Gujarati).
+                    English fills this automatically. You can also type here directly — Latin
+                    becomes Gujarati as you type (press space after each word).
                   </p>
                 </Field>
 
                 <div className="mb-[18px]">
-                  <div className="mb-1.5 text-xs font-bold text-[#8E93A0]">App logo</div>
+                  <div className="mb-1.5 text-xs font-bold text-[var(--platform-muted)]">App logo</div>
                   <div className="flex items-start gap-3.5">
                     <div
                       className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold text-white"
@@ -846,7 +1000,7 @@ export default function PlatformPage() {
                         type="button"
                         disabled={logoUploading}
                         onClick={() => logoFileRef.current?.click()}
-                        className="flex w-full cursor-pointer flex-col items-center justify-center rounded-[13px] border border-dashed border-[#D4CEC2] bg-[#FCFAF6] px-3 py-3.5 text-[#8E93A0] transition hover:border-[#A62A38]/40 hover:bg-[#FBF6F0] disabled:opacity-60"
+                        className="flex w-full cursor-pointer flex-col items-center justify-center rounded-[13px] border border-dashed border-[#D4CEC2] bg-[var(--field)] px-3 py-3.5 text-[var(--platform-muted)] transition hover:border-[var(--brand)]/40 hover:bg-[#FBF6F0] disabled:opacity-60"
                       >
                         {logoUploading ? (
                           <Loader2 className="size-5 animate-spin" />
@@ -861,12 +1015,12 @@ export default function PlatformPage() {
                         <button
                           type="button"
                           onClick={() => setField("logoUrl", "")}
-                          className="mt-1.5 inline-flex cursor-pointer items-center gap-1 text-[11.5px] font-bold text-[#B0303A]"
+                          className="mt-1.5 inline-flex cursor-pointer items-center gap-1 text-[11.5px] font-bold text-[var(--danger)]"
                         >
                           <X className="size-3" /> Remove uploaded logo
                         </button>
                       )}
-                      <div className="mb-1 mt-2.5 text-xs font-bold text-[#8E93A0]">…or logo text</div>
+                      <div className="mb-1 mt-2.5 text-xs font-bold text-[var(--platform-muted)]">…or logo text</div>
                       <input
                         className="mafld"
                         maxLength={3}
@@ -892,11 +1046,11 @@ export default function PlatformPage() {
                       onClick={() => setField("type", c.k)}
                       className={cn(
                         "flex-1 cursor-pointer rounded-[13px] border-[1.5px] p-3.5 text-left",
-                        f.type === c.k ? "border-[#3D4CE0] bg-[#EEF0FE]" : "border-[#E0DACC] bg-white",
+                        f.type === c.k ? "border-[var(--platform)] bg-[var(--platform-tint)]" : "border-[var(--line-input)] bg-white",
                       )}
                     >
-                      <div className="text-sm font-extrabold text-[#22252B]">{c.title}</div>
-                      <div className="mt-1 text-[11.5px] leading-snug text-[#8E93A0]">{c.desc}</div>
+                      <div className="text-sm font-extrabold text-[var(--platform-ink)]">{c.title}</div>
+                      <div className="mt-1 text-[11.5px] leading-snug text-[var(--platform-muted)]">{c.desc}</div>
                     </button>
                   ))}
                 </div>
@@ -904,7 +1058,7 @@ export default function PlatformPage() {
                 <Section label="BRAND COLORS" />
                 <div className="mb-[18px] grid grid-cols-2 gap-3.5">
                   <div>
-                    <div className="mb-1.5 text-xs font-bold text-[#8E93A0]">Primary</div>
+                    <div className="mb-1.5 text-xs font-bold text-[var(--platform-muted)]">Primary</div>
                     <div className="flex flex-wrap gap-1.5">
                       {PRIMARY_COLORS.map((c) => (
                         <button
@@ -922,7 +1076,7 @@ export default function PlatformPage() {
                     </div>
                   </div>
                   <div>
-                    <div className="mb-1.5 text-xs font-bold text-[#8E93A0]">Secondary</div>
+                    <div className="mb-1.5 text-xs font-bold text-[var(--platform-muted)]">Secondary</div>
                     <div className="flex flex-wrap gap-1.5">
                       {SECONDARY_COLORS.map((c) => (
                         <button
@@ -943,8 +1097,8 @@ export default function PlatformPage() {
 
                 <Section label="DOMAIN" />
                 <div className="mb-2">
-                  <div className="mb-1.5 text-xs font-bold text-[#8E93A0]">Subdomain *</div>
-                  <div className="flex overflow-hidden rounded-xl border-[1.5px] border-[#E0DACC] bg-white">
+                  <div className="mb-1.5 text-xs font-bold text-[var(--platform-muted)]">Subdomain *</div>
+                  <div className="flex overflow-hidden rounded-xl border-[1.5px] border-[var(--line-input)] bg-white">
                     <input
                       value={f.subdomain}
                       placeholder="mota_zinzuda"
@@ -965,14 +1119,14 @@ export default function PlatformPage() {
                           };
                         })
                       }
-                      className="min-w-0 flex-1 border-none bg-transparent px-3.5 py-3 text-sm text-[#22252B] outline-none disabled:opacity-60"
+                      className="min-w-0 flex-1 border-none bg-transparent px-3.5 py-3 text-sm text-[var(--platform-ink)] outline-none disabled:opacity-60"
                     />
-                    <span className="flex items-center border-l border-[#E0DACC] bg-[#F4F3F7] px-3.5 text-[13.5px] font-bold text-[#8E93A0]">
+                    <span className="flex items-center border-l border-[var(--line-input)] bg-[var(--platform-surface)] px-3.5 text-[13.5px] font-bold text-[var(--platform-muted)]">
                       .{ROOT_DOMAIN}
                     </span>
                   </div>
                 </div>
-                <div className="mb-[22px] space-y-1.5 rounded-[11px] border border-[#D2D6FB] bg-[#EEF0FE] px-3.5 py-2.5 text-[13px] font-bold text-[#3A45B0]">
+                <div className="mb-[22px] space-y-1.5 rounded-[11px] border border-[#D2D6FB] bg-[var(--platform-tint)] px-3.5 py-2.5 text-[13px] font-bold text-[#3A45B0]">
                   <div>🌐 Website: {communitySiteHostLabel(sub)}</div>
                   <div>🛠 Admin: {communityAdminHostLabel(sub)}</div>
                   {editing && <span className="font-semibold text-[#6B7080]">(subdomain can’t be changed)</span>}
@@ -1004,52 +1158,87 @@ export default function PlatformPage() {
                 </div>
                 <div className="mb-2 grid grid-cols-2 gap-3.5 max-sm:grid-cols-1">
                   <Field label="Username *">
-                    <input
-                      className="mafld"
-                      value={f.adminUsername}
-                      placeholder={defaultAdminUsername(sub)}
-                      autoComplete="off"
-                      onChange={(e) =>
-                        setF((prev) => ({
-                          ...prev,
-                          adminUsername: e.target.value.replace(/\s+/g, "_").toLowerCase(),
-                          _userTouched: true,
-                        }))
-                      }
-                    />
+                    <div className="flex gap-2">
+                      <input
+                        className="mafld flex-1"
+                        value={f.adminUsername}
+                        placeholder={defaultAdminUsername(sub)}
+                        autoComplete="off"
+                        onChange={(e) =>
+                          setF((prev) => ({
+                            ...prev,
+                            adminUsername: e.target.value.replace(/\s+/g, "_").toLowerCase(),
+                            _userTouched: true,
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        onClick={genUsername}
+                        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-3 text-[12px] font-bold text-[var(--platform-muted)]"
+                      >
+                        <RefreshCw className="size-3.5" /> Generate
+                      </button>
+                    </div>
+                    {usernameTaken(f.adminUsername) && (
+                      <p className="mt-1.5 text-[11.5px] font-bold text-[var(--danger)]">
+                        ⚠ This username already exists. Choose another one.
+                      </p>
+                    )}
                   </Field>
                   <Field label={editing ? "New password" : "Password *"}>
-                    <input
-                      className="mafld"
-                      type="text"
-                      value={f.adminPassword}
-                      placeholder={editing ? "Leave blank to keep current" : "admin"}
-                      autoComplete="new-password"
-                      onChange={(e) => setField("adminPassword", e.target.value)}
-                    />
+                    <div className="flex gap-2">
+                      <div className="relative min-w-0 flex-1">
+                        <input
+                          className="mafld"
+                          style={{ paddingRight: 38 }}
+                          type={showAdminPassword ? "text" : "password"}
+                          value={f.adminPassword}
+                          placeholder={editing ? "Leave blank to keep current" : "Enter or generate"}
+                          autoComplete="new-password"
+                          onChange={(e) => setField("adminPassword", e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPassword((v) => !v)}
+                          className="absolute inset-y-0 right-0 flex w-9 items-center justify-center text-[var(--platform-muted)]"
+                          aria-label={showAdminPassword ? "Hide password" : "Show password"}
+                          tabIndex={-1}
+                        >
+                          {showAdminPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={genAdminPassword}
+                        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-3 text-[12px] font-bold text-[var(--platform-muted)]"
+                      >
+                        <RefreshCw className="size-3.5" /> Generate
+                      </button>
+                    </div>
                   </Field>
                 </div>
                 {editing && (
                   <button
                     type="button"
                     onClick={() => setField("adminPassword", "admin")}
-                    className="mb-3 cursor-pointer text-[12.5px] font-bold text-[#3D4CE0] underline"
+                    className="mb-3 cursor-pointer text-[12.5px] font-bold text-[var(--platform)] underline"
                   >
                     Reset password to “admin”
                   </button>
                 )}
-                <p className="mb-[18px] text-[12px] font-medium leading-relaxed text-[#8E93A0]">
+                <p className="mb-[18px] text-[12px] font-medium leading-relaxed text-[var(--platform-muted)]">
                   {editing ? (
                     <>
                       Password stays blank for security. Fill it only to change, or use reset.
-                      Login uses <span className="font-bold text-[#57524A]">username + password</span>.
+                      Login uses <span className="font-bold text-[var(--ink-mid)]">username + password</span>.
                     </>
                   ) : (
                     <>
                       Mobile is saved on the owner account. Login uses{" "}
-                      <span className="font-bold text-[#57524A]">username + password</span> (not OTP).
+                      <span className="font-bold text-[var(--ink-mid)]">username + password</span> (not OTP).
                       Username auto-fills from subdomain; default password is{" "}
-                      <span className="font-bold text-[#57524A]">admin</span>.
+                      <span className="font-bold text-[var(--ink-mid)]">admin</span>.
                     </>
                   )}
                 </p>
@@ -1059,7 +1248,7 @@ export default function PlatformPage() {
                     type="button"
                     onClick={saveApp}
                     disabled={saving}
-                    className="flex h-[50px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#5865F2] to-[#3D4CE0] text-[13.5px] font-extrabold text-white disabled:opacity-70"
+                    className="flex h-[50px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[var(--platform-bright)] to-[var(--platform)] text-[13.5px] font-extrabold text-white disabled:opacity-70"
                   >
                     {saving ? <Loader2 className="size-[18px] animate-spin" /> : <Check className="size-[18px]" strokeWidth={2.3} />}
                     {editing ? "Save changes" : "Create app"}
@@ -1070,7 +1259,7 @@ export default function PlatformPage() {
                       setView("apps");
                       setEditingId(null);
                     }}
-                    className="flex h-[50px] cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-[#E0DACC] bg-white px-5 text-[13.5px] font-extrabold text-[#57524A]"
+                    className="flex h-[50px] cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-5 text-[13.5px] font-extrabold text-[var(--ink-mid)]"
                   >
                     Cancel
                   </button>
@@ -1078,7 +1267,7 @@ export default function PlatformPage() {
               </div>
 
               <div className="flex w-[340px] shrink-0 flex-col items-center bg-[#F0EFF4] px-[22px] py-6 max-lg:w-full">
-                <div className="mb-3.5 self-start text-[11.5px] font-extrabold tracking-wide text-[#8E93A0]">
+                <div className="mb-3.5 self-start text-[11.5px] font-extrabold tracking-wide text-[var(--platform-muted)]">
                   LIVE PREVIEW
                 </div>
                 <div className="h-[512px] w-[250px] rounded-[36px] bg-[#1C1512] p-2.5 shadow-[0_24px_50px_-20px_rgba(30,25,40,.5)]">
@@ -1097,14 +1286,14 @@ export default function PlatformPage() {
                         logoInitial
                       )}
                     </div>
-                    <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[17px] font-bold leading-tight text-[#2A2320]">
+                    <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[17px] font-bold leading-tight text-[var(--ink)]">
                       {f.nameGu || f.nameEn || (isGam ? "તમારું ગામ" : "તમારો સમાજ")}
                     </div>
-                    <div className="text-[11px] font-semibold text-[#938C80]">Community Admin login</div>
-                    <div className="mt-1.5 flex h-11 w-full items-center rounded-xl border-[1.5px] border-[#E1DACC] bg-white px-3 text-[12px] font-bold text-[#2A2320]">
+                    <div className="text-[11px] font-semibold text-[var(--faint)]">Community Admin login</div>
+                    <div className="mt-1.5 flex h-11 w-full items-center rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-3 text-[12px] font-bold text-[var(--ink)]">
                       {f.adminUsername || defaultAdminUsername(sub)}
                     </div>
-                    <div className="flex h-11 w-full items-center rounded-xl border-[1.5px] border-[#E1DACC] bg-white px-3 text-[12px] font-bold text-[#2A2320]">
+                    <div className="flex h-11 w-full items-center rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-3 text-[12px] font-bold text-[var(--ink)]">
                       {editing
                         ? f.adminPassword
                           ? f.adminPassword
@@ -1117,7 +1306,7 @@ export default function PlatformPage() {
                     >
                       Login
                     </div>
-                    <div className="mt-1 w-full border-t border-dashed border-[#E1DACC] pt-3">
+                    <div className="mt-1 w-full border-t border-dashed border-[var(--line-input)] pt-3">
                       <div
                         className="flex h-[42px] w-full items-center justify-center rounded-xl border-[1.5px] bg-white text-[12.5px] font-extrabold"
                         style={{ borderColor: f.primary, color: f.primary }}
@@ -1132,7 +1321,7 @@ export default function PlatformPage() {
                     </div>
                   </div>
                 </div>
-                <div className="mt-3.5 text-center text-[11.5px] leading-relaxed text-[#8E93A0]">
+                <div className="mt-3.5 text-center text-[11.5px] leading-relaxed text-[var(--platform-muted)]">
                   Directory: {isGam ? "village-based (Gam)" : "surname-based (Parivar)"}. Branding, logo & colors apply across every screen automatically.
                 </div>
               </div>
@@ -1144,7 +1333,7 @@ export default function PlatformPage() {
       {creds && <CredentialsModal creds={creds} onClose={() => setCreds(null)} />}
 
       {/* Mobile bottom bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-[#262A34] bg-[#12141A]/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,.35)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-[#262A34] bg-[var(--platform-ink-deep)]/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,.35)] backdrop-blur md:hidden">
         {navItems.map((item) => {
           const active =
             item.key === "settings"
@@ -1161,7 +1350,7 @@ export default function PlatformPage() {
               onClick={() => (item.key === "create" ? startCreate() : setView(item.key))}
               className={cn(
                 "flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[10px] font-bold",
-                active ? "text-white" : "text-[#8E93A0]",
+                active ? "text-white" : "text-[var(--platform-muted)]",
               )}
             >
               <Icon className="size-5" strokeWidth={2.1} />
@@ -1217,14 +1406,14 @@ function CredentialsModal({
         className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-[#E4F5E9]">
-          <Check className="size-6 text-[#1E9E52]" strokeWidth={2.4} />
+        <div className="mb-1 flex size-11 items-center justify-center rounded-full bg-[var(--success-tint)]">
+          <Check className="size-6 text-[var(--success)]" strokeWidth={2.4} />
         </div>
-        <h3 className="mt-2 text-lg font-extrabold text-[#1E9E52]">Community Created Successfully</h3>
-        <p className="mt-1 text-[13px] text-[#8E93A0]">
+        <h3 className="mt-2 text-lg font-extrabold text-[var(--success)]">Community Created Successfully</h3>
+        <p className="mt-1 text-[13px] text-[var(--platform-muted)]">
           Share these one-time credentials with the community admin. The password is shown only now.
         </p>
-        <div className="mt-4 space-y-2 rounded-xl border border-[#ECEAF0] bg-[#FAFAFC] p-4 text-[13px]">
+        <div className="mt-4 space-y-2 rounded-xl border border-[var(--platform-line)] bg-[#FAFAFC] p-4 text-[13px]">
           <Row label="Community name" value={creds.name} />
           <Row label="Owner admin" value={creds.ownerName || "—"} />
           <Row label="Admin mobile" value={creds.ownerPhone || "—"} mono />
@@ -1241,7 +1430,7 @@ function CredentialsModal({
               setCopied(true);
               setTimeout(() => setCopied(false), 1600);
             }}
-            className="inline-flex min-w-[140px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#5865F2] to-[#3D4CE0] px-4 py-3 text-[13px] font-extrabold text-white"
+            className="inline-flex min-w-[140px] flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[var(--platform-bright)] to-[var(--platform)] px-4 py-3 text-[13px] font-extrabold text-white"
           >
             <Copy className="size-4" /> {copied ? "Copied!" : "Copy credentials"}
           </button>
@@ -1258,7 +1447,7 @@ function CredentialsModal({
                 ["Website", siteUrl],
               ])
             }
-            className="inline-flex min-w-[140px] flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-[#E0DACC] bg-white px-4 py-3 text-[13px] font-extrabold text-[#57524A]"
+            className="inline-flex min-w-[140px] flex-1 items-center justify-center gap-2 rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-4 py-3 text-[13px] font-extrabold text-[var(--ink-mid)]"
           >
             <Download className="size-4" /> Download PDF
           </button>
@@ -1266,7 +1455,7 @@ function CredentialsModal({
         <button
           type="button"
           onClick={onClose}
-          className="mt-2.5 w-full rounded-xl border-[1.5px] border-[#E0DACC] bg-white px-5 py-3 text-[13px] font-extrabold text-[#57524A]"
+          className="mt-2.5 w-full rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-5 py-3 text-[13px] font-extrabold text-[var(--ink-mid)]"
         >
           Close
         </button>
@@ -1278,21 +1467,75 @@ function CredentialsModal({
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <span className="shrink-0 font-bold text-[#8E93A0]">{label}</span>
-      <span className={cn("break-all text-right font-semibold text-[#22252B]", mono && "font-mono")}>{value}</span>
+      <span className="shrink-0 font-bold text-[var(--platform-muted)]">{label}</span>
+      <span className={cn("break-all text-right font-semibold text-[var(--platform-ink)]", mono && "font-mono")}>{value}</span>
     </div>
   );
 }
 
-function Section({ label }: { label: string }) {
-  return <div className="mb-3 mt-1.5 text-xs font-extrabold tracking-wide text-[#8E93A0]">{label}</div>;
+function Section({ label, emphasis }: { label: string; emphasis?: boolean }) {
+  return (
+    <div
+      className={cn(
+        "mb-3 mt-1.5 font-extrabold tracking-wide text-[var(--platform-muted)]",
+        emphasis ? "text-[15px] text-[var(--platform-ink)]" : "text-xs",
+      )}
+    >
+      {label}
+    </div>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-3.5">
-      <div className="mb-1.5 text-xs font-bold text-[#8E93A0]">{label}</div>
+      <div className="mb-1.5 text-xs font-bold text-[var(--platform-muted)]">{label}</div>
       {children}
+    </div>
+  );
+}
+
+/** Active/Deactive switch — status label above a toggle pill. */
+function StatusToggle({
+  active,
+  busy,
+  onToggle,
+  className,
+}: {
+  active: boolean;
+  busy?: boolean;
+  onToggle: () => void;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex flex-row items-center gap-1.5 opacity-80", className)}>
+      <span
+        className={cn(
+          "rounded-full px-2 py-px text-[9.5px] font-bold",
+          active ? "bg-[var(--success-tint)] text-[var(--success)]" : "bg-[var(--danger-tint-soft)] text-[var(--danger)]",
+        )}
+      >
+        {active ? "Active" : "Deactive"}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={active}
+        aria-label={active ? "Deactivate app" : "Activate app"}
+        disabled={busy}
+        onClick={onToggle}
+        className={cn(
+          "relative h-[18px] w-8 shrink-0 cursor-pointer rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+          active ? "bg-[#8FCFA6]" : "bg-[#D8D5CE]",
+        )}
+      >
+        <span
+          className={cn(
+            "absolute top-0.5 left-0.5 size-3.5 rounded-full bg-white shadow-sm transition-transform",
+            active && "translate-x-[14px]",
+          )}
+        />
+      </button>
     </div>
   );
 }

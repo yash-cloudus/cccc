@@ -30,11 +30,18 @@ export async function PUT(req: Request, { params }: Params) {
         contentEn: z.string().optional(),
         contentGu: z.string().optional(),
         imageUrl: z.string().optional(),
+        documentUrl: z.string().optional(),
+        documentName: z.string().optional(),
         isPinned: z.boolean().optional(),
         isPublished: z.boolean().optional(),
+        publishedAt: z.string().optional(),
       })
       .parse(await req.json());
-    const item = await prisma.news.update({ where: { id }, data: body });
+    const { publishedAt, ...rest } = body;
+    const item = await prisma.news.update({
+      where: { id },
+      data: { ...rest, ...(publishedAt ? { publishedAt: new Date(publishedAt) } : {}) },
+    });
     return ok(item);
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);

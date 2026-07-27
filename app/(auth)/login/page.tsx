@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { PhoneShell } from "@/components/layout/phone-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 import { mainAdminUrl, communityAdminUrl } from "@/lib/host";
@@ -29,10 +29,10 @@ export default function LoginPage() {
 
   if (!community.slug) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-[#12141A] p-6 text-center text-white">
+      <div className="flex min-h-dvh items-center justify-center bg-[var(--platform-ink-deep)] p-6 text-center text-white">
         <div>
           <p className="text-sm text-[#B4B8C4]">Member login needs a community URL.</p>
-          <a href={mainAdminUrl("/login")} className="mt-3 inline-block font-bold text-[#5865F2]">
+          <a href={mainAdminUrl("/login")} className="mt-3 inline-block font-bold text-[var(--platform-bright)]">
             Go to Main Admin →
           </a>
         </div>
@@ -78,17 +78,17 @@ export default function LoginPage() {
   const displayMobile = mobile.replace(/\D/g, "").slice(0, 10);
 
   return (
-    <PhoneShell>
+    <AppShell>
       <div
         className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[30px] py-[34px] text-center"
         style={{
-          background: "radial-gradient(120% 70% at 50% 0%,#FBEDEE 0%,#FBF8F2 52%)",
+          background: "radial-gradient(120% 70% at 50% 0%,var(--brand-tint) 0%,var(--surface) 52%)",
         }}
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="flex h-[94px] w-[94px] items-center justify-center overflow-hidden rounded-[28px] border-[3px] border-[var(--samaj-gold)] text-[32px] font-bold text-white shadow-[0_16px_34px_-10px_rgba(166,42,56,.6)]"
+          className="flex h-[94px] w-[94px] items-center justify-center overflow-hidden rounded-[28px] border-[3px] border-[var(--samaj-gold)] text-[32px] font-bold text-white shadow-[0_16px_34px_-10px_rgb(var(--brand-rgb) / .6)]"
           style={{
             background: community.logoUrl
               ? "#fff"
@@ -106,19 +106,19 @@ export default function LoginPage() {
         </motion.div>
 
         <div>
-          <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold leading-tight text-[#2A2320]">
+          <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold leading-tight text-[var(--ink)]">
             {brandName || t("samaj")}
           </div>
-          <div className="mt-1 text-[12px] font-semibold text-[#A79E92]">
+          <div className="mt-1 text-[12px] font-semibold text-[var(--faint-soft)]">
             {communitySiteHostLabel(community.slug)}
           </div>
-          <div className="mt-1.5 text-[13px] font-semibold text-[#938C80]">{t("memberLogin")}</div>
+          <div className="mt-1.5 text-[13px] font-semibold text-[var(--faint)]">{t("memberLogin")}</div>
         </div>
 
         <div className="mt-2 w-full max-w-[310px] text-left">
-          <div className="mb-1.5 text-xs font-bold text-[#57524A]">{t("mobile")}</div>
-          <div className="flex items-center gap-2.5 rounded-[15px] border-[1.5px] border-[#E1DACC] bg-white p-[15px] text-[17px] font-bold text-[#2A2320]">
-            <span className="font-semibold text-[#938C80]">🇮🇳 +91</span>
+          <div className="mb-1.5 text-xs font-bold text-[var(--ink-mid)]">{t("mobile")}</div>
+          <div className="flex items-center gap-2.5 rounded-[15px] border-[1.5px] border-[var(--line-input)] bg-white p-[15px] text-[17px] font-bold text-[var(--ink)]">
+            <span className="font-semibold text-[var(--faint)]">🇮🇳 +91</span>
             <input
               type="tel"
               inputMode="numeric"
@@ -146,34 +146,34 @@ export default function LoginPage() {
             type="button"
             disabled={loading}
             onClick={() => sendOtp("sms")}
-            className="mt-3 w-full text-center text-[12.5px] font-medium text-[#938C80]"
+            className="mt-3 w-full text-center text-[12.5px] font-medium text-[var(--faint)]"
           >
             {t("noWa")}{" "}
-            <span className="font-bold text-[#A62A38] underline">{t("smsOtp")}</span>
+            <span className="font-bold text-[var(--brand)] underline">{t("smsOtp")}</span>
           </button>
         </div>
 
-        <div className="mt-2 w-full max-w-[310px] border-t border-dashed border-[#E1DACC] pt-[18px]">
-          <div className="mb-2.5 text-[13px] font-semibold text-[#57524A]">{t("newFamily")}</div>
+        <div className="mt-2 w-full max-w-[310px] border-t border-dashed border-[var(--line-input)] pt-[18px]">
+          <div className="mb-2.5 text-[13px] font-semibold text-[var(--ink-mid)]">{t("newFamily")}</div>
           <Link
             href="/register"
-            className="block rounded-[15px] border-[1.5px] border-[#E7BFC3] bg-white px-4 py-[15px] text-center text-[14.5px] font-extrabold text-[#A62A38]"
+            className="block rounded-[15px] border-[1.5px] border-[var(--brand-line)] bg-white px-4 py-[15px] text-center text-[14.5px] font-extrabold text-[var(--brand)]"
           >
             {t("regForm")}
           </Link>
           <div className="mt-3.5 flex justify-center gap-4 text-[11.5px] font-bold">
             <a
               href={community.slug ? communityAdminUrl(community.slug, "/admin/login") : "/admin/login"}
-              className="text-[#8E93A0] hover:text-[#A62A38]"
+              className="text-[var(--platform-muted)] hover:text-[var(--brand)]"
             >
               Admin Panel
             </a>
-            <a href={mainAdminUrl("/login")} className="text-[#5865F2] hover:underline">
+            <a href={mainAdminUrl("/login")} className="text-[var(--platform-bright)] hover:underline">
               Main Admin
             </a>
           </div>
         </div>
       </div>
-    </PhoneShell>
+    </AppShell>
   );
 }

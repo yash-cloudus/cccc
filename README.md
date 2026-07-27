@@ -71,7 +71,7 @@ Open:
 | Field | Value |
 |-------|--------|
 | Mobile | `9876543210` |
-| OTP (dev) | `123456` when `OTP_DEV_MODE=true` |
+| OTP (dev) | `1234` when `OTP_DEV_MODE=true` |
 
 ## Auth notes
 

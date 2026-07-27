@@ -47,12 +47,12 @@ export type InfoSectionRow = {
 
 /** Deterministic accent palette used when the data carries no colour of its own. */
 const PALETTE = [
-  { bg: "#FCE7E7", fg: "#B0303A" },
-  { bg: "#E7F0FB", fg: "#3D6B8C" },
-  { bg: "#FEF3E0", fg: "#B26A1E" },
-  { bg: "#EAF6EC", fg: "#4E7A45" },
-  { bg: "#F0ECFB", fg: "#6A4E9C" },
-  { bg: "#FEF6E7", fg: "#B08A1E" },
+  { bg: "var(--danger-tint)", fg: "var(--danger)" },
+  { bg: "var(--info-tint)", fg: "var(--info)" },
+  { bg: "var(--ochre-tint)", fg: "var(--ochre)" },
+  { bg: "var(--leaf-tint)", fg: "var(--leaf)" },
+  { bg: "var(--violet-tint)", fg: "var(--violet)" },
+  { bg: "var(--warn-tint)", fg: "#B08A1E" },
 ];
 
 function initialsOf(name: string): string {
@@ -83,7 +83,7 @@ export function AboutClient({
   );
 
   return (
-    <AppScreen showNav={false} framed={false}>
+    <AppScreen showNav={false}>
       <header className="samaj-header relative flex-none overflow-hidden px-[18px] pb-[18px] pt-12 text-white">
         <div className="absolute -right-[30px] -top-10 h-[150px] w-[150px] rounded-full bg-white/5" />
         <div className="relative z-2 flex items-center gap-3">
@@ -105,10 +105,10 @@ export function AboutClient({
 
       <div className="px-4 py-4 pb-8">
         <div className="samaj-card mb-4 p-5">
-          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#F3D488] to-[#E0A64B] text-2xl font-bold text-[#7E1F2B]">
+          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-[20px] bg-gradient-to-br from-[var(--gold-light)] to-[var(--gold)] text-2xl font-bold text-[var(--brand-hover)]">
             {c.shortLogo}
           </div>
-          <h1 className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold text-[#2A2320]">
+          <h1 className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold text-[var(--ink)]">
             {name}
           </h1>
           {c.estd && (
@@ -118,7 +118,7 @@ export function AboutClient({
             </div>
           )}
           {description && (
-            <p className="mt-3 whitespace-pre-line text-[14px] leading-relaxed text-[#57524A]">
+            <p className="mt-3 whitespace-pre-line text-[14px] leading-relaxed text-[var(--ink-mid)]">
               {description}
             </p>
           )}
@@ -126,24 +126,24 @@ export function AboutClient({
 
         {hasContact && (
           <div className="samaj-card p-4">
-            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">
+            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
               {lang === "gu" ? "સંપર્ક" : "CONTACT"}
             </div>
             {primaryLocation && (
               <div className="flex items-start gap-3 py-2 text-[13px]">
-                <MapPin className="mt-0.5 h-4 w-4 flex-none text-[#A62A38]" />
+                <MapPin className="mt-0.5 h-4 w-4 flex-none text-[var(--brand)]" />
                 <span>{primaryLocation}</span>
               </div>
             )}
             {c.contactPhone && (
               <div className="flex items-center gap-3 py-2 text-[13px]">
-                <Phone className="h-4 w-4 flex-none text-[#A62A38]" />
+                <Phone className="h-4 w-4 flex-none text-[var(--brand)]" />
                 <a href={telLink(c.contactPhone)}>{c.contactPhone}</a>
               </div>
             )}
             {c.whatsapp && (
               <div className="flex items-center gap-3 py-2 text-[13px]">
-                <MessageCircle className="h-4 w-4 flex-none text-[#A62A38]" />
+                <MessageCircle className="h-4 w-4 flex-none text-[var(--brand)]" />
                 <a href={waLink(c.whatsapp)} target="_blank" rel="noreferrer">
                   {c.whatsapp}
                 </a>
@@ -151,13 +151,13 @@ export function AboutClient({
             )}
             {c.email && (
               <div className="flex items-center gap-3 py-2 text-[13px]">
-                <Mail className="h-4 w-4 flex-none text-[#A62A38]" />
+                <Mail className="h-4 w-4 flex-none text-[var(--brand)]" />
                 <a href={`mailto:${c.email}`}>{c.email}</a>
               </div>
             )}
             {c.website && (
               <div className="flex items-center gap-3 py-2 text-[13px]">
-                <Globe className="h-4 w-4 flex-none text-[#A62A38]" />
+                <Globe className="h-4 w-4 flex-none text-[var(--brand)]" />
                 <a href={c.website} target="_blank" rel="noreferrer" className="break-all">
                   {c.website}
                 </a>
@@ -167,26 +167,26 @@ export function AboutClient({
         )}
 
         <section className="mt-4">
-          <div className="mb-2 px-1 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">
+          <div className="mb-2 px-1 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
             {lang === "gu" ? "સમિતિ" : "COMMITTEES"}
           </div>
           {committees.length === 0 ? (
-            <div className="samaj-card p-4 text-center text-[13px] text-[#938C80]">
+            <div className="samaj-card p-4 text-center text-[13px] text-[var(--faint)]">
               {lang === "gu" ? "હજુ કોઈ સમિતિ નથી." : "No committees yet."}
             </div>
           ) : (
             committees.map((g) => (
               <div key={g.id} className="samaj-card mb-3 p-4">
                 <div className="mb-3 flex items-center gap-2">
-                  <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-[#FCEFD6] text-[#B0801E]">
+                  <div className="flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-[var(--gold-tint)] text-[var(--warn)]">
                     <Users className="h-[18px] w-[18px]" strokeWidth={1.9} />
                   </div>
-                  <div className="text-[15px] font-bold text-[#2A2320]">
+                  <div className="text-[15px] font-bold text-[var(--ink)]">
                     {pickText(g.nameGu, g.nameEn, lang)}
                   </div>
                 </div>
                 {g.members.length === 0 ? (
-                  <div className="text-[12.5px] text-[#938C80]">
+                  <div className="text-[12.5px] text-[var(--faint)]">
                     {lang === "gu" ? "કોઈ સભ્ય નથી." : "No members yet."}
                   </div>
                 ) : (
@@ -209,11 +209,11 @@ export function AboutClient({
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-[13.5px] font-bold text-[#2A2320]">
+                            <div className="truncate text-[13.5px] font-bold text-[var(--ink)]">
                               {mName || "—"}
                             </div>
                             {role && (
-                              <div className="truncate text-[11.5px] font-medium text-[#938C80]">
+                              <div className="truncate text-[11.5px] font-medium text-[var(--faint)]">
                                 {role}
                               </div>
                             )}
@@ -223,7 +223,7 @@ export function AboutClient({
                               {m.phone && (
                                 <a
                                   href={telLink(m.phone)}
-                                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EAF6EC] text-[#4E7A45]"
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--leaf-tint)] text-[var(--leaf)]"
                                   aria-label={t("call")}
                                 >
                                   <Phone className="h-[17px] w-[17px]" strokeWidth={2} />
@@ -234,7 +234,7 @@ export function AboutClient({
                                   href={waLink(m.whatsapp)}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E7F0FB] text-[#3D6B8C]"
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--info-tint)] text-[var(--info)]"
                                   aria-label={t("whatsapp")}
                                 >
                                   <MessageCircle className="h-[17px] w-[17px]" strokeWidth={2} />
@@ -253,11 +253,11 @@ export function AboutClient({
         </section>
 
         <section className="mt-4">
-          <div className="mb-2 px-1 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">
+          <div className="mb-2 px-1 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
             {lang === "gu" ? "માહિતી" : "INFORMATION"}
           </div>
           {infoSections.length === 0 ? (
-            <div className="samaj-card p-4 text-center text-[13px] text-[#938C80]">
+            <div className="samaj-card p-4 text-center text-[13px] text-[var(--faint)]">
               {lang === "gu" ? "હજુ કોઈ માહિતી નથી." : "No information yet."}
             </div>
           ) : (
@@ -273,12 +273,12 @@ export function AboutClient({
                     >
                       <Info className="h-[18px] w-[18px]" strokeWidth={1.9} />
                     </div>
-                    <div className="text-[15px] font-bold text-[#2A2320]">
+                    <div className="text-[15px] font-bold text-[var(--ink)]">
                       {pickText(s.titleGu, s.titleEn, lang)}
                     </div>
                   </div>
                   {body && (
-                    <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[#57524A]">
+                    <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-mid)]">
                       {body}
                     </p>
                   )}

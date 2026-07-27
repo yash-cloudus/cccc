@@ -12,6 +12,7 @@ import {
   AdminHint,
   AdminInput,
   AdminLabel,
+  AdminSelect,
   FilterChip,
 } from "@/components/admin/admin-ui";
 import {
@@ -62,12 +63,18 @@ type SurnameOption = { id: string; nameEn: string; nameGu: string };
 export function ReviewClient({
   family: initial,
   surnameGroups,
+  backHref = "/admin/queue",
+  backLabel = "‹ Back to queue",
 }: {
   family: EditFamily;
   surnameGroups: SurnameOption[];
+  /** Where "back" and the post-approve/reject redirect go — the queue by
+   * default, or Families & Members when opened from there. */
+  backHref?: string;
+  backLabel?: string;
 }) {
   const router = useRouter();
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [f, setF] = useState<EditFamily>(structuredClone(initial));
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -164,7 +171,7 @@ export function ReviewClient({
       setError(res.error);
       return;
     }
-    router.push("/admin/queue");
+    router.push(backHref);
     router.refresh();
   }
 
@@ -186,24 +193,27 @@ export function ReviewClient({
       return;
     }
     setRejectOpen(false);
-    router.push("/admin/queue");
+    router.push(backHref);
     router.refresh();
   }
 
   return (
     <>
       <Link
-        href="/admin/queue"
-        className="mb-2.5 block cursor-pointer text-[12.5px] font-bold text-[#A62A38]"
+        href={backHref}
+        className="mb-2.5 block cursor-pointer text-[12.5px] font-bold text-[var(--brand)]"
       >
-        ‹ Back to queue
+        {backLabel}
       </Link>
 
       <AdminH2 className="mb-1.5">
-        Review &amp; edit: {f.headNameGu || f.headNameEn} ({f.surnameGu || f.surnameEn})
+        {f.status === "PENDING" ? "Review & edit" : "Edit"}: {f.headNameGu || f.headNameEn} (
+        {f.surnameGu || f.surnameEn})
       </AdminH2>
       <AdminHint className="mt-0 mb-[18px]">
-        Edit any field, then Save or Approve. Approving activates family login numbers.
+        {f.status === "PENDING"
+          ? "Edit any field, then Save or Approve. Approving activates family login numbers."
+          : "Edit any field, then Save."}
       </AdminHint>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -219,24 +229,23 @@ export function ReviewClient({
           />
           <AdminLabel>Head name (ગુજરાતી)</AdminLabel>
           <AdminInput
+            gujarati
             value={f.headNameGu}
             onChange={(v) => {
               setField("headNameGu", v);
-              fromGu(v, (en) => setField("headNameEn", en), "head");
+              guInput(v, (gu) => setField("headNameGu", gu), "head:gu");
             }}
           />
           <AdminLabel>Surname group</AdminLabel>
-          <select
+          <AdminSelect
             value={f.surnameGroupId}
-            onChange={(e) => setField("surnameGroupId", e.target.value)}
-            className="h-[42px] w-full rounded-[11px] border-[1.5px] border-[#EDE4D4] bg-[#FCFAF6] px-3 text-[13.5px] text-[#2A2320] outline-none"
-          >
-            {surnameGroups.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nameEn} · {s.nameGu}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setField("surnameGroupId", v)}
+            className="w-full"
+            options={surnameGroups.map((s) => ({
+              value: s.id,
+              label: `${s.nameEn} · ${s.nameGu}`,
+            }))}
+          />
           <AdminLabel>Surname (English)</AdminLabel>
           <AdminInput
             value={f.surnameEn}
@@ -247,10 +256,11 @@ export function ReviewClient({
           />
           <AdminLabel>Surname (ગુજરાતી)</AdminLabel>
           <AdminInput
+            gujarati
             value={f.surnameGu}
             onChange={(v) => {
               setField("surnameGu", v);
-              fromGu(v, (en) => setField("surnameEn", en), "surname");
+              guInput(v, (gu) => setField("surnameGu", gu), "surname:gu");
             }}
           />
           <AdminLabel>City</AdminLabel>
@@ -268,23 +278,23 @@ export function ReviewClient({
         <div>
           <AdminH3>Members ({f.members.length})</AdminH3>
           {f.members.map((m, idx) => (
-            <div key={m.id} className="mb-3 rounded-xl border border-[#EEE7DA] bg-[#FCFAF6] p-3">
+            <div key={m.id} className="mb-3 rounded-xl border border-[#EEE7DA] bg-[var(--field)] p-3">
               <div className="mb-2 flex items-center justify-between">
-                <b className="text-[12.5px] text-[#2A2620]">
+                <b className="text-[12.5px] text-[var(--ink)]">
                   Member {idx + 1}
                   {m.isHead ? " · Head" : ""}
                 </b>
                 <button
                   type="button"
                   onClick={() => removeMember(m.id)}
-                  className="cursor-pointer text-xs font-bold text-[#B0303A] underline"
+                  className="cursor-pointer text-xs font-bold text-[var(--danger)] underline"
                 >
                   Remove
                 </button>
               </div>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[#938C80]">Name (English)</div>
+                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Name (English)</div>
                   <AdminCellInput
                     value={m.fullNameEn}
                     onChange={(v) => {
@@ -294,25 +304,25 @@ export function ReviewClient({
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[#938C80]">Name (ગુજરાતી)</div>
+                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Name (ગુજરાતી)</div>
                   <AdminCellInput
                     value={m.fullNameGu}
                     onChange={(v) => {
                       setMember(m.id, "fullNameGu", v);
-                      fromGu(v, (en) => setMember(m.id, "fullNameEn", en), `member-${m.id}`);
+                      guInput(v, (gu) => setMember(m.id, "fullNameGu", gu), `member-${m.id}:gu`);
                     }}
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[#938C80]">Relation</div>
+                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Relation</div>
                   <AdminCellInput value={m.relation} onChange={(v) => setMember(m.id, "relation", v)} />
                 </div>
                 <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[#938C80]">Mobile (login)</div>
+                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Mobile (login)</div>
                   <AdminCellInput value={m.mobile} onChange={(v) => setMember(m.id, "mobile", v)} />
                 </div>
                 <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[#938C80]">Date of birth</div>
+                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Date of birth</div>
                   <AdminCellInput
                     type="date"
                     value={m.dateOfBirth}
@@ -320,26 +330,23 @@ export function ReviewClient({
                   />
                 </div>
                 <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[#938C80]">Blood group</div>
-                  <select
+                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Blood group</div>
+                  <AdminSelect
                     value={m.bloodGroup}
-                    onChange={(e) => setMember(m.id, "bloodGroup", e.target.value)}
-                    className="h-[38px] w-full rounded-lg border border-[#EDE4D4] bg-[#FCFAF6] px-2 text-[12.5px] text-[#2A2320] outline-none"
-                  >
-                    <option value="">—</option>
-                    {BLOOD_GROUPS.map((b) => (
-                      <option key={b.type} value={b.type}>
-                        {b.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setMember(m.id, "bloodGroup", v)}
+                    className="w-full"
+                    options={[
+                      { value: "", label: "—" },
+                      ...BLOOD_GROUPS.map((b) => ({ value: b.type, label: b.label })),
+                    ]}
+                  />
                 </div>
                 <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[#938C80]">Occupation</div>
+                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Occupation</div>
                   <AdminCellInput value={m.occupation} onChange={(v) => setMember(m.id, "occupation", v)} />
                 </div>
                 <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[#938C80]">Education</div>
+                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Education</div>
                   <AdminCellInput value={m.education} onChange={(v) => setMember(m.id, "education", v)} />
                 </div>
               </div>
@@ -348,15 +355,15 @@ export function ReviewClient({
           <button
             type="button"
             onClick={addMember}
-            className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] font-extrabold text-[#A62A38]"
+            className="inline-flex cursor-pointer items-center gap-1.5 text-[12.5px] font-extrabold text-[var(--brand)]"
           >
             + Add member
           </button>
         </div>
       </div>
 
-      {error && <p className="mt-4 text-[13px] font-semibold text-[#B0303A]">{error}</p>}
-      {notice && <p className="mt-4 text-[13px] font-semibold text-[#1E9E52]">{notice}</p>}
+      {error && <p className="mt-4 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
+      {notice && <p className="mt-4 text-[13px] font-semibold text-[var(--success)]">{notice}</p>}
 
       <div className="mt-6 flex flex-wrap gap-2.5">
         <AdminBtn onClick={save}>
@@ -369,7 +376,7 @@ export function ReviewClient({
             </AdminBtn>
             <AdminBtn
               variant="ghost"
-              className="border-[#EFCED1]! text-[#B0303A]!"
+              className="border-[var(--brand-border)]! text-[var(--danger)]!"
               onClick={() => {
                 setRejectOpen(true);
                 setError(null);
@@ -384,15 +391,15 @@ export function ReviewClient({
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent className="max-w-[380px] rounded-2xl sm:max-w-[380px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">
+            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
               Reject registration
             </DialogTitle>
-            <DialogDescription className="text-[12.5px] text-[#938C80]">
+            <DialogDescription className="text-[12.5px] text-[var(--faint)]">
               {f.headNameGu || f.headNameEn} — the family will be notified with the reason.
             </DialogDescription>
           </DialogHeader>
           <div>
-            <div className="mb-1 text-[11.5px] font-bold text-[#8B8375]">Reason *</div>
+            <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">Reason *</div>
             <div className="mb-3 flex flex-wrap gap-1.5">
               {REJECT_REASONS.map((reason) => (
                 <FilterChip
@@ -407,9 +414,9 @@ export function ReviewClient({
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               placeholder="Add a note…"
-              className="mb-2 min-h-[70px] resize-none border-[#EDE4D4] bg-[#FCFAF6] text-[13px]"
+              className="mb-2 min-h-[70px] resize-none border-[var(--line-field)] bg-[var(--field)] text-[13px]"
             />
-            {error && <p className="mb-2 text-[12.5px] font-semibold text-[#B0303A]">{error}</p>}
+            {error && <p className="mb-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
             <div className="flex gap-2.5">
               <AdminBtn variant="danger" className="flex-1 justify-center" onClick={reject}>
                 {busy === "reject" ? <Loader2 className="size-4 animate-spin" /> : "Confirm reject"}

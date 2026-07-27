@@ -52,11 +52,11 @@ const BLOOD_LABEL: Record<BloodGroupType, string> = {
 };
 
 const MEMBER_PALETTE = [
-  { bg: "#FCE7E7", fg: "#B0303A" },
-  { bg: "#F0ECFB", fg: "#6A4E9C" },
-  { bg: "#EAF6EC", fg: "#4E7A45" },
-  { bg: "#FEF3E0", fg: "#B26A1E" },
-  { bg: "#E7F0FB", fg: "#3D6B8C" },
+  { bg: "var(--danger-tint)", fg: "var(--danger)" },
+  { bg: "var(--violet-tint)", fg: "var(--violet)" },
+  { bg: "var(--leaf-tint)", fg: "var(--leaf)" },
+  { bg: "var(--ochre-tint)", fg: "var(--ochre)" },
+  { bg: "var(--info-tint)", fg: "var(--info)" },
 ];
 
 const WaIcon = () => (
@@ -112,7 +112,7 @@ export function FamilyClient({
           <div className="text-[15px] font-bold text-white/85">{lang === "gu" ? "પરિવાર" : "Family"}</div>
         </div>
         <div className="relative z-2 flex items-center gap-3.5">
-          <div className="flex h-[60px] w-[60px] flex-none items-center justify-center rounded-[19px] bg-white text-2xl font-extrabold text-[#A62A38]">
+          <div className="flex h-[60px] w-[60px] flex-none items-center justify-center rounded-[19px] bg-white text-2xl font-extrabold text-[var(--brand)]">
             {headName.trim()[0]}
           </div>
           <div>
@@ -124,14 +124,14 @@ export function FamilyClient({
 
       <div className="px-4 py-4 pb-8">
         <div className="samaj-card mb-3 p-4">
-          <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">{addressLabel}</div>
-          <p className="text-[13.5px] leading-relaxed text-[#3C382F]">{address}</p>
+          <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{addressLabel}</div>
+          <p className="text-[13.5px] leading-relaxed text-[var(--ink-soft)]">{address}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {headContact && (
               <>
                 <a
                   href={telLink(headContact.mobile)}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FBEDEE] text-[#A62A38]"
+                  className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-tint)] text-[var(--brand)]"
                   aria-label={t("call")}
                 >
                   <Phone className="h-4 w-4" />
@@ -141,7 +141,7 @@ export function FamilyClient({
                     href={waLink(headContact.mobile)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E4F5E9] text-[#1E9E52]"
+                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--success-tint)] text-[var(--success)]"
                     aria-label={t("whatsapp")}
                   >
                     <WaIcon />
@@ -157,30 +157,30 @@ export function FamilyClient({
 
         {family.businessGu && (
           <div className="samaj-card mb-3 p-4">
-            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">{businessLabel}</div>
-            <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[#3C382F]">{family.businessGu}</p>
+            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{businessLabel}</div>
+            <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">{family.businessGu}</p>
           </div>
         )}
 
         {hasNativeInfo && (
           <div className="samaj-card mb-3 p-4">
-            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">{nativeLabel}</div>
+            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{nativeLabel}</div>
             {village && (
               <div className="flex gap-3 py-1 text-[13px]">
-                <b className="min-w-[70px] font-bold text-[#938C80]">{villageLabel}</b>
+                <b className="min-w-[70px] font-bold text-[var(--faint)]">{villageLabel}</b>
                 <span>{village}</span>
               </div>
             )}
             {elderName && (
               <div className="flex gap-3 py-1 text-[13px]">
-                <b className="min-w-[70px] font-bold text-[#938C80]">{elderLabel}</b>
+                <b className="min-w-[70px] font-bold text-[var(--faint)]">{elderLabel}</b>
                 <span>{elderName}</span>
               </div>
             )}
             {family.nativeElderPhone && (
               <div className="flex items-center gap-3 py-1 text-[13px]">
-                <b className="min-w-[70px] font-bold text-[#938C80]">{phoneLabel}</b>
-                <a href={telLink(family.nativeElderPhone)} className="font-bold text-[#A62A38]">
+                <b className="min-w-[70px] font-bold text-[var(--faint)]">{phoneLabel}</b>
+                <a href={telLink(family.nativeElderPhone)} className="font-bold text-[var(--brand)]">
                   {family.nativeElderPhone}
                 </a>
               </div>
@@ -189,7 +189,7 @@ export function FamilyClient({
         )}
 
         <div className="samaj-card p-4">
-          <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[#A62A38]">
+          <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
             {membersLabel} ({members.length})
           </div>
           {members.map((m, i) => {
@@ -200,7 +200,7 @@ export function FamilyClient({
             const canContact = m.showPhone && Boolean(m.mobile);
             const isOpen = expanded === m.id;
             return (
-              <div key={m.id} className="border-t border-[#F4EEE3] first:border-0">
+              <div key={m.id} className="border-t border-[var(--cream)] first:border-0">
                 <button
                   type="button"
                   onClick={() => setExpanded(isOpen ? null : m.id)}
@@ -213,16 +213,16 @@ export function FamilyClient({
                     {name.trim()[0]}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[13.5px] font-bold text-[#2A2320]">{name}</div>
-                    {sub && <div className="text-[11.5px] font-medium text-[#938C80]">{sub}</div>}
+                    <div className="text-[13.5px] font-bold text-[var(--ink)]">{name}</div>
+                    {sub && <div className="text-[11.5px] font-medium text-[var(--faint)]">{sub}</div>}
                   </div>
                   {m.isDeceased ? (
-                    <span className="rounded-lg bg-[#EFEAE2] px-2 py-0.5 text-[10.5px] font-extrabold text-[#8B8375]">
+                    <span className="rounded-lg bg-[#EFEAE2] px-2 py-0.5 text-[10.5px] font-extrabold text-[var(--muted)]">
                       {deceasedLabel}
                     </span>
                   ) : (
                     m.isHead && (
-                      <span className="rounded-lg bg-[#F4EFE6] px-2 py-0.5 text-[10.5px] font-extrabold text-[#6B6357]">
+                      <span className="rounded-lg bg-[#F4EFE6] px-2 py-0.5 text-[10.5px] font-extrabold text-[var(--ink-dim)]">
                         {lang === "gu" ? "વડા" : "Head"}
                       </span>
                     )
@@ -231,7 +231,7 @@ export function FamilyClient({
                 {isOpen && (
                   <div className="pb-3">
                     {m.dobISO && (
-                      <div className="mb-2 text-[11.5px] font-medium text-[#938C80]">
+                      <div className="mb-2 text-[11.5px] font-medium text-[var(--faint)]">
                         {lang === "gu" ? "જન્મ તારીખ" : "Date of birth"}: {formatDate(m.dobISO, lang)}
                       </div>
                     )}
@@ -239,7 +239,7 @@ export function FamilyClient({
                       <div className="flex gap-2">
                         <a
                           href={telLink(m.mobile)}
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#FBEDEE] py-2.5 text-[13px] font-bold text-[#A62A38]"
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--brand-tint)] py-2.5 text-[13px] font-bold text-[var(--brand)]"
                         >
                           <Phone className="h-4 w-4" /> {t("call")}
                         </a>
@@ -248,7 +248,7 @@ export function FamilyClient({
                             href={waLink(m.mobile)}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#E4F5E9] py-2.5 text-[13px] font-bold text-[#1E9E52]"
+                            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--success-tint)] py-2.5 text-[13px] font-bold text-[var(--success)]"
                           >
                             <WaIcon /> {t("whatsapp")}
                           </a>

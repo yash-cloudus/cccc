@@ -51,6 +51,8 @@ enum AdStatus {
   ACTIVE
   EXPIRED
   REJECTED
+  DEACTIVATED
+  DRAFT
 }
 
 enum NotificationChannel {
@@ -129,6 +131,7 @@ model Community {
   resultDrives          ResultDrive[]
   advertisements        Advertisement[]
   settings              Setting[]
+  profileUpdateRequests ProfileUpdateRequest[]
   cmsPages              CmsPage[]
   infoSections          InfoSection[]
   institutes            Institute[]
@@ -287,6 +290,7 @@ model Family {
   members           Profile[]
   familyMembers     FamilyMember[]
   businesses        Business[]
+  updateRequests    ProfileUpdateRequest[]
 
   @@index([communityId, status])
   @@index([city])
@@ -314,6 +318,7 @@ model FamilyMember {
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   family          Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  updateRequests  ProfileUpdateRequest[]
 
   @@index([familyId])
   @@index([mobile])
@@ -869,6 +874,34 @@ model Download {
   fileUrl   String
   category  String?
   createdAt DateTime @default(now())
+}
+
+/**
+ * A member's self-service edit awaiting admin approval.
+ *
+ * The member app never writes directly to Family/FamilyMember for reviewed
+ * fields — it files one of these instead, and the admin's "Apply" is what
+ * actually mutates the directory. `changes` holds a JSON array of
+ * `{ field, label, from, to }` so the review screen can show a real diff
+ * without guessing at the shape of the target row.
+ */
+model ProfileUpdateRequest {
+  id           String             @id @default(cuid())
+  communityId  String
+  familyId     String?
+  memberId     String?
+  requestedBy  String?
+  changes      String             @db.LongText
+  status       RegistrationStatus @default(PENDING)
+  rejectReason String?            @db.Text
+  submittedAt  DateTime           @default(now())
+  reviewedAt   DateTime?
+  reviewedBy   String?
+  community    Community          @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  family       Family?            @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  member       FamilyMember?      @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([communityId, status, submittedAt])
 }
 
 model Setting {

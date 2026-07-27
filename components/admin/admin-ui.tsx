@@ -1,11 +1,13 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, ChevronDown, Check } from "lucide-react";
+import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { cn } from "@/lib/utils";
+import { Select as SelectPrimitive } from "@base-ui/react/select";
 
 export function AdminH2({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <h2 className={cn("mb-5 text-[22px] font-extrabold text-[#2A2620]", className)}>
+    <h2 className={cn("mb-5 text-[22px] font-extrabold text-[var(--ink)]", className)}>
       {children}
     </h2>
   );
@@ -13,7 +15,7 @@ export function AdminH2({ children, className }: { children: React.ReactNode; cl
 
 export function AdminH3({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <h3 className={cn("mb-[11px] text-sm font-extrabold text-[#2A2620]", className)}>
+    <h3 className={cn("mb-[11px] text-sm font-extrabold text-[var(--ink)]", className)}>
       {children}
     </h3>
   );
@@ -21,16 +23,35 @@ export function AdminH3({ children, className }: { children: React.ReactNode; cl
 
 export function AdminHint({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <p className={cn("mt-3.5 text-[11.5px] leading-relaxed text-[#938C80]", className)}>
+    <p className={cn("mt-3.5 text-[11.5px] leading-relaxed text-[var(--faint)]", className)}>
       {children}
     </p>
   );
 }
 
-export function AdminTable({ children, className }: { children: React.ReactNode; className?: string }) {
+/**
+ * Framed data table — one bordered, rounded surface with a tinted header.
+ * Every admin table renders through this, so table chrome is changed here once.
+ * `bordered={false}` for tables already sitting inside a bordered card.
+ */
+export function AdminTable({
+  children,
+  className,
+  bordered = true,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  bordered?: boolean;
+}) {
   return (
-    <div className={cn("overflow-x-auto", className)}>
-      <table className="w-full border-collapse">{children}</table>
+    <div
+      className={cn(
+        "overflow-x-auto",
+        bordered && "rounded-[14px] border border-[var(--line-admin)] bg-white",
+        className,
+      )}
+    >
+      <table className="admin-table w-full border-collapse">{children}</table>
     </div>
   );
 }
@@ -39,7 +60,7 @@ export function AdminTh({ children, className }: { children?: React.ReactNode; c
   return (
     <th
       className={cn(
-        "border-b-2 border-[#EFE8DB] px-3 py-2.5 text-left text-[11.5px] font-bold tracking-wide text-[#938C80] uppercase",
+        "border-b border-[var(--line-admin)] bg-[var(--surface-admin)] px-3 py-3 text-left text-[11.5px] font-extrabold tracking-wide text-[var(--ink-mid)] uppercase",
         className
       )}
     >
@@ -60,7 +81,10 @@ export function AdminTd({
   return (
     <td
       colSpan={colSpan}
-      className={cn("border-b border-[#F1EBDE] px-3 py-[11px] text-[13px] text-[#3C382F]", className)}
+      className={cn(
+        "border-b border-[var(--line-soft)] px-3 py-[11px] text-[13px] font-medium text-[var(--ink-soft)]",
+        className
+      )}
     >
       {children}
     </td>
@@ -80,7 +104,7 @@ export function AdminStat({
     <div
       className={cn(
         "rounded-[14px] border border-[#EAE4D8] bg-[#FBFAF7] p-4",
-        highlight && "border-[#E7BFC3] bg-[#FBEDEE]",
+        highlight && "border-[var(--brand-line)] bg-[var(--brand-tint)]",
         className
       )}
     >
@@ -90,7 +114,7 @@ export function AdminStat({
 }
 
 export function AdminStatLabel({ children }: { children: React.ReactNode }) {
-  return <div className="mt-0.5 text-[11.5px] text-[#938C80]">{children}</div>;
+  return <div className="mt-0.5 text-[11.5px] text-[var(--faint)]">{children}</div>;
 }
 
 export function AdminBtn({
@@ -109,10 +133,10 @@ export function AdminBtn({
   disabled?: boolean;
 }) {
   const styles = {
-    primary: "bg-gradient-to-br from-[#A62A38] to-[#851F2B] text-white",
-    ghost: "border-[1.5px] border-[#E1DACC] bg-white text-[#57524A]",
-    success: "bg-gradient-to-br from-[#25A056] to-[#128C43] text-white",
-    danger: "bg-gradient-to-br from-[#B0303A] to-[#8A1F28] text-white",
+    primary: "bg-gradient-to-br from-[var(--brand)] to-[var(--brand-dark)] text-white",
+    ghost: "border-[1.5px] border-[var(--line-input)] bg-white text-[var(--ink-mid)]",
+    success: "bg-gradient-to-br from-[var(--wa)] to-[var(--wa-dark)] text-white",
+    danger: "bg-gradient-to-br from-[var(--danger)] to-[#8A1F28] text-white",
   };
   return (
     <button
@@ -132,7 +156,7 @@ export function AdminBtn({
 
 export function PillActive({ children }: { children: React.ReactNode }) {
   return (
-    <span className="ml-1.5 inline-block rounded-full bg-[#E4F5E9] px-2 py-0.5 text-[10.5px] font-bold text-[#1E9E52]">
+    <span className="ml-1.5 inline-block rounded-full bg-[var(--success-tint)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--success)]">
       {children}
     </span>
   );
@@ -140,7 +164,7 @@ export function PillActive({ children }: { children: React.ReactNode }) {
 
 export function PillWarning({ children }: { children: React.ReactNode }) {
   return (
-    <span className="ml-1.5 inline-block rounded-full bg-[#FEF3E0] px-2 py-0.5 text-[10.5px] font-bold text-[#B0801E]">
+    <span className="ml-1.5 inline-block rounded-full bg-[var(--ochre-tint)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--warn)]">
       {children}
     </span>
   );
@@ -148,7 +172,7 @@ export function PillWarning({ children }: { children: React.ReactNode }) {
 
 export function PillExpired({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-block rounded-full bg-[#FCE7E7] px-2 py-0.5 text-[10.5px] font-bold text-[#B0303A]">
+    <span className="inline-block rounded-full bg-[var(--danger-tint)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--danger)]">
       {children}
     </span>
   );
@@ -156,9 +180,9 @@ export function PillExpired({ children }: { children: React.ReactNode }) {
 
 export function StatusPill({ status }: { status: "pending" | "approved" | "rejected" }) {
   const styles = {
-    pending: "bg-[#FEF3E0] text-[#B0801E]",
-    approved: "bg-[#E4F5E9] text-[#1E9E52]",
-    rejected: "bg-[#FCE7E7] text-[#B0303A]",
+    pending: "bg-[var(--ochre-tint)] text-[var(--warn)]",
+    approved: "bg-[var(--success-tint)] text-[var(--success)]",
+    rejected: "bg-[var(--danger-tint)] text-[var(--danger)]",
   };
   const labels = { pending: "Pending", approved: "Approved", rejected: "Rejected" };
   return (
@@ -184,8 +208,8 @@ export function FilterChip({
       className={cn(
         "cursor-pointer rounded-2xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap",
         active
-          ? "bg-[#A62A38] font-bold text-white"
-          : "border border-[#E6E0D3] bg-white text-[#6B6357]"
+          ? "bg-[var(--brand)] font-bold text-white"
+          : "border border-[var(--line-admin)] bg-white text-[var(--ink-dim)]"
       )}
     >
       {label}
@@ -207,16 +231,16 @@ export function SearchInput({
   return (
     <div
       className={cn(
-        "flex h-[42px] items-center gap-2.5 rounded-xl border-[1.5px] border-[#E6E0D3] bg-[#FCFAF6] px-3.5",
+        "flex h-[42px] items-center gap-2.5 rounded-xl border-[1.5px] border-[var(--line-admin)] bg-[var(--field)] px-3.5",
         className
       )}
     >
-      <Search className="size-[17px] shrink-0 text-[#A62A38]" strokeWidth={2.1} />
+      <Search className="size-[17px] shrink-0 text-[var(--brand)]" strokeWidth={2.1} />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-[#2A2320] outline-none"
+        className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none"
       />
     </div>
   );
@@ -224,7 +248,7 @@ export function SearchInput({
 
 export function QStat({ count, color, label }: { count: number; color: string; label: string }) {
   return (
-    <div className="rounded-[10px] border border-[#EAE4D8] bg-[#FBFAF7] px-3 py-[7px] text-xs text-[#6B6357]">
+    <div className="rounded-[10px] border border-[#EAE4D8] bg-[#FBFAF7] px-3 py-[7px] text-xs text-[var(--ink-dim)]">
       <b style={{ color }}>{count}</b> {label}
     </div>
   );
@@ -247,7 +271,7 @@ export function LinkAction({
       onClick={onClick}
       className={cn(
         "cursor-pointer text-xs font-bold underline",
-        danger ? "text-[#B0303A]" : "text-[#3D7BC4]",
+        danger ? "text-[var(--danger)]" : "text-[#3D7BC4]",
         className
       )}
     >
@@ -257,8 +281,11 @@ export function LinkAction({
 }
 
 export function AdminLabel({ children }: { children: React.ReactNode }) {
-  return <div className="mb-1 text-[11.5px] font-bold text-[#8B8375]">{children}</div>;
+  return <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">{children}</div>;
 }
+
+const ADMIN_INPUT_CLASS =
+  "h-[42px] w-full rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none";
 
 export function AdminInput({
   value,
@@ -266,24 +293,180 @@ export function AdminInput({
   type = "text",
   className,
   placeholder,
+  gujarati,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
   type?: string;
   className?: string;
   placeholder?: string;
+  /** Adds the on-screen Gujarati keyboard button at the trailing edge. */
+  gujarati?: boolean;
+  onBlur?: () => void;
 }) {
+  if (gujarati) {
+    return (
+      <GujaratiInput
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        inputClassName={cn(
+          ADMIN_INPUT_CLASS,
+          "font-[family-name:var(--font-noto-sans-gujarati)]",
+          className,
+        )}
+      />
+    );
+  }
   return (
     <input
       type={type}
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
-      className={cn(
-        "h-[42px] w-full rounded-[11px] border-[1.5px] border-[#EDE4D4] bg-[#FCFAF6] px-3 text-[13.5px] text-[#2A2320] outline-none",
-        className
-      )}
+      onBlur={onBlur}
+      className={cn(ADMIN_INPUT_CLASS, className)}
     />
+  );
+}
+
+/** Pill switch — Design-Spec §11 "Toggle switch: green when on". */
+export function AdminToggle({
+  on,
+  onChange,
+  label,
+}: {
+  on: boolean;
+  onChange: (next: boolean) => void;
+  label?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={() => onChange(!on)}
+      className={cn(
+        "relative h-[26px] w-[46px] shrink-0 cursor-pointer rounded-2xl transition-colors",
+        on ? "bg-[var(--wa)]" : "bg-[var(--scroll-thumb)]",
+      )}
+    >
+      <span
+        className={cn(
+          "absolute top-[3px] size-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.25)] transition-[left]",
+          on ? "left-[23px]" : "left-[3px]",
+        )}
+      />
+    </button>
+  );
+}
+
+/** Custom styled dropdown — replaces the native select for a polished admin UI. */
+export function AdminSelect({
+  value,
+  onChange,
+  options,
+  className,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  className?: string;
+  ariaLabel?: string;
+}) {
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <SelectPrimitive.Root value={value} onValueChange={(v) => onChange(v ?? "")}>
+      <SelectPrimitive.Trigger
+        aria-label={ariaLabel}
+        className={cn(
+          // Match AdminInput exactly: h-[42px], same border, radius, bg, font
+          "flex h-[42px] w-full cursor-pointer items-center justify-between gap-2 rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none",
+          "transition-colors hover:border-[var(--line-strong)] hover:bg-white",
+          "focus-visible:border-[var(--brand)] focus-visible:ring-[3px] focus-visible:ring-[rgb(var(--brand-rgb)/0.12)]",
+          "data-[popup-open]:border-[var(--brand)] data-[popup-open]:bg-white",
+          "select-none",
+          className,
+        )}
+      >
+        <SelectPrimitive.Value
+          placeholder="—"
+          className="flex-1 truncate text-left"
+        >
+          {selected?.label ?? "—"}
+        </SelectPrimitive.Value>
+        <SelectPrimitive.Icon render={<span />}>
+          <ChevronDown
+            className="size-[15px] shrink-0 text-[var(--faint)] transition-transform duration-200 [[data-popup-open]_&]:rotate-180"
+            strokeWidth={2.2}
+          />
+        </SelectPrimitive.Icon>
+      </SelectPrimitive.Trigger>
+
+      <SelectPrimitive.Portal>
+        <SelectPrimitive.Positioner
+          sideOffset={4}
+          alignItemWithTrigger={false}
+          className="isolate z-[9999]"
+        >
+          <SelectPrimitive.Popup
+            className={cn(
+              // Sizing — match trigger width, cap height so it scrolls
+              "max-h-[240px] w-(--anchor-width) min-w-[120px] overflow-y-auto",
+              // Surface
+              "rounded-[13px] border border-[var(--line-admin)] bg-white shadow-[0_8px_24px_-4px_rgba(42,35,32,0.14)]",
+              // Animations
+              "origin-(--transform-origin)",
+              "data-[starting-style]:opacity-0 data-[starting-style]:scale-95",
+              "data-[ending-style]:opacity-0 data-[ending-style]:scale-95",
+              "transition-[opacity,transform] duration-150 ease-out",
+            )}
+          >
+            <SelectPrimitive.ScrollUpArrow className="sticky top-0 z-10 flex w-full cursor-default justify-center bg-white/90 py-1 text-[var(--faint)]">
+              <ChevronDown className="size-3.5 rotate-180" strokeWidth={2.5} />
+            </SelectPrimitive.ScrollUpArrow>
+
+            <SelectPrimitive.List className="p-1">
+              {options.map((o) => (
+                <SelectPrimitive.Item
+                  key={o.value}
+                  value={o.value}
+                  className={cn(
+                    "group relative flex cursor-pointer select-none items-center gap-2 rounded-[9px] py-[7px] pr-8 pl-2.5",
+                    "text-[13px] font-medium text-[var(--ink)]",
+                    "outline-none",
+                    "transition-colors",
+                    "hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
+                    "data-[highlighted]:bg-[var(--brand-tint)] data-[highlighted]:text-[var(--brand)]",
+                    "data-[selected]:font-semibold data-[selected]:text-[var(--brand)]",
+                  )}
+                >
+                  <SelectPrimitive.ItemText className="flex-1 truncate">
+                    {o.label}
+                  </SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemIndicator
+                    render={
+                      <span className="pointer-events-none absolute right-2.5 flex size-4 items-center justify-center opacity-0 group-data-[selected]:opacity-100" />
+                    }
+                  >
+                    <Check className="size-[13px] text-[var(--brand)]" strokeWidth={2.8} />
+                  </SelectPrimitive.ItemIndicator>
+                </SelectPrimitive.Item>
+              ))}
+            </SelectPrimitive.List>
+
+            <SelectPrimitive.ScrollDownArrow className="sticky bottom-0 z-10 flex w-full cursor-default justify-center bg-white/90 py-1 text-[var(--faint)]">
+              <ChevronDown className="size-3.5" strokeWidth={2.5} />
+            </SelectPrimitive.ScrollDownArrow>
+          </SelectPrimitive.Popup>
+        </SelectPrimitive.Positioner>
+      </SelectPrimitive.Portal>
+    </SelectPrimitive.Root>
   );
 }
 
@@ -301,7 +484,7 @@ export function AdminCellInput({
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-[38px] w-full rounded-lg border border-[#EDE4D4] bg-[#FCFAF6] px-2 text-[12.5px] text-[#2A2320] outline-none"
+      className="h-[38px] w-full rounded-lg border border-[var(--line-field)] bg-[var(--field)] px-2 text-[12.5px] text-[var(--ink)] outline-none"
     />
   );
 }

@@ -114,7 +114,7 @@ export default function ProfilePage() {
       <AppScreen showNav={false}>
         <ProfileHeader title={title} onBack={() => router.back()} />
         <div className="flex flex-1 items-center justify-center py-20">
-          <Loader2 className="size-6 animate-spin text-[#A62A38]" />
+          <Loader2 className="size-6 animate-spin text-[var(--brand)]" />
         </div>
       </AppScreen>
     );
@@ -124,12 +124,12 @@ export default function ProfilePage() {
     return (
       <AppScreen showNav={false}>
         <ProfileHeader title={title} onBack={() => router.back()} />
-        <div className="px-6 py-16 text-center text-[13.5px] text-[#938C80]">
+        <div className="px-6 py-16 text-center text-[13.5px] text-[var(--faint)]">
           {error
             ? error
             : T("પ્રોફાઈલ ઉપલબ્ધ નથી. કૃપા કરી લોગિન કરો.", "No profile found. Please log in.")}
           <div className="mt-4">
-            <Link href="/login" className="text-sm font-bold text-[#A62A38]">
+            <Link href="/login" className="text-sm font-bold text-[var(--brand)]">
               {T("લોગિન →", "Log in →")}
             </Link>
           </div>
@@ -140,10 +140,10 @@ export default function ProfilePage() {
 
   const name = pickText(profile.fullNameGu, profile.fullNameEn, lang);
   const rows = [
-    { label: T("મોબાઈલ", "Mobile"), value: data?.mobile || "—", bg: "#FBEDEE", fg: "#A62A38", Icon: Phone },
-    { label: T("જન્મ", "DOB"), value: formatDate(profile.dateOfBirth, lang) || "—", bg: "#FEF3E0", fg: "#B26A1E", Icon: Calendar },
-    { label: T("બ્લડ", "Blood"), value: bloodLabel(profile.bloodGroup) || "—", bg: "#FCE7E7", fg: "#B0303A", Icon: Droplet },
-    { label: T("વ્યવસાય", "Work"), value: profile.occupation || "—", bg: "#E7F0FB", fg: "#3D6B8C", Icon: User },
+    { label: T("મોબાઈલ", "Mobile"), value: data?.mobile || "—", bg: "var(--brand-tint)", fg: "var(--brand)", Icon: Phone },
+    { label: T("જન્મ", "DOB"), value: formatDate(profile.dateOfBirth, lang) || "—", bg: "var(--ochre-tint)", fg: "var(--ochre)", Icon: Calendar },
+    { label: T("બ્લડ", "Blood"), value: bloodLabel(profile.bloodGroup) || "—", bg: "var(--danger-tint)", fg: "var(--danger)", Icon: Droplet },
+    { label: T("વ્યવસાય", "Work"), value: profile.occupation || "—", bg: "var(--info-tint)", fg: "var(--info)", Icon: User },
   ];
 
   return (
@@ -157,7 +157,7 @@ export default function ProfilePage() {
           <div className="flex-1 font-[family-name:var(--font-noto-serif-gujarati)] text-xl font-bold">{title}</div>
         </div>
         <div className="relative z-2 flex items-center gap-3.5">
-          <div className="flex h-16 w-16 flex-none items-center justify-center rounded-[20px] bg-white text-[26px] font-extrabold text-[#A62A38]">
+          <div className="flex h-16 w-16 flex-none items-center justify-center rounded-[20px] bg-white text-[26px] font-extrabold text-[var(--brand)]">
             {name.trim()[0] || "?"}
           </div>
           <div>
@@ -169,8 +169,8 @@ export default function ProfilePage() {
 
       <div className="px-4 py-4 pb-8">
         <div className="mb-2.5 flex items-center justify-between px-0.5">
-          <span className="text-[13px] font-extrabold tracking-wide text-[#57524A]">{T("મારી વિગતો", "MY DETAILS")}</span>
-          <button type="button" onClick={openEdit} className="inline-flex items-center gap-1.5 rounded-full bg-[#FBEDEE] px-3 py-1.5 text-[12.5px] font-extrabold text-[#A62A38]">
+          <span className="text-[13px] font-extrabold tracking-wide text-[var(--ink-mid)]">{T("મારી વિગતો", "MY DETAILS")}</span>
+          <button type="button" onClick={openEdit} className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand-tint)] px-3 py-1.5 text-[12.5px] font-extrabold text-[var(--brand)]">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3Z" /><path d="M13.5 6.5l3 3" /></svg>
             {T("ફેરફાર", "Edit")}
           </button>
@@ -184,43 +184,43 @@ export default function ProfilePage() {
                   <Icon className="h-4 w-4" />
                 </span>
                 <div className="flex-1">
-                  <div className="text-[11.5px] font-semibold text-[#938C80]">{r.label}</div>
-                  <div className="mt-0.5 text-[14.5px] font-bold text-[#2A2320]">{r.value}</div>
+                  <div className="text-[11.5px] font-semibold text-[var(--faint)]">{r.label}</div>
+                  <div className="mt-0.5 text-[14.5px] font-bold text-[var(--ink)]">{r.value}</div>
                 </div>
               </div>
             );
           })}
         </div>
 
-        <div className="mb-2.5 mt-5 px-0.5 text-[13px] font-extrabold tracking-wide text-[#57524A]">{T("પ્રાઈવસી", "PRIVACY")}</div>
+        <div className="mb-2.5 mt-5 px-0.5 text-[13px] font-extrabold tracking-wide text-[var(--ink-mid)]">{T("પ્રાઈવસી", "PRIVACY")}</div>
         <button type="button" onClick={toggleShowPhone} disabled={savingPhone} className="samaj-card mb-5 flex w-full items-center gap-3 p-3.5 text-left disabled:opacity-70">
           <div className="flex-1">
             <div className="text-sm font-bold">{T("ફોન બતાવો", "Show phone")}</div>
-            <div className="mt-0.5 text-[11.5px] text-[#938C80]">{T("ડિરેક્ટરીમાં ફોન બતાવો", "Show phone in directory")}</div>
+            <div className="mt-0.5 text-[11.5px] text-[var(--faint)]">{T("ડિરેક્ટરીમાં ફોન બતાવો", "Show phone in directory")}</div>
           </div>
-          <span className={cn("relative h-[27px] w-[46px] rounded-2xl transition-colors", profile.showPhone ? "bg-[#A62A38]" : "bg-[#D8D0C2]")}>
+          <span className={cn("relative h-[27px] w-[46px] rounded-2xl transition-colors", profile.showPhone ? "bg-[var(--brand)]" : "bg-[var(--scroll-thumb)]")}>
             <span className={cn("absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow transition-all", profile.showPhone ? "left-[22px]" : "left-[3px]")} />
           </span>
         </button>
 
         {profile.family && profile.family.familyMembers.length > 0 && (
           <>
-            <div className="mb-2.5 px-0.5 text-[13px] font-extrabold tracking-wide text-[#57524A]">{T("પરિવાર", "FAMILY")}</div>
+            <div className="mb-2.5 px-0.5 text-[13px] font-extrabold tracking-wide text-[var(--ink-mid)]">{T("પરિવાર", "FAMILY")}</div>
             {profile.family.familyMembers.map((m) => (
               <div key={m.id} className="samaj-card mb-2.5 flex items-center gap-3 p-[13px]">
-                <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#FBEDEE] text-base font-extrabold text-[#A62A38]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-[var(--brand-tint)] text-base font-extrabold text-[var(--brand)]">
                   {pickText(m.fullNameGu, m.fullNameEn, lang).trim()[0] || "?"}
                 </div>
                 <div className="flex-1">
                   <div className="text-sm font-bold">{pickText(m.fullNameGu, m.fullNameEn, lang)}</div>
-                  <div className="text-[11.5px] text-[#938C80]">{m.relation || ""}</div>
+                  <div className="text-[11.5px] text-[var(--faint)]">{m.relation || ""}</div>
                 </div>
                 {m.fullNameEn === profile.fullNameEn && (
-                  <span className="rounded-lg bg-[#FBEDEE] px-2 py-0.5 text-[10px] font-extrabold text-[#A62A38]">{T("તમે", "You")}</span>
+                  <span className="rounded-lg bg-[var(--brand-tint)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--brand)]">{T("તમે", "You")}</span>
                 )}
               </div>
             ))}
-            <Link href={`/directory/family/${profile.family.id}`} className="mt-2 block text-center text-sm font-bold text-[#A62A38]">
+            <Link href={`/directory/family/${profile.family.id}`} className="mt-2 block text-center text-sm font-bold text-[var(--brand)]">
               {T("પરિવાર પ્રોફાઈલ જુઓ →", "View family profile →")}
             </Link>
           </>
@@ -230,7 +230,7 @@ export default function ProfilePage() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-[380px] rounded-2xl sm:max-w-[380px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[#2A2620]">{T("વિગત ફેરફાર", "Edit details")}</DialogTitle>
+            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">{T("વિગત ફેરફાર", "Edit details")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <EditField label={T("વ્યવસાય", "Occupation")} value={editForm.occupation} onChange={(v) => setEditForm({ ...editForm, occupation: v })} />
@@ -241,7 +241,7 @@ export default function ProfilePage() {
               onClick={saveEdit}
               disabled={saving}
               className="flex h-12 w-full items-center justify-center rounded-2xl text-sm font-extrabold text-white disabled:opacity-70"
-              style={{ background: "linear-gradient(135deg,#A62A38,#851F2B)" }}
+              style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : T("સાચવો", "Save")}
             </button>
@@ -269,7 +269,7 @@ function ProfileHeader({ title, onBack }: { title: string; onBack: () => void })
 function EditField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <div className="mb-1 text-xs font-bold text-[#8B8375]">{label}</div>
+      <div className="mb-1 text-xs font-bold text-[var(--muted)]">{label}</div>
       <input className="samaj-fld" value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
   );

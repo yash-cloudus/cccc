@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaClient, BloodGroupType, CommunityType, CommunityStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { DEFAULT_RELATIONS } from "@/lib/constants";
 
 const prisma = new PrismaClient();
 
@@ -138,7 +139,7 @@ async function main() {
       status: CommunityStatus.LIVE,
       primaryColor: "#A62A38",
       secondaryColor: "#E8A33D",
-      groupingLabel: "24 Parivar",
+      groupingLabel: "Surname",
       estd: "1978",
       village: GU.rajkot,
       addressEn: "Saurashtra Patel Bhavan, Kalawad Road",
@@ -176,7 +177,7 @@ async function main() {
       status: CommunityStatus.LIVE,
       primaryColor: "#1E7A54",
       secondaryColor: "#E0A62B",
-      groupingLabel: "32 Gam",
+      groupingLabel: "Village",
       estd: "1990",
       village: GU.rajkot,
       state: GU.gujarat,
@@ -252,6 +253,7 @@ async function seedCommunityData(
     ["occupation", "Farming", "\u0A96\u0AC7\u0AA4\u0AC0"],
     ["occupation", "Student", "\u0AB5\u0ABF\u0AA6\u0ACD\u0AAF\u0ABE\u0AB0\u0ACD\u0AA5\u0AC0"],
     ["occupation", "Homemaker", "\u0A97\u0AC3\u0AB9\u0ABF\u0AA3\u0AC0"],
+    ...DEFAULT_RELATIONS.map((r): [string, string, string] => ["relationship", r.nameEn, r.nameGu]),
   ];
   for (const [type, nameEn, nameGu] of dropdowns) {
     const existing = await prisma.dropdownOption.findFirst({ where: { communityId, type, nameEn } });

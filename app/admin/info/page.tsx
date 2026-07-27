@@ -27,6 +27,8 @@ export default async function CommunityInfoPage() {
     <InfoClient
       showDirectoryPhones={community.showDirectoryPhones}
       upiId={upiSetting?.value ?? ""}
+      logoUrl={community.logoUrl ?? ""}
+      bannerUrl={community.bannerUrl ?? ""}
       committees={committees.map((c) => ({
         id: c.id,
         nameEn: c.nameEn,
@@ -39,6 +41,7 @@ export default async function CommunityInfoPage() {
         titleGu: s.titleGu,
         bodyEn: s.bodyEn,
         bodyGu: s.bodyGu,
+        sortOrder: s.sortOrder,
       }))}
       villages={villages.map((v) => ({
         id: v.id,

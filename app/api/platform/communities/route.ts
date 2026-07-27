@@ -4,6 +4,7 @@ import { fail, fromZod, ok, created } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { assertPlatform } from "@/lib/tenant";
 import { isValidSlug, normalizeSlug, groupingLabel } from "@/lib/platform";
+import { DEFAULT_RELATIONS } from "@/lib/constants";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -20,7 +21,11 @@ export async function GET() {
     const communities = await prisma.community.findMany({
       orderBy: { createdAt: "asc" },
       include: {
-        _count: { select: { families: true, users: true } },
+        // surnameGroups / villageAreas are the grouping units the card counts:
+        // a Parivar app groups families by surname, a Gam app by village.
+        _count: {
+          select: { families: true, users: true, surnameGroups: true, villageAreas: true },
+        },
         users: {
           where: { roles: { some: { role: { name: "OWNER" } } } },
           take: 1,
@@ -129,6 +134,18 @@ export async function POST(req: Request) {
       }
       // Default ad price setting.
       await tx.setting.create({ data: { communityId: community.id, key: "ad_banner_price", value: "2000" } });
+
+      // Household relations (Son, Wife, Father, ...) — without these the
+      // Relation dropdown in Families & Members / Add family directly starts
+      // out empty, since DropdownOption has no other seed source per community.
+      await tx.dropdownOption.createMany({
+        data: DEFAULT_RELATIONS.map((r) => ({
+          communityId: community.id,
+          type: "relationship",
+          nameEn: r.nameEn,
+          nameGu: r.nameGu,
+        })),
+      });
 
       return { community, username };
     });

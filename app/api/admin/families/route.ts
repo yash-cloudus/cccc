@@ -1,6 +1,7 @@
 import { z } from "zod";
+import type { BloodGroupType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { created, fail } from "@/lib/api";
+import { created } from "@/lib/api";
 import { requireAdmin, handleApiError } from "@/lib/admin-guard";
 
 const schema = z.object({
@@ -11,8 +12,41 @@ const schema = z.object({
   /** Optional — if missing/invalid, match or create from surnameEn/Gu */
   surnameGroupId: z.string().optional(),
   city: z.string().optional(),
+  addressEn: z.string().optional(),
   addressGu: z.string().optional(),
+  nativeElderNameEn: z.string().optional(),
+  email: z.string().optional(),
+  /** Household members added alongside the head in the same dialog. */
+  members: z
+    .array(
+      z.object({
+        fullNameEn: z.string().min(1),
+        fullNameGu: z.string().optional(),
+        relation: z.string().optional(),
+        mobile: z.string().optional(),
+        dateOfBirth: z.string().optional(),
+        bloodGroup: z.string().optional(),
+        occupation: z.string().optional(),
+        occupationOther: z.string().optional(),
+        education: z.string().optional(),
+        currentlyAt: z.string().optional(),
+        hasWhatsApp: z.boolean().optional(),
+      }),
+    )
+    .optional(),
 });
+
+/** "A+" → BloodGroupType enum member; anything unrecognised is dropped. */
+const BLOOD_ENUM: Record<string, BloodGroupType> = {
+  "A+": "A_POS",
+  "A-": "A_NEG",
+  "B+": "B_POS",
+  "B-": "B_NEG",
+  "O+": "O_POS",
+  "O-": "O_NEG",
+  "AB+": "AB_POS",
+  "AB-": "AB_NEG",
+};
 
 async function resolveSurnameGroup(
   communityId: string,
@@ -71,19 +105,36 @@ export async function POST(req: Request) {
         headNameGu: body.headNameGu?.trim(),
         surnameEn: body.surnameEn.trim(),
         surnameGu: body.surnameGu?.trim(),
-        addressEn: "",
+        addressEn: body.addressEn?.trim() ?? "",
         addressGu: body.addressGu?.trim(),
         city: body.city?.trim(),
+        nativeElderNameEn: body.nativeElderNameEn?.trim(),
         status: "APPROVED",
         approvedAt: new Date(),
         consentAccepted: true,
         familyMembers: {
-          create: {
-            fullNameEn: body.headNameEn.trim(),
-            fullNameGu: body.headNameGu?.trim(),
-            relation: "Head",
-            isHead: true,
-          },
+          create: [
+            {
+              fullNameEn: body.headNameEn.trim(),
+              fullNameGu: body.headNameGu?.trim(),
+              relation: "Head",
+              isHead: true,
+            },
+            ...(body.members ?? []).map((m) => ({
+              fullNameEn: m.fullNameEn.trim(),
+              fullNameGu: m.fullNameGu?.trim(),
+              relation: m.relation || null,
+              mobile: m.mobile || null,
+              dateOfBirth: m.dateOfBirth ? new Date(m.dateOfBirth) : null,
+              bloodGroup: BLOOD_ENUM[m.bloodGroup ?? ""] ?? null,
+              occupation: m.occupation || null,
+              occupationOther: m.occupationOther || null,
+              education: m.education || null,
+              currentlyAt: m.currentlyAt || null,
+              hasWhatsApp: m.hasWhatsApp ?? true,
+              isHead: false,
+            })),
+          ],
         },
       },
       include: { familyMembers: true, surnameGroup: true },

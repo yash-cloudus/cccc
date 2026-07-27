@@ -8,17 +8,29 @@ import {
   AdminH2,
   AdminHint,
   AdminInput,
-  AdminLabel,
+  AdminSelect,
   AdminTable,
   AdminTd,
   AdminTh,
   LinkAction,
   SearchInput,
 } from "@/components/admin/admin-ui";
+import {
+  AdminField,
+  AdminFormRow,
+  AdminFormSection,
+  AdminModal,
+  AdminModalActions,
+} from "@/components/admin/admin-form";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
+import { DropdownWithOther, commitOtherValue } from "@/components/admin/dropdown-with-other";
+
+export type FamilyStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export type FamilyRow = {
   id: string;
@@ -27,8 +39,27 @@ export type FamilyRow = {
   surnameEn: string;
   surnameGu: string;
   city: string;
+  mobile: string;
+  status: FamilyStatus;
   members: number;
 };
+
+const FAMILY_STATUS_META: Record<FamilyStatus, { label: string; className: string }> = {
+  APPROVED: { label: "Approved", className: "bg-[var(--success-tint)] text-[var(--success)]" },
+  PENDING: { label: "Pending", className: "bg-[var(--gold-tint)] text-[var(--warn)]" },
+  REJECTED: { label: "Deactivated", className: "bg-[var(--line-soft)] text-[var(--muted)]" },
+};
+
+function FamilyStatusPill({ status }: { status: FamilyStatus }) {
+  const meta = FAMILY_STATUS_META[status];
+  return (
+    <span
+      className={cn("inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold", meta.className)}
+    >
+      {meta.label}
+    </span>
+  );
+}
 
 type SurnameOption = { id: string; nameEn: string; nameGu: string };
 
@@ -56,21 +87,65 @@ type CreatedFamily = {
 };
 
 const MEMBER_COLORS = [
-  { c: "#B0303A", bg: "#FCE7E7" },
-  { c: "#6A4E9C", bg: "#F0ECFB" },
-  { c: "#4E7A45", bg: "#EAF6EC" },
-  { c: "#B26A1E", bg: "#FEF3E0" },
-  { c: "#2A6FA0", bg: "#E7F0FB" },
+  { c: "var(--danger)", bg: "var(--danger-tint)" },
+  { c: "var(--violet)", bg: "var(--violet-tint)" },
+  { c: "var(--leaf)", bg: "var(--leaf-tint)" },
+  { c: "var(--ochre)", bg: "var(--ochre-tint)" },
+  { c: "#2A6FA0", bg: "var(--info-tint)" },
 ];
 
-function blankForm(_groups?: SurnameOption[]) {
+/** Blood groups offered in the member editor (BloodGroupType enum labels). */
+const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].map((b) => ({
+  value: b,
+  label: b,
+}));
+
+export type MemberDraft = {
+  fullNameEn: string;
+  fullNameGu: string;
+  relation: string;
+  mobile: string;
+  dateOfBirth: string;
+  bloodGroup: string;
+  occupation: string;
+  /** Free text shown when `occupation === OTHER`. */
+  occupationCustom: string;
+  /** "વ્યવસાય / ધંધો" — the specific job/trade, always free text. */
+  occupationOther: string;
+  education: string;
+  educationCustom: string;
+  hasWhatsApp: boolean;
+};
+
+function blankMemberDraft(): MemberDraft {
+  return {
+    fullNameEn: "",
+    fullNameGu: "",
+    relation: "",
+    mobile: "",
+    dateOfBirth: "",
+    bloodGroup: "",
+    occupation: "",
+    occupationCustom: "",
+    occupationOther: "",
+    education: "",
+    educationCustom: "",
+    hasWhatsApp: true,
+  };
+}
+
+function blankForm() {
   return {
     headNameEn: "",
     headNameGu: "",
     surnameEn: "",
     surnameGu: "",
     surnameGroupId: "",
+    addressEn: "",
     city: "",
+    nativePlace: "",
+    email: "",
+    members: [] as MemberDraft[],
   };
 }
 
@@ -83,19 +158,45 @@ function matchGroup(groups: SurnameOption[], surnameEn: string) {
 export function FamiliesClient({
   initialRows,
   surnameGroups: initialGroups,
+  relations = [],
+  occupations: initialOccupations = [],
+  educations: initialEducations = [],
 }: {
   initialRows: FamilyRow[];
   surnameGroups: SurnameOption[];
+  /** Relation options from Dropdown lists → Relationship. */
+  relations?: string[];
+  /** Occupation options from Dropdown lists → Occupation. */
+  occupations?: string[];
+  /** Degree options from Dropdown lists → Degree. */
+  educations?: string[];
 }) {
   const router = useRouter();
-  const { fromEn, fromGu } = useTranslitSync();
+  const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<FamilyRow[]>(initialRows);
   const [groups, setGroups] = useState<SurnameOption[]>(initialGroups);
   const [query, setQuery] = useState("");
 
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState(() => blankForm(initialGroups));
+  const [form, setForm] = useState(() => blankForm());
   const [addBusy, setAddBusy] = useState(false);
+
+  // Kept in state so an option created via "Other" shows up in the list
+  // immediately, without waiting for a page refresh.
+  const [occupations, setOccupations] = useState<string[]>(initialOccupations);
+  const [educations, setEducations] = useState<string[]>(initialEducations);
+
+  useEffect(() => setOccupations(initialOccupations), [initialOccupations]);
+  useEffect(() => setEducations(initialEducations), [initialEducations]);
+
+  const occupationChoices = useMemo(
+    () => occupations.map((o) => ({ value: o, label: o })),
+    [occupations],
+  );
+  const educationChoices = useMemo(
+    () => educations.map((e) => ({ value: e, label: e })),
+    [educations],
+  );
 
   const [membersOf, setMembersOf] = useState<FamilyRow | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -115,7 +216,9 @@ export function FamiliesClient({
     return rows.filter(
       (f) =>
         !q ||
-        (f.headEn + f.headGu + f.surnameEn + f.surnameGu + f.city).toLowerCase().includes(q),
+        (f.headEn + f.headGu + f.surnameEn + f.surnameGu + f.city + f.mobile)
+          .toLowerCase()
+          .includes(q),
     );
   }, [rows, query]);
 
@@ -135,18 +238,15 @@ export function FamiliesClient({
 
   function applySurnameGu(v: string) {
     setForm((prev) => ({ ...prev, surnameGu: v }));
-    fromGu(
-      v,
-      (en) => {
-        const match = matchGroup(groups, en);
-        setForm((prev) => ({
-          ...prev,
-          surnameEn: en,
-          surnameGroupId: match?.id ?? "",
-        }));
-      },
-      "surname",
-    );
+    // Gujarati keyboard only — the English surname is never overwritten from here.
+    guInput(v, (gu) => setForm((prev) => ({ ...prev, surnameGu: gu })), "surname:gu");
+  }
+
+  function updateMemberDraft(index: number, patch: Partial<MemberDraft>) {
+    setForm((f) => ({
+      ...f,
+      members: f.members.map((m, i) => (i === index ? { ...m, ...patch } : m)),
+    }));
   }
 
   function onPickGroup(id: string) {
@@ -167,13 +267,60 @@ export function FamiliesClient({
     setAddBusy(true);
     setError(null);
 
+    const keptMembers = form.members.filter((m) => m.fullNameEn.trim() || m.fullNameGu.trim());
+
+    // Persist any "Other" text into Dropdown lists first, so the saved member
+    // stores the same value the masters list now offers.
+    const resolved = await Promise.all(
+      keptMembers.map(async (m) => ({
+        occupation: await commitOtherValue(
+          "occupation",
+          m.occupation,
+          m.occupationCustom,
+          occupationChoices,
+        ),
+        education: await commitOtherValue(
+          "degree",
+          m.education,
+          m.educationCustom,
+          educationChoices,
+        ),
+      })),
+    );
+
+    // Reflect newly-created options in the local lists right away.
+    const newOccupations = resolved
+      .map((r) => r.occupation)
+      .filter((v) => v && !occupations.includes(v));
+    const newEducations = resolved
+      .map((r) => r.education)
+      .filter((v) => v && !educations.includes(v));
+    if (newOccupations.length) setOccupations((prev) => [...prev, ...newOccupations]);
+    if (newEducations.length) setEducations((prev) => [...prev, ...newEducations]);
+
     const payload = {
       headNameEn: form.headNameEn.trim(),
       headNameGu: form.headNameGu.trim() || undefined,
       surnameEn: form.surnameEn.trim(),
       surnameGu: form.surnameGu.trim() || undefined,
       surnameGroupId: form.surnameGroupId || matchedGroup?.id || undefined,
+      addressEn: form.addressEn.trim() || undefined,
       city: form.city.trim() || undefined,
+      nativeElderNameEn: form.nativePlace.trim() || undefined,
+      email: form.email.trim() || undefined,
+      members: keptMembers.map((m, i) => ({
+        fullNameEn: m.fullNameEn.trim() || m.fullNameGu.trim(),
+        fullNameGu: m.fullNameGu.trim() || undefined,
+        relation: m.relation || undefined,
+        mobile: m.mobile || undefined,
+        dateOfBirth: m.dateOfBirth || undefined,
+        bloodGroup: m.bloodGroup || undefined,
+        occupation: resolved[i].occupation || undefined,
+        occupationOther: m.occupationOther.trim() || undefined,
+        education: resolved[i].education || undefined,
+        currentlyAt: form.city.trim() || undefined,
+        hasWhatsApp: m.hasWhatsApp,
+      })),
     };
 
     const res = await api.post<CreatedFamily>(`/api/admin/families`, payload);
@@ -191,6 +338,11 @@ export function FamiliesClient({
       surnameEn: created.surnameEn,
       surnameGu: created.surnameGu || "",
       city: created.city || "—",
+      // "+ Add family directly" bypasses the registration queue, so the row is
+      // approved on arrival. The quick-add form collects no mobile — it is set
+      // later via Members, so the column shows "—" until then.
+      mobile: "",
+      status: "APPROVED",
       members: created.members || 1,
     };
     setRows((prev) => [newRow, ...prev.filter((r) => r.id !== newRow.id)]);
@@ -205,7 +357,7 @@ export function FamiliesClient({
     }
 
     setAddOpen(false);
-    setForm(blankForm(groups));
+    setForm(blankForm());
     setError(null);
     router.refresh();
   }
@@ -275,10 +427,40 @@ export function FamiliesClient({
 
   async function deleteFamily(row: FamilyRow) {
     const label = row.headGu || row.headEn;
-    if (!window.confirm(`Delete ${label}'s family? This cannot be undone.`)) return;
+    const ok = await confirmDialog({
+      title: `Delete ${label}'s family?`,
+      description: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     const res = await api.del(`/api/families/${row.id}`);
     if (res.ok) setRows((prev) => prev.filter((f) => f.id !== row.id));
     else setError(res.error);
+  }
+
+  /**
+   * Deactivating sets REJECTED — the same state the registration queue uses to
+   * mean "this family's numbers can no longer log in". Reactivating restores
+   * APPROVED. Optimistic, rolled back if the API rejects it.
+   */
+  async function toggleStatus(row: FamilyRow) {
+    const next: FamilyStatus = row.status === "APPROVED" ? "REJECTED" : "APPROVED";
+    const verb = next === "APPROVED" ? "Reactivate" : "Deactivate";
+    const label = row.headGu || row.headEn;
+    const ok = await confirmDialog({
+      title: `${verb} ${label}'s family?`,
+      confirmLabel: verb,
+      tone: next === "REJECTED" ? "danger" : "primary",
+    });
+    if (!ok) return;
+
+    setRows((prev) => prev.map((f) => (f.id === row.id ? { ...f, status: next } : f)));
+    const res = await api.patch(`/api/families/${row.id}`, { status: next });
+    if (!res.ok) {
+      setRows((prev) => prev.map((f) => (f.id === row.id ? { ...f, status: row.status } : f)));
+      setError(res.error);
+    }
   }
 
   return (
@@ -288,7 +470,7 @@ export function FamiliesClient({
         <AdminBtn
           onClick={() => {
             setError(null);
-            setForm(blankForm(groups));
+            setForm(blankForm());
             setAddOpen(true);
           }}
         >
@@ -305,17 +487,19 @@ export function FamiliesClient({
       />
 
       {error && !membersOf && !addOpen && (
-        <p className="mb-3 text-[13px] font-semibold text-[#B0303A]">{error}</p>
+        <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>
       )}
 
       <AdminTable>
         <thead>
           <tr>
             <AdminTh>Head</AdminTh>
+            <AdminTh>Mobile</AdminTh>
             <AdminTh>Surname</AdminTh>
             <AdminTh>City</AdminTh>
             <AdminTh>Members</AdminTh>
-            <AdminTh>Actions</AdminTh>
+            <AdminTh>Status</AdminTh>
+            <AdminTh className="text-right">Actions</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -324,21 +508,41 @@ export function FamiliesClient({
               <AdminTd>
                 <b>{f.headEn}</b>
                 {f.headGu ? (
-                  <div className="mt-0.5 text-[12px] font-medium text-[#6B6357]">{f.headGu}</div>
+                  <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{f.headGu}</div>
                 ) : null}
+              </AdminTd>
+              <AdminTd className="whitespace-nowrap">
+                {f.mobile ? (
+                  <a href={`tel:${f.mobile}`} className="font-semibold text-[var(--ink)]">
+                    {f.mobile}
+                  </a>
+                ) : (
+                  <span className="text-[var(--faint)]">—</span>
+                )}
               </AdminTd>
               <AdminTd>
                 <span>{f.surnameEn}</span>
                 {f.surnameGu ? (
-                  <div className="mt-0.5 text-[12px] font-medium text-[#6B6357]">{f.surnameGu}</div>
+                  <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{f.surnameGu}</div>
                 ) : null}
               </AdminTd>
               <AdminTd>{f.city}</AdminTd>
               <AdminTd>{f.members}</AdminTd>
               <AdminTd>
-                <span className="flex flex-wrap gap-1">
+                <FamilyStatusPill status={f.status} />
+              </AdminTd>
+              <AdminTd className="text-right">
+                <span className="flex flex-wrap justify-end gap-1">
+                  <LinkAction onClick={() => router.push(`/admin/queue/${f.id}?from=families`)}>
+                    Edit
+                  </LinkAction>
+                  <span className="text-[var(--faint)]">·</span>
                   <LinkAction onClick={() => openMembers(f)}>Members</LinkAction>
-                  <span className="text-[#938C80]">·</span>
+                  <span className="text-[var(--faint)]">·</span>
+                  <LinkAction onClick={() => toggleStatus(f)}>
+                    {f.status === "APPROVED" ? "Deactivate" : "Activate"}
+                  </LinkAction>
+                  <span className="text-[var(--faint)]">·</span>
                   <LinkAction danger onClick={() => deleteFamily(f)}>
                     Delete
                   </LinkAction>
@@ -350,24 +554,47 @@ export function FamiliesClient({
       </AdminTable>
 
       {filtered.length === 0 && (
-        <p className="py-6 text-center text-[11.5px] text-[#938C80]">
-          {rows.length === 0 ? "No approved families yet." : "No families match your search."}
+        <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
+          {rows.length === 0 ? "No families yet." : "No families match your search."}
         </p>
       )}
 
       <AdminHint>
-        Member editor: visibility overrides · mark deceased (સ્વર્ગસ્થ) · change login number ·
-        reassign head. &quot;Add family directly&quot; bypasses the registration queue. New surnames
-        are added to Surname groups automatically.
+        Edit: change head name, surname, address, or add/remove members. Member editor:
+        visibility overrides · mark deceased (સ્વર્ગસ્થ) · change login number · reassign head.
+        &quot;Add family directly&quot; bypasses the registration queue. New surnames are added to
+        Surname groups automatically.
       </AdminHint>
 
-      <Dialog open={addOpen} onOpenChange={(o) => !o && setAddOpen(false)}>
-        <DialogContent className="max-w-[420px] rounded-2xl sm:max-w-[420px]">
-          <DialogTitle className="text-base font-extrabold text-[#2A2620]">
-            Add family directly
-          </DialogTitle>
-          <div className="mt-1">
-            <AdminLabel>Head name (English) *</AdminLabel>
+      <AdminModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="Add family directly"
+        // subtitle="Bypasses the registration queue — the family is approved immediately."
+        width="lg"
+        footer={
+          <AdminModalActions
+            onSave={createFamily}
+            onCancel={() => setAddOpen(false)}
+            saveLabel="Create family"
+            busy={addBusy}
+          />
+        }
+      >
+        <AdminFormSection title="Family details" />
+
+        <AdminFormRow>
+          <AdminField label="Head name (ગુજરાતી)">
+            <AdminInput
+              gujarati
+              value={form.headNameGu}
+              onChange={(v) => {
+                setForm((prev) => ({ ...prev, headNameGu: v }));
+                guInput(v, (gu) => setForm((prev) => ({ ...prev, surnameGu: gu })), "surname:gu");
+              }}
+            />
+          </AdminField>
+          <AdminField label="Head name (English)" required>
             <AdminInput
               value={form.headNameEn}
               onChange={(v) => {
@@ -375,87 +602,235 @@ export function FamiliesClient({
                 fromEn(v, (gu) => setForm((prev) => ({ ...prev, headNameGu: gu })), "head");
               }}
             />
-            <AdminLabel>Head name (ગુજરાતી)</AdminLabel>
-            <AdminInput
-              value={form.headNameGu}
-              onChange={(v) => {
-                setForm((prev) => ({ ...prev, headNameGu: v }));
-                fromGu(v, (en) => setForm((prev) => ({ ...prev, headNameEn: en })), "head");
-              }}
-            />
-            <AdminLabel>Surname group</AdminLabel>
-            <select
-              value={form.surnameGroupId || matchedGroup?.id || ""}
-              onChange={(e) => onPickGroup(e.target.value)}
-              className="mb-1 h-[42px] w-full rounded-[11px] border-[1.5px] border-[#EDE4D4] bg-[#FCFAF6] px-3 text-[13.5px] text-[#2A2320] outline-none"
-            >
-              <option value="">
-                {groups.length === 0
+          </AdminField>
+        </AdminFormRow>
+
+        <AdminField label="Surname group">
+          <AdminSelect
+            value={form.surnameGroupId || matchedGroup?.id || ""}
+            onChange={onPickGroup}
+            className="w-full"
+            options={[
+              {
+                value: "",
+                label: groups.length === 0
                   ? "Will create from surname below…"
-                  : "Select group — or type new surname below"}
-              </option>
-              {groups.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nameEn} · {s.nameGu}
-                </option>
-              ))}
-            </select>
-            {willCreateGroup && (
-              <p className="mb-2 text-[11.5px] font-semibold text-[#4E7A45]">
-                New surname group will be created: {form.surnameEn.trim()}
-                {form.surnameGu.trim() ? ` · ${form.surnameGu.trim()}` : ""}
-              </p>
-            )}
-            {matchedGroup && (
-              <p className="mb-2 text-[11.5px] text-[#6B6357]">
-                Matched existing group: {matchedGroup.nameEn} · {matchedGroup.nameGu}
-              </p>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <AdminLabel>Surname (English) *</AdminLabel>
-                <AdminInput value={form.surnameEn} onChange={applySurnameEn} />
-              </div>
-              <div>
-                <AdminLabel>Surname (ગુજરાતી)</AdminLabel>
-                <AdminInput value={form.surnameGu} onChange={applySurnameGu} />
-              </div>
-            </div>
-            <AdminLabel>City</AdminLabel>
+                  : "Select group — or type new surname below",
+              },
+              ...groups.map((s) => ({ value: s.id, label: `${s.nameEn} · ${s.nameGu}` })),
+            ]}
+          />
+        </AdminField>
+
+        {willCreateGroup && (
+          <p className="mb-2 text-[11.5px] font-semibold text-[var(--leaf)]">
+            New surname group will be created: {form.surnameEn.trim()}
+            {form.surnameGu.trim() ? ` · ${form.surnameGu.trim()}` : ""}
+          </p>
+        )}
+        {matchedGroup && (
+          <p className="mb-2 text-[11.5px] text-[var(--ink-dim)]">
+            Matched existing group: {matchedGroup.nameEn} · {matchedGroup.nameGu}
+          </p>
+        )}
+
+        <AdminFormRow>
+          <AdminField label="Surname (English)" required>
+            <AdminInput value={form.surnameEn} onChange={applySurnameEn} />
+          </AdminField>
+          <AdminField label="Surname (ગુજરાતી)">
+            <AdminInput gujarati value={form.surnameGu} onChange={applySurnameGu} />
+          </AdminField>
+        </AdminFormRow>
+
+        <AdminField label="Address">
+          <Textarea
+            value={form.addressEn}
+            placeholder="Full postal address…"
+            onChange={(e) => setForm({ ...form, addressEn: e.target.value })}
+            className="min-h-[64px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
+          />
+        </AdminField>
+
+        <AdminFormRow>
+          <AdminField label="City">
             <AdminInput value={form.city} onChange={(v) => setForm({ ...form, city: v })} />
-            {error && <p className="mt-2 text-[12.5px] font-semibold text-[#B0303A]">{error}</p>}
-            <div className="mt-4 flex gap-2.5">
-              <AdminBtn className="flex-1 justify-center" onClick={createFamily}>
-                {addBusy ? <Loader2 className="size-4 animate-spin" /> : "Create family"}
-              </AdminBtn>
-              <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setAddOpen(false)}>
-                Cancel
-              </AdminBtn>
+          </AdminField>
+          <AdminField label="Native place (મૂળ ગામ)">
+            <AdminInput
+              value={form.nativePlace}
+              onChange={(v) => setForm({ ...form, nativePlace: v })}
+            />
+          </AdminField>
+        </AdminFormRow>
+
+        <AdminField label="Family email">
+          <AdminInput value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
+        </AdminField>
+
+        <AdminFormSection title="Members" className="mt-5" />
+        <p className="mb-3 text-[11.5px] text-[var(--faint)]">
+          The head is added automatically. Add the rest of the household here — you can also do it
+          later from the Members editor.
+        </p>
+
+        {form.members.map((m, i) => (
+          <div
+            key={i}
+            className="mb-3 rounded-2xl border border-[var(--line-admin)] bg-[var(--surface-admin)] p-3.5"
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[12.5px] font-extrabold text-[var(--ink)]">
+                Member {i + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  setForm((f) => ({ ...f, members: f.members.filter((_, j) => j !== i) }))
+                }
+                className="cursor-pointer text-[11.5px] font-bold text-[var(--danger)]"
+              >
+                Remove
+              </button>
             </div>
+
+            <AdminFormRow>
+              <AdminField label="Name (ગુજરાતી)">
+                <AdminInput
+                  gujarati
+                  value={m.fullNameGu}
+                  onChange={(v) => {
+                    updateMemberDraft(i, { fullNameGu: v });
+                    guInput(v, (gu) => updateMemberDraft(i, { fullNameGu: gu }), `member-${i}:gu`);
+                  }}
+                />
+              </AdminField>
+              <AdminField label="Name (English)">
+                <AdminInput
+                  value={m.fullNameEn}
+                  onChange={(v) => {
+                    updateMemberDraft(i, { fullNameEn: v });
+                    fromEn(v, (gu) => updateMemberDraft(i, { fullNameGu: gu }), `member-${i}`);
+                  }}
+                />
+              </AdminField>
+            </AdminFormRow>
+
+            <AdminFormRow>
+              <AdminField label="Relation (સંબંધ)">
+                <AdminSelect
+                  value={m.relation}
+                  onChange={(v) => updateMemberDraft(i, { relation: v })}
+                  className="w-full"
+                  options={[
+                    { value: "", label: "—" },
+                    ...relations.map((r) => ({ value: r, label: r })),
+                  ]}
+                />
+              </AdminField>
+              <AdminField label="Mobile number">
+                <AdminInput
+                  value={m.mobile}
+                  onChange={(v) =>
+                    updateMemberDraft(i, { mobile: v.replace(/\D/g, "").slice(0, 10) })
+                  }
+                />
+              </AdminField>
+            </AdminFormRow>
+
+            <AdminFormRow>
+              <AdminField label="Birth date">
+                <AdminInput
+                  type="date"
+                  value={m.dateOfBirth}
+                  onChange={(v) => updateMemberDraft(i, { dateOfBirth: v })}
+                />
+              </AdminField>
+              <AdminField label="Blood group">
+                <AdminSelect
+                  value={m.bloodGroup}
+                  onChange={(v) => updateMemberDraft(i, { bloodGroup: v })}
+                  className="w-full"
+                  options={[{ value: "", label: "—" }, ...BLOOD_GROUPS]}
+                />
+              </AdminField>
+            </AdminFormRow>
+
+            {/* વ્યવસાય — same pattern as the member registration form. */}
+            <DropdownWithOther
+              label="Occupation · વ્યવસાય"
+              value={m.occupation}
+              otherValue={m.occupationCustom}
+              options={occupationChoices}
+              otherPlaceholder="e.g. Trade, Job, Farming…"
+              onChange={(v) => updateMemberDraft(i, { occupation: v })}
+              onOtherChange={(v) => updateMemberDraft(i, { occupationCustom: v })}
+            />
+
+            <AdminField
+              label="Work / business · વ્યવસાય / ધંધો"
+              hint="The specific job or trade."
+            >
+              <AdminInput
+                value={m.occupationOther}
+                placeholder="દા.ત. સોફ્ટવેર એન્જિનિયર, શિક્ષક, ડૉક્ટર…"
+                onChange={(v) => updateMemberDraft(i, { occupationOther: v })}
+              />
+            </AdminField>
+
+            <DropdownWithOther
+              label="Education · અભ્યાસ"
+              value={m.education}
+              otherValue={m.educationCustom}
+              options={educationChoices}
+              otherPlaceholder="e.g. B.COM, B.A., Diploma…"
+              onChange={(v) => updateMemberDraft(i, { education: v })}
+              onOtherChange={(v) => updateMemberDraft(i, { educationCustom: v })}
+            />
+
+            <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-[var(--ink-mid)]">
+              <input
+                type="checkbox"
+                checked={m.hasWhatsApp}
+                onChange={(e) => updateMemberDraft(i, { hasWhatsApp: e.target.checked })}
+                className="size-4 accent-[var(--wa)]"
+              />
+              આ નંબર પર WhatsApp છે
+            </label>
           </div>
-        </DialogContent>
-      </Dialog>
+        ))}
+
+        <button
+          type="button"
+          onClick={() => setForm((f) => ({ ...f, members: [...f.members, blankMemberDraft()] }))}
+          className="w-full cursor-pointer rounded-[13px] border-[1.5px] border-dashed border-[var(--brand-border)] bg-[var(--brand-tint-soft)] py-3 text-[13px] font-bold text-[var(--brand)]"
+        >
+          ＋ Add member
+        </button>
+
+        {error && <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
+      </AdminModal>
 
       <Dialog open={membersOf !== null} onOpenChange={(open) => !open && setMembersOf(null)}>
         <DialogContent
           className="max-h-[88vh] max-w-[460px] overflow-y-auto rounded-2xl p-0 sm:max-w-[460px]"
           showCloseButton={false}
         >
-          <div className="sticky top-0 flex items-center justify-between border-b border-[#F1EBDE] bg-white px-6 py-5">
+          <div className="sticky top-0 flex items-center justify-between border-b border-[var(--line-soft)] bg-white px-6 py-5">
             <div>
-              <DialogTitle className="text-base font-extrabold text-[#2A2620]">
+              <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
                 {membersOf
                   ? `${membersOf.headEn}${membersOf.headGu ? ` · ${membersOf.headGu}` : ""} — ${membersOf.surnameEn}${membersOf.surnameGu ? ` · ${membersOf.surnameGu}` : ""}`
                   : "Members"}
               </DialogTitle>
-              <p className="mt-0.5 text-xs text-[#938C80]">
+              <p className="mt-0.5 text-xs text-[var(--faint)]">
                 Manage members, visibility, login &amp; status.
               </p>
             </div>
             <button
               type="button"
               onClick={() => setMembersOf(null)}
-              className="cursor-pointer text-xl leading-none text-[#A79E92]"
+              className="cursor-pointer text-xl leading-none text-[var(--faint-soft)]"
             >
               <X className="size-5" />
             </button>
@@ -463,12 +838,12 @@ export function FamiliesClient({
 
           <div className="px-6 py-4 pb-5">
             {loadingMembers ? (
-              <div className="flex items-center gap-2 py-8 text-[13px] text-[#938C80]">
+              <div className="flex items-center gap-2 py-8 text-[13px] text-[var(--faint)]">
                 <Loader2 className="size-4 animate-spin" /> Loading members…
               </div>
             ) : (
               <>
-                {error && <p className="mb-2 text-[12.5px] font-semibold text-[#B0303A]">{error}</p>}
+                {error && <p className="mb-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
                 {members.map((m, i) => {
                   const col = MEMBER_COLORS[i % 5];
                   const name = m.fullNameGu || m.fullNameEn;
@@ -476,7 +851,7 @@ export function FamiliesClient({
                     <div
                       key={m.id}
                       className={cn(
-                        "mb-2.5 rounded-[14px] border border-[#F0E9DB] p-3",
+                        "mb-2.5 rounded-[14px] border border-[var(--line)] p-3",
                         m.isDeceased ? "bg-[#F6F4F0]" : "bg-white",
                       )}
                     >
@@ -488,22 +863,22 @@ export function FamiliesClient({
                           {name.trim()[0]}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="text-[13.5px] font-bold text-[#2A2620]">
+                          <div className="text-[13.5px] font-bold text-[var(--ink)]">
                             {name}
                             {m.isHead && (
-                              <span className="ml-1 rounded-[7px] bg-[#FBEDEE] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[#A62A38]">
+                              <span className="ml-1 rounded-[7px] bg-[var(--brand-tint)] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[var(--brand)]">
                                 વડા
                               </span>
                             )}
                           </div>
-                          <div className="text-[11.5px] text-[#938C80]">
+                          <div className="text-[11.5px] text-[var(--faint)]">
                             {(m.relation || "Member")} · {m.mobile || "— no login"}
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={() => removeMember(m)}
-                          className="cursor-pointer text-[11px] font-bold text-[#B0303A] underline"
+                          className="cursor-pointer text-[11px] font-bold text-[var(--danger)] underline"
                         >
                           Remove
                         </button>
@@ -514,7 +889,7 @@ export function FamiliesClient({
                           onClick={() => toggleMember(m, "isVisible")}
                           className={cn(
                             "cursor-pointer rounded-[9px] px-[11px] py-1.5 text-[11.5px] font-bold",
-                            m.isVisible ? "bg-[#E4F5E9] text-[#1E9E52]" : "bg-[#F1EBDE] text-[#8B8375]",
+                            m.isVisible ? "bg-[var(--success-tint)] text-[var(--success)]" : "bg-[var(--line-soft)] text-[var(--muted)]",
                           )}
                         >
                           {m.isVisible ? "👁 Visible" : "🚫 Hidden"}
@@ -523,7 +898,7 @@ export function FamiliesClient({
                           <button
                             type="button"
                             onClick={() => makeHead(m)}
-                            className="cursor-pointer rounded-[9px] bg-[#FBEDEE] px-[11px] py-1.5 text-[11.5px] font-bold text-[#A62A38]"
+                            className="cursor-pointer rounded-[9px] bg-[var(--brand-tint)] px-[11px] py-1.5 text-[11.5px] font-bold text-[var(--brand)]"
                           >
                             Make head
                           </button>
@@ -540,7 +915,7 @@ export function FamiliesClient({
                           onClick={() => toggleMember(m, "isDeceased")}
                           className={cn(
                             "cursor-pointer rounded-[9px] px-[11px] py-1.5 text-[11.5px] font-bold",
-                            m.isDeceased ? "bg-[#2A2620] text-white" : "bg-[#F1EBDE] text-[#8B8375]",
+                            m.isDeceased ? "bg-[var(--ink)] text-white" : "bg-[var(--line-soft)] text-[var(--muted)]",
                           )}
                         >
                           {m.isDeceased ? "✓ સ્વર્ગસ્થ" : "Mark deceased"}
@@ -553,7 +928,7 @@ export function FamiliesClient({
                 <button
                   type="button"
                   onClick={addMember}
-                  className="mb-4 flex h-[46px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[13px] border-[1.5px] border-dashed border-[#E1BFC3] bg-[#FDF4F5] text-[13px] font-extrabold text-[#A62A38]"
+                  className="mb-4 flex h-[46px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[13px] border-[1.5px] border-dashed border-[var(--brand-line)] bg-[var(--brand-tint-soft)] text-[13px] font-extrabold text-[var(--brand)]"
                 >
                   + Add member
                 </button>

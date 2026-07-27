@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import axios from "axios";
 import { motion } from "framer-motion";
-import { PhoneShell } from "@/components/layout/phone-shell";
+import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
 import { formatMobile } from "@/lib/format";
@@ -90,29 +90,29 @@ function OtpForm() {
     lang === "gu" ? "pending-approval સ્થિતિ જુઓ →" : "See pending-approval status →";
 
   return (
-    <PhoneShell>
+    <AppShell>
       <BackHeader title={title} onBack={() => router.push("/login")} />
       <div className="flex flex-1 flex-col items-center justify-center gap-[22px] px-[30px] py-[30px] text-center">
         <motion.div
           initial={{ scale: 0.85, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="flex h-[70px] w-[70px] items-center justify-center rounded-[22px] bg-[#E4F5E9] text-[#128C43]"
+          className="flex h-[70px] w-[70px] items-center justify-center rounded-[22px] bg-[var(--success-tint)] text-[var(--wa-dark)]"
         >
           <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
             <path d="M12 2.2A9.8 9.8 0 0 0 3.5 17L2.2 21.8l5-1.3A9.8 9.8 0 1 0 12 2.2Z" />
           </svg>
         </motion.div>
 
-        <div className="text-[14.5px] leading-relaxed text-[#57524A]">
+        <div className="text-[14.5px] leading-relaxed text-[var(--ink-mid)]">
           {sentTo}
           <br />
-          <b className="text-base text-[#2A2320]">{formatMobile(mobile)}</b>
+          <b className="text-base text-[var(--ink)]">{formatMobile(mobile)}</b>
           <br />
           {enterCode}
           {DEV_HINT && (
             <>
               <br />
-              <span className="mt-1 inline-block text-[12px] font-bold text-[#128C43]">
+              <span className="mt-1 inline-block text-[12px] font-bold text-[var(--wa-dark)]">
                 Dev mode OTP: {DEV_HINT}
               </span>
             </>
@@ -133,15 +133,15 @@ function OtpForm() {
               }}
               maxLength={1}
               inputMode="numeric"
-              className="h-14 w-[46px] rounded-[15px] border-[1.5px] border-[#E1DACC] bg-white text-center text-2xl font-extrabold text-[#2A2320] outline-none caret-[#A62A38] focus:border-[#A62A38] focus:shadow-[0_0_0_3px_rgba(166,42,56,.12)]"
+              className="h-14 w-[46px] rounded-[15px] border-[1.5px] border-[var(--line-input)] bg-white text-center text-2xl font-extrabold text-[var(--ink)] outline-none caret-[var(--brand)] focus:border-[var(--brand)] focus:shadow-[0_0_0_3px_rgb(var(--brand-rgb) / .12)]"
             />
           ))}
         </div>
 
-        <div className="text-[12.5px] font-medium text-[#938C80]">
+        <div className="text-[12.5px] font-medium text-[var(--faint)]">
           {resendLabel}{" "}
-          <b className="text-[#57524A]">00:{String(left).padStart(2, "0")}</b> ·{" "}
-          <button type="button" onClick={resendSms} className="cursor-pointer text-[#A62A38] underline">
+          <b className="text-[var(--ink-mid)]">00:{String(left).padStart(2, "0")}</b> ·{" "}
+          <button type="button" onClick={resendSms} className="cursor-pointer text-[var(--brand)] underline">
             {viaSms}
           </button>
         </div>
@@ -151,8 +151,8 @@ function OtpForm() {
             type="button"
             disabled={loading}
             onClick={login}
-            className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgba(166,42,56,.6)] disabled:opacity-60"
-            style={{ background: "linear-gradient(135deg,#A62A38,#851F2B)" }}
+            className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgb(var(--brand-rgb) / .6)] disabled:opacity-60"
+            style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
           >
             {t("login")}
           </button>
@@ -162,7 +162,7 @@ function OtpForm() {
           {seePending}
         </Link>
       </div>
-    </PhoneShell>
+    </AppShell>
   );
 }
 

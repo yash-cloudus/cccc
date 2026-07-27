@@ -1,18 +1,18 @@
 ﻿import { notFound } from "next/navigation";
 import { AdminShellGate } from "@/components/admin/admin-shell-gate";
 import { getActiveCommunity } from "@/lib/tenant";
-import { getPendingCount } from "@/lib/tenant-data";
+import { getAdminNavBadges } from "@/lib/tenant-data";
 import { communityAdminHostLabel } from "@/lib/platform";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  const pending = await getPendingCount(community.id);
+  const badges = await getAdminNavBadges(community.id);
 
   return (
     <AdminShellGate
-      pendingCount={pending}
+      badges={badges}
       communityNameEn={community.nameEn}
       communityNameGu={community.nameGu}
       logoText={community.logoText || community.nameGu || community.nameEn}

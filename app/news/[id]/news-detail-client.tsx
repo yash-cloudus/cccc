@@ -31,11 +31,11 @@ export function NewsDetailClient({ item }: { item: NewsDetail }) {
       <BackHeader title={t("news")} subtitle={formatDate(item.dateISO, lang)} />
       <div className="px-4 py-4 pb-8">
         {item.isPinned && (
-          <span className="mb-3 inline-flex items-center gap-1 rounded-lg bg-[#FCEFD6] px-2 py-1 text-[10.5px] font-extrabold text-[#B0801E]">
+          <span className="mb-3 inline-flex items-center gap-1 rounded-lg bg-[var(--gold-tint)] px-2 py-1 text-[10.5px] font-extrabold text-[var(--warn)]">
             📌 {t("pinned")}
           </span>
         )}
-        <h1 className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold leading-snug text-[#2A2320]">
+        <h1 className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold leading-snug text-[var(--ink)]">
           {pickText(item.titleGu, item.titleEn, lang)}
         </h1>
         <div
@@ -49,7 +49,7 @@ export function NewsDetailClient({ item }: { item: NewsDetail }) {
             <FileText className="h-12 w-12" strokeWidth={1.6} />
           )}
         </div>
-        <p className="mt-5 whitespace-pre-line text-[15px] leading-relaxed text-[#3C382F]">
+        <p className="mt-5 whitespace-pre-line text-[15px] leading-relaxed text-[var(--ink-soft)]">
           {pickText(item.contentGu, item.contentEn, lang)}
         </p>
 
@@ -60,13 +60,13 @@ export function NewsDetailClient({ item }: { item: NewsDetail }) {
             rel="noreferrer"
             className="samaj-card mt-5 flex items-center gap-3 p-3.5"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#E7F0FB] text-[#3D6B8C]">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--info-tint)] text-[var(--info)]">
               <FileText className="h-5 w-5" strokeWidth={1.85} />
             </div>
-            <div className="flex-1 text-sm font-bold text-[#2A2320]">
+            <div className="flex-1 text-sm font-bold text-[var(--ink)]">
               {item.documentName || (lang === "gu" ? "દસ્તાવેજ જુઓ" : "View document")}
             </div>
-            <ExternalLink className="h-[18px] w-[18px] text-[#C9C2B5]" />
+            <ExternalLink className="h-[18px] w-[18px] text-[var(--line-strong)]" />
           </a>
         )}
 

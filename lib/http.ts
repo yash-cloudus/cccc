@@ -16,9 +16,14 @@ export type ApiResult<T> =
 
 async function request<T>(url: string, init?: RequestInit): Promise<ApiResult<T>> {
   try {
+    // FormData must set its own multipart boundary — forcing a JSON
+    // Content-Type (or an empty one) produces a body the server cannot parse.
+    const isForm = init?.body instanceof FormData;
     const res = await fetch(url, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+      headers: isForm
+        ? init?.headers
+        : { "Content-Type": "application/json", ...(init?.headers || {}) },
     });
     const json = (await res.json().catch(() => ({}))) as Envelope<T>;
     if (!res.ok || !json.success) {
@@ -45,4 +50,6 @@ export const api = {
     request<T>(url, { method: "PATCH", body: JSON.stringify(body ?? {}) }),
   del: <T>(url: string, body?: unknown) =>
     request<T>(url, { method: "DELETE", body: body ? JSON.stringify(body) : undefined }),
+  /** Multipart POST for file uploads (see the FormData note in `request`). */
+  upload: <T>(url: string, form: FormData) => request<T>(url, { method: "POST", body: form }),
 };

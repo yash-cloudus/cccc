@@ -40,7 +40,7 @@ npm run db:seed
 npm run dev
 ```
 
-7. Login with mobile `9876543210` and OTP `123456` (`OTP_DEV_MODE=true`).
+7. Login with mobile `9876543210` and OTP `1234` (`OTP_DEV_MODE=true`).
 
 ## Troubleshooting
 
