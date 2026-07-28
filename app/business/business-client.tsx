@@ -27,7 +27,6 @@ export type CategoryRow = {
   id: string;
   nameEn: string;
   nameGu: string;
-  slug: string;
 };
 
 const PALETTE = [

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Check, Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminBtn,
@@ -22,8 +22,11 @@ import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import {
   type OccupationTreeNode,
+  DEFAULT_DIPLOMA_FIELDS,
+  DEFAULT_STREAMS,
   buildOccupationTree,
   choiceLabel,
+  findOccupationNodeById,
   isDiplomaLevel,
   isStreamLevel,
 } from "@/lib/occupation-defaults";
@@ -136,6 +139,78 @@ function SubRow({
   );
 }
 
+/**
+ * Maroon full-width buttons for Std 11/12 streams (Science · Commerce · Arts)
+ * and Diploma fields — same visual language as "+ Add sub-category".
+ */
+function QuickOptionButtons({
+  defaults,
+  existing,
+  busyKey,
+  onAdd,
+  onEdit,
+  onDelete,
+}: {
+  defaults: readonly { nameEn: string; nameGu: string; sortOrder: number }[];
+  existing: OccupationTreeNode[];
+  busyKey: string | null;
+  onAdd: (opt: { nameEn: string; nameGu: string; sortOrder: number }) => void;
+  onEdit: (node: OccupationTreeNode) => void;
+  onDelete: (node: OccupationTreeNode) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2.5">
+      {defaults.map((opt) => {
+        const node = existing.find(
+          (c) => c.nameEn.toLowerCase() === opt.nameEn.toLowerCase(),
+        );
+        const adding = busyKey === opt.nameEn;
+        if (node) {
+          return (
+            <div
+              key={opt.nameEn}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-br from-[var(--brand)] to-[var(--brand-dark)] px-[18px] py-[11px] text-white"
+            >
+              <Check className="size-4 shrink-0" strokeWidth={2.5} />
+              <div className="min-w-0 flex-1 text-left">
+                <div className="text-[13px] font-bold">{opt.nameEn}</div>
+                <div className="text-[11.5px] font-semibold opacity-90">{opt.nameGu}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onEdit(node)}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-white/15 px-2.5 py-1.5 text-[11.5px] font-bold hover:bg-white/25"
+              >
+                <Pencil className="size-3.5" />
+                edit
+              </button>
+              <button
+                type="button"
+                onClick={() => onDelete(node)}
+                className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-black/15 px-2.5 py-1.5 text-[11.5px] font-bold hover:bg-black/25"
+              >
+                <Trash2 className="size-3.5" />
+                delete
+              </button>
+            </div>
+          );
+        }
+        return (
+          <AdminBtn
+            key={opt.nameEn}
+            className="w-full justify-center"
+            disabled={adding}
+            onClick={() => onAdd(opt)}
+          >
+            {adding ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            {opt.nameEn} · {opt.nameGu}
+          </AdminBtn>
+        );
+      })}
+    </div>
+  );
+}
+
 export function OccupationSubDrawer({
   open,
   root,
@@ -152,7 +227,12 @@ export function OccupationSubDrawer({
   const [loading, setLoading] = useState(false);
   const [edit, setEdit] = useState<EditState>(null);
   const [busy, setBusy] = useState(false);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const isStreamRoot = root ? isStreamLevel(root.nameEn) : false;
+  const isDiplomaRoot = root ? isDiplomaLevel(root.nameEn) : false;
+  const isQuickPickRoot = isStreamRoot || isDiplomaRoot;
 
   const load = useCallback(async () => {
     if (!root) return;
@@ -164,7 +244,8 @@ export function OccupationSubDrawer({
       return;
     }
     const full = buildOccupationTree(res.data);
-    const node = full.find((r) => r.id === root.id);
+    // Std 11/12 live under Student — must search the whole tree, not only roots.
+    const node = findOccupationNodeById(full, root.id);
     setTree(node?.children ?? []);
   }, [root]);
 
@@ -180,6 +261,26 @@ export function OccupationSubDrawer({
       nameEn: row?.nameEn ?? "",
       nameGu: row?.nameGu ?? "",
     });
+  }
+
+  async function createChild(opt: { nameEn: string; nameGu: string; sortOrder: number }) {
+    if (!root) return;
+    setBusyKey(opt.nameEn);
+    const res = await api.post("/api/admin/dropdowns", {
+      type: "occupation",
+      nameEn: opt.nameEn,
+      nameGu: opt.nameGu,
+      parentId: root.id,
+      sortOrder: opt.sortOrder,
+    });
+    setBusyKey(null);
+    if (!res.ok) {
+      toast.error(res.error || "Could not add");
+      return;
+    }
+    await load();
+    onChanged?.();
+    toast.success(`${opt.nameEn} added`);
   }
 
   async function save() {
@@ -239,10 +340,40 @@ export function OccupationSubDrawer({
     toast.success("Deleted");
   }
 
+  async function addAllDefaults() {
+    if (!root) return;
+    const defaults = isStreamRoot ? DEFAULT_STREAMS : DEFAULT_DIPLOMA_FIELDS;
+    const missing = defaults.filter(
+      (d) => !tree.some((c) => c.nameEn.toLowerCase() === d.nameEn.toLowerCase()),
+    );
+    if (missing.length === 0) {
+      toast.message("All defaults are already added");
+      return;
+    }
+    setBusy(true);
+    for (const opt of missing) {
+      const res = await api.post("/api/admin/dropdowns", {
+        type: "occupation",
+        nameEn: opt.nameEn,
+        nameGu: opt.nameGu,
+        parentId: root.id,
+        sortOrder: opt.sortOrder,
+      });
+      if (!res.ok) {
+        toast.error(res.error || `Could not add ${opt.nameEn}`);
+        break;
+      }
+    }
+    setBusy(false);
+    await load();
+    onChanged?.();
+    toast.success("Default options added");
+  }
+
   return (
     <>
       <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-        <SheetContent side="right" className="w-full max-w-[480px] overflow-y-auto p-0">
+        <SheetContent side="right" className="w-full max-w-[480px] overflow-y-auto p-0 sm:max-w-[480px]">
           <SheetHeader className="border-b border-[var(--line-admin)] px-5 py-4">
             <SheetTitle className="text-base font-extrabold text-[var(--ink)]">
               Sub-categories — {root ? choiceLabel(root) : ""}
@@ -254,6 +385,78 @@ export function OccupationSubDrawer({
               <div className="flex justify-center py-10">
                 <Loader2 className="size-6 animate-spin text-[var(--brand)]" />
               </div>
+            ) : isQuickPickRoot ? (
+              <>
+                <p className="mb-3 text-[12.5px] font-semibold text-[var(--ink-dim)]">
+                  {isStreamRoot
+                    ? "Streams · પ્રવાહ — Science, Commerce, Arts"
+                    : "Diploma fields · ડિપ્લોમા ક્ષેત્ર"}
+                </p>
+
+                <QuickOptionButtons
+                  defaults={isStreamRoot ? DEFAULT_STREAMS : DEFAULT_DIPLOMA_FIELDS}
+                  existing={tree}
+                  busyKey={busyKey}
+                  onAdd={createChild}
+                  onEdit={(n) => openEdit(n.parentId, n)}
+                  onDelete={remove}
+                />
+
+                {tree.some(
+                  (c) =>
+                    !(isStreamRoot ? DEFAULT_STREAMS : DEFAULT_DIPLOMA_FIELDS).some(
+                      (d) => d.nameEn.toLowerCase() === c.nameEn.toLowerCase(),
+                    ),
+                ) && (
+                  <div className="mt-4 space-y-2 border-t border-[var(--line-soft)] pt-4">
+                    <div className="mb-1.5 text-[10.5px] font-extrabold tracking-wide text-[var(--faint)] uppercase">
+                      Other custom options
+                    </div>
+                    {tree
+                      .filter(
+                        (c) =>
+                          !(isStreamRoot ? DEFAULT_STREAMS : DEFAULT_DIPLOMA_FIELDS).some(
+                            (d) => d.nameEn.toLowerCase() === c.nameEn.toLowerCase(),
+                          ),
+                      )
+                      .map((node) => (
+                        <SubRow
+                          key={node.id}
+                          node={node}
+                          depth={0}
+                          onEdit={(n) => openEdit(n.parentId, n)}
+                          onToggle={toggleActive}
+                          onDelete={remove}
+                        />
+                      ))}
+                  </div>
+                )}
+
+                <div className="mt-4 flex flex-col gap-2.5">
+                  <AdminBtn
+                    className="w-full justify-center"
+                    disabled={busy}
+                    onClick={addAllDefaults}
+                  >
+                    {busy ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Plus className="size-4" />
+                    )}
+                    {isStreamRoot
+                      ? "Add all streams (Science · Commerce · Arts)"
+                      : "Add all default diploma fields"}
+                  </AdminBtn>
+                  <AdminBtn
+                    variant="ghost"
+                    className="w-full justify-center"
+                    onClick={() => openEdit(root?.id ?? null)}
+                  >
+                    <Plus className="size-4" />
+                    Add custom option
+                  </AdminBtn>
+                </div>
+              </>
             ) : (
               <>
                 <AdminBtn

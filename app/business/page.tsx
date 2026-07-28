@@ -32,7 +32,6 @@ export default async function BusinessPage() {
     id: c.id,
     nameEn: c.nameEn,
     nameGu: c.nameGu,
-    slug: c.slug,
   }));
 
   return <BusinessClient businesses={bizRows} categories={catRows} />;

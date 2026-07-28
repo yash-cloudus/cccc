@@ -352,8 +352,35 @@ export async function getBusiness(communityId: string, id: string) {
   });
 }
 
+/**
+ * Business directory / ads categories = Vepar (Business) occupation children
+ * from Dropdown lists (masters) — not a separate BusinessCategory table.
+ */
 export async function getBusinessCategories(communityId: string) {
-  return prisma.businessCategory.findMany({ where: { communityId }, orderBy: { sortOrder: "asc" } });
+  const veparRoot = await prisma.dropdownOption.findFirst({
+    where: {
+      communityId,
+      type: "occupation",
+      parentId: null,
+      OR: [
+        { nameEn: { contains: "Vepar" } },
+        { nameEn: { contains: "Business" } },
+        { nameGu: { contains: "વેપાર" } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (!veparRoot) return [];
+
+  return prisma.dropdownOption.findMany({
+    where: {
+      communityId,
+      type: "occupation",
+      parentId: veparRoot.id,
+      isActive: true,
+    },
+    orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
+  });
 }
 
 export async function getBloodDonors(communityId: string) {

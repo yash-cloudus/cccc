@@ -2,10 +2,31 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
 import { getSurnameGroups, getDropdownOptions } from "@/lib/tenant-data";
-import { seedOccupationDefaults } from "@/lib/occupation-defaults";
+import {
+  isStudentOccupation,
+  isVeparOccupation,
+  seedOccupationDefaults,
+} from "@/lib/occupation-defaults";
 import { DropdownsClient, type DropdownRow } from "./dropdowns-client";
 
 export const dynamic = "force-dynamic";
+
+function toRow(o: {
+  id: string;
+  nameEn: string;
+  nameGu: string;
+  isActive: boolean;
+  needsReview: boolean;
+}): DropdownRow {
+  return {
+    id: o.id,
+    nameEn: o.nameEn,
+    nameGu: o.nameGu,
+    isActive: o.isActive,
+    inUse: 0,
+    needsReview: o.needsReview,
+  };
+}
 
 export default async function DropdownsPage() {
   const community = await getActiveCommunity();
@@ -28,6 +49,12 @@ export default async function DropdownsPage() {
     prisma.bloodGroup.findMany({ orderBy: { type: "asc" } }),
   ]);
 
+  const occupationRoots = options.filter((o) => o.type === "occupation" && o.parentId === null);
+  const studentRoot = occupationRoots.find((o) =>
+    isStudentOccupation(o.nameEn, o.nameGu),
+  );
+  const veparRoot = occupationRoots.find((o) => isVeparOccupation(o.nameEn, o.nameGu));
+
   const rows: Record<string, DropdownRow[]> = {
     surname: surnames.map((s) => ({
       id: s.id,
@@ -44,20 +71,26 @@ export default async function DropdownsPage() {
       isActive: true,
       inUse: 0,
     })),
+    occupation: occupationRoots.map(toRow),
+    relationship: options
+      .filter((o) => o.type === "relationship" && o.parentId === null)
+      .map(toRow),
+    // Connected to Occupation → Student / Vepar children (same DropdownOption tree).
+    student: studentRoot
+      ? options.filter((o) => o.parentId === studentRoot.id).map(toRow)
+      : [],
+    vepar: veparRoot
+      ? options.filter((o) => o.parentId === veparRoot.id).map(toRow)
+      : [],
   };
 
-  for (const type of ["occupation", "relationship"]) {
-    rows[type] = options
-      .filter((o) => o.type === type && o.parentId === null)
-      .map((o) => ({
-        id: o.id,
-        nameEn: o.nameEn,
-        nameGu: o.nameGu,
-        isActive: o.isActive,
-        inUse: 0,
-        needsReview: o.needsReview,
-      }));
-  }
-
-  return <DropdownsClient initialRows={rows} />;
+  return (
+    <DropdownsClient
+      initialRows={rows}
+      roots={{
+        student: studentRoot ? toRow(studentRoot) : null,
+        vepar: veparRoot ? toRow(veparRoot) : null,
+      }}
+    />
+  );
 }

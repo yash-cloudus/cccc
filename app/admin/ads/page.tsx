@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
+import { getBusinessCategories } from "@/lib/tenant-data";
 import { AdsClient, type AdRow, type BusinessOption, type CategoryOption } from "./ads-client";
 
 export const dynamic = "force-dynamic";
@@ -14,12 +15,8 @@ export default async function AdsPage() {
       where: { communityId: community.id },
       orderBy: [{ createdAt: "desc" }],
     }),
-    prisma.businessCategory.findMany({
-      where: { communityId: community.id },
-      select: { nameEn: true, nameGu: true },
-      orderBy: { nameEn: "asc" },
-    }),
-    // Offered in the "Existing business" picker of the New advertisement form.
+    // Same list as Business directory — Vepar (Business) sub-categories.
+    getBusinessCategories(community.id),
     prisma.business.findMany({
       where: { communityId: community.id },
       select: {
@@ -31,7 +28,6 @@ export default async function AdsPage() {
         address: true,
         city: true,
         category: { select: { nameEn: true, nameGu: true } },
-        // Business has no owner column — the owner is the linked family's head.
         family: { select: { headNameEn: true, headNameGu: true } },
       },
       orderBy: { nameEn: "asc" },
@@ -74,7 +70,6 @@ export default async function AdsPage() {
       name,
       category: catEn,
       categoryLabel: catLabel,
-      // Dropdown shows business + category (business-category master values).
       label: catLabel ? `${name} · ${catLabel}` : name,
       ownerName: b.family?.headNameGu || b.family?.headNameEn || "",
       ownerMobile: b.phone ?? "",

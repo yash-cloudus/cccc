@@ -23,6 +23,7 @@ import { OccupationSubDrawer } from "@/components/admin/occupation-sub-drawer";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
+import { isDiplomaLevel, isStreamLevel } from "@/lib/occupation-defaults";
 
 export type DropdownRow = {
   id: string;
@@ -33,7 +34,13 @@ export type DropdownRow = {
   needsReview?: boolean;
 };
 
-type CategoryId = "surname" | "occupation" | "relationship" | "blood";
+type CategoryId =
+  | "surname"
+  | "occupation"
+  | "student"
+  | "vepar"
+  | "relationship"
+  | "blood";
 
 type Category = {
   id: CategoryId;
@@ -41,12 +48,30 @@ type Category = {
   noun: string;
   api: "surname-groups" | "dropdowns" | null;
   hasStatus: boolean;
+  /** Nested occupation tab — children of Student / Vepar roots. */
+  occupationChild?: "student" | "vepar";
   readOnlyNote?: string;
 };
 
 const CATEGORIES: Category[] = [
   { id: "surname", chip: "Surname · અટક", noun: "Surname", api: "surname-groups", hasStatus: false },
   { id: "occupation", chip: "Occupation · વ્યવસાય", noun: "Occupation", api: "dropdowns", hasStatus: true },
+  {
+    id: "student",
+    chip: "Student · વિદ્યાર્થી",
+    noun: "Education level",
+    api: "dropdowns",
+    hasStatus: true,
+    occupationChild: "student",
+  },
+  {
+    id: "vepar",
+    chip: "Vepar (Business) · વેપાર",
+    noun: "Business type",
+    api: "dropdowns",
+    hasStatus: true,
+    occupationChild: "vepar",
+  },
   { id: "relationship", chip: "Relationship · સંબંધ", noun: "Relationship", api: "dropdowns", hasStatus: true },
   {
     id: "blood",
@@ -61,9 +86,16 @@ const CATEGORIES: Category[] = [
 
 type EditState = { id: string | null; nameEn: string; nameGu: string } | null;
 
-export function DropdownsClient({ initialRows }: { initialRows: Record<string, DropdownRow[]> }) {
+export function DropdownsClient({
+  initialRows,
+  roots,
+}: {
+  initialRows: Record<string, DropdownRow[]>;
+  roots: { student: DropdownRow | null; vepar: DropdownRow | null };
+}) {
   const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<Record<string, DropdownRow[]>>(initialRows);
+  const [rootIds, setRootIds] = useState(roots);
   const [catId, setCatId] = useState<CategoryId>("surname");
   const [q, setQ] = useState("");
   const [edit, setEdit] = useState<EditState>(null);
@@ -81,12 +113,67 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
     );
   }, [rows, catId, q]);
 
+  async function refreshChildTab(kind: "student" | "vepar") {
+    const root = kind === "student" ? rootIds.student : rootIds.vepar;
+    if (!root) return;
+    const res = await api.get<
+      { id: string; nameEn: string; nameGu: string; isActive: boolean; parentId: string | null }[]
+    >(`/api/admin/dropdowns?type=occupation&parentId=${root.id}`);
+    if (!res.ok) return;
+    setRows((prev) => ({
+      ...prev,
+      [kind]: res.data.map((o) => ({
+        id: o.id,
+        nameEn: o.nameEn,
+        nameGu: o.nameGu,
+        isActive: o.isActive,
+        inUse: 0,
+      })),
+    }));
+  }
+
   const patchRows = (next: (prev: DropdownRow[]) => DropdownRow[]) =>
     setRows((prev) => ({ ...prev, [catId]: next(prev[catId] ?? []) }));
 
   function openEdit(row?: DropdownRow) {
     setError(null);
     setEdit({ id: row?.id ?? null, nameEn: row?.nameEn ?? "", nameGu: row?.nameGu ?? "" });
+  }
+
+  async function ensureOccupationRoot(
+    kind: "student" | "vepar",
+  ): Promise<DropdownRow | null> {
+    const existing = kind === "student" ? rootIds.student : rootIds.vepar;
+    if (existing) return existing;
+
+    const payload =
+      kind === "student"
+        ? { type: "occupation", nameEn: "Student", nameGu: "વિદ્યાર્થી", parentId: null }
+        : {
+            type: "occupation",
+            nameEn: "Vepar (Business)",
+            nameGu: "વેપાર",
+            parentId: null,
+          };
+
+    const res = await api.post<DropdownRow>("/api/admin/dropdowns", payload);
+    if (!res.ok) {
+      toast.error(res.error || `Could not create ${kind} occupation`);
+      return null;
+    }
+    const root = {
+      id: res.data.id,
+      nameEn: res.data.nameEn,
+      nameGu: res.data.nameGu,
+      isActive: true,
+      inUse: 0,
+    };
+    setRootIds((prev) => ({ ...prev, [kind]: root }));
+    setRows((prev) => ({
+      ...prev,
+      occupation: [...(prev.occupation ?? []), root],
+    }));
+    return root;
   }
 
   async function save() {
@@ -100,10 +187,20 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
 
     const url = `/api/admin/${cat.api}`;
     const base = { nameEn: edit.nameEn.trim(), nameGu: edit.nameGu.trim() };
-    const payload =
-      cat.api === "dropdowns"
-        ? { ...base, type: catId, parentId: null as string | null }
-        : base;
+
+    let payload: Record<string, unknown> = base;
+    if (cat.api === "dropdowns") {
+      if (cat.occupationChild) {
+        const root = await ensureOccupationRoot(cat.occupationChild);
+        if (!root) {
+          setBusy(false);
+          return;
+        }
+        payload = { ...base, type: "occupation", parentId: root.id };
+      } else {
+        payload = { ...base, type: catId, parentId: null };
+      }
+    }
 
     const res = edit.id
       ? await api.patch<DropdownRow>(url, { id: edit.id, ...payload })
@@ -142,8 +239,8 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
       description:
         row.inUse > 0
           ? `This option is used by ${row.inUse} record(s). Deleting it won't change those records, but it will no longer appear in the app's dropdowns.`
-          : catId === "occupation"
-            ? "All sub-categories under this occupation will also be removed."
+          : catId === "occupation" || cat.occupationChild
+            ? "Nested sub-categories under this option will also be removed."
             : undefined,
       confirmLabel: "Delete",
       tone: "danger",
@@ -159,6 +256,13 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
     toast.success(`${cat.noun} deleted`);
   }
 
+  const showNestedAction = (row: DropdownRow) => {
+    if (catId === "occupation") return true;
+    if (catId === "student") return isStreamLevel(row.nameEn) || isDiplomaLevel(row.nameEn);
+    if (catId === "vepar") return true; // allow deeper nesting under business types
+    return false;
+  };
+
   return (
     <>
       <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
@@ -173,8 +277,10 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
 
       <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
         Each option is saved in English + ગુજરાતી. Disabled options stay on old records but no
-        longer appear in the app’s dropdowns. Occupation sub-categories (business type, education
-        level, streams) are managed via the side drawer on each occupation row.
+        longer appear in the app’s dropdowns.{" "}
+        <b>Student</b> and <b>Vepar (Business)</b> tabs manage sub-categories linked to those
+        occupations (same data as the Occupation drawer). New communities get the default lists
+        automatically.
       </AdminHint>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -201,6 +307,18 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
       {cat.readOnlyNote && (
         <p className="mb-4 rounded-xl border border-[var(--info)]/25 bg-[var(--info-tint)] px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--info)]">
           {cat.readOnlyNote}
+        </p>
+      )}
+
+      {cat.occupationChild && (
+        <p className="mb-4 rounded-xl border border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[12.5px] text-[var(--ink-dim)]">
+          Linked to Occupation →{" "}
+          <b className="text-[var(--ink)]">
+            {cat.occupationChild === "student"
+              ? "Student · વિદ્યાર્થી"
+              : "Vepar (Business) · વેપાર"}
+          </b>
+          . Changes here appear in member forms and the Occupation sub-categories drawer.
         </p>
       )}
 
@@ -253,9 +371,9 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
               <AdminTd className="text-right">
                 {cat.api ? (
                   <span className="flex flex-wrap justify-end gap-2.5">
-                    {catId === "occupation" && (
+                    {showNestedAction(row) && (
                       <LinkAction onClick={() => setSubDrawer(row)}>
-                        Sub-categories
+                        {catId === "occupation" ? "Sub-categories" : "Nested"}
                       </LinkAction>
                     )}
                     <LinkAction onClick={() => openEdit(row)}>edit</LinkAction>
@@ -284,7 +402,13 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
       <OccupationSubDrawer
         open={subDrawer !== null}
         root={subDrawer}
-        onClose={() => setSubDrawer(null)}
+        onClose={() => {
+          setSubDrawer(null);
+          if (cat.occupationChild) refreshChildTab(cat.occupationChild);
+        }}
+        onChanged={() => {
+          if (cat.occupationChild) refreshChildTab(cat.occupationChild);
+        }}
       />
 
       <Dialog open={edit !== null} onOpenChange={(o) => !o && setEdit(null)}>

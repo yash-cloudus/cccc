@@ -8,20 +8,26 @@ export type OccupationSeedNode = {
   children?: OccupationSeedNode[];
 };
 
-const STREAMS: OccupationSeedNode[] = [
+/** Default streams for Std 11 / Std 12. */
+export const DEFAULT_STREAMS = [
   { nameEn: "Science", nameGu: "વિજ્ઞાન", sortOrder: 1 },
   { nameEn: "Commerce", nameGu: "વાણિજ્ય", sortOrder: 2 },
   { nameEn: "Arts", nameGu: "કલા", sortOrder: 3 },
-];
+] as const;
 
-const DIPLOMA_FIELDS: OccupationSeedNode[] = [
+/** Default diploma fields. */
+export const DEFAULT_DIPLOMA_FIELDS = [
   { nameEn: "IT", nameGu: "આઈટી", sortOrder: 1 },
   { nameEn: "EC", nameGu: "ઈસી", sortOrder: 2 },
   { nameEn: "Mechanical", nameGu: "મિકેનિકલ", sortOrder: 3 },
   { nameEn: "Civil", nameGu: "સિવિલ", sortOrder: 4 },
   { nameEn: "Electrical", nameGu: "ઇલેક્ટ્રિકલ", sortOrder: 5 },
   { nameEn: "Computer", nameGu: "કમ્પ્યુટર", sortOrder: 6 },
-];
+] as const;
+
+const STREAMS: OccupationSeedNode[] = DEFAULT_STREAMS.map((s) => ({ ...s }));
+
+const DIPLOMA_FIELDS: OccupationSeedNode[] = DEFAULT_DIPLOMA_FIELDS.map((s) => ({ ...s }));
 
 const EDUCATION_LEVELS: OccupationSeedNode[] = [
   { nameEn: "Balmandir", nameGu: "બાલમંદિર", sortOrder: 1 },
@@ -94,16 +100,19 @@ export const DEFAULT_OCCUPATION_TREE: OccupationSeedNode[] = [
   },
 ];
 
-export function isStudentOccupation(nameEn: string) {
-  return /student/i.test(nameEn);
+export function isStudentOccupation(nameEn: string, nameGu?: string) {
+  return /student|વિદ્યાર્થી/i.test(`${nameEn} ${nameGu ?? ""}`);
 }
 
-export function isVeparOccupation(nameEn: string) {
-  return /vepar|business|trade|વેપાર/i.test(nameEn);
+export function isVeparOccupation(nameEn: string, nameGu?: string) {
+  return /vepar|business|trade|વેપાર/i.test(`${nameEn} ${nameGu ?? ""}`);
 }
 
-export function isNokriOccupation(nameEn: string) {
-  return /nokri|job|નોકરી/i.test(nameEn) && !isVeparOccupation(nameEn);
+export function isNokriOccupation(nameEn: string, nameGu?: string) {
+  return (
+    /nokri|job|નોકરી/i.test(`${nameEn} ${nameGu ?? ""}`) &&
+    !isVeparOccupation(nameEn, nameGu)
+  );
 }
 
 export function isStreamLevel(nameEn: string) {
@@ -200,6 +209,19 @@ export function buildOccupationTree(
       }));
   }
   return walk(null);
+}
+
+/** Find any node in the tree by id. */
+export function findOccupationNodeById(
+  tree: OccupationTreeNode[],
+  id: string,
+): OccupationTreeNode | undefined {
+  for (const n of tree) {
+    if (n.id === id) return n;
+    const child = findOccupationNodeById(n.children, id);
+    if (child) return child;
+  }
+  return undefined;
 }
 
 /** Find any node in the tree by stored En/Gu label. */

@@ -257,22 +257,15 @@ async function seedCommunityData(
   }
   await seedOccupationDefaults(prisma, communityId);
 
-  // Business categories
-  const catDefs: [string, string, string][] = [
-    ["Trade", "\u0AB5\u0AC7\u0AAA\u0ABE\u0AB0", "trade"],
-    ["Service", "\u0AB8\u0AC7\u0AB5\u0ABE", "service"],
-    ["Farming", "\u0A96\u0AC7\u0AA4\u0AC0", "farming"],
-    ["Professional", "\u0AAA\u0ACD\u0AB0\u0ACB\u0AAB\u0AC7\u0AB6\u0AA8\u0AB2", "professional"],
-  ];
-  const cats: Record<string, string> = {};
-  for (const [nameEn, nameGu, slug] of catDefs) {
-    const c = await prisma.businessCategory.upsert({
-      where: { communityId_slug: { communityId, slug } },
-      update: {},
-      create: { communityId, nameEn, nameGu, slug },
-    });
-    cats[slug] = c.id;
-  }
+  // Business category for seed data = Vepar child "Jewellery"
+  const veparRoot = await prisma.dropdownOption.findFirst({
+    where: { communityId, type: "occupation", parentId: null, nameEn: "Vepar (Business)" },
+  });
+  const jewelleryCat = veparRoot
+    ? await prisma.dropdownOption.findFirst({
+        where: { communityId, type: "occupation", parentId: veparRoot.id, nameEn: "Jewellery" },
+      })
+    : null;
 
   // Community owner/admin (also a member: username+password AND mobile+OTP)
   const ownerPwd = await bcrypt.hash(opts.ownerPassword, 10);
@@ -475,7 +468,7 @@ async function seedCommunityData(
         communityId,
         userId: owner.id,
         familyId: family.id,
-        categoryId: cats["trade"],
+        categoryId: jewelleryCat?.id ?? null,
         nameEn: "Patel Jewellers",
         nameGu: "\u0AAA\u0A9F\u0AC7\u0AB2 \u0A9C\u0ACD\u0AAF\u0AC1\u0AB5\u0AC7\u0AB2\u0AB0\u0ACD\u0AB8",
         description: "Gold and silver jewellery",
