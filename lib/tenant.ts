@@ -107,6 +107,89 @@ export async function getMyFamilyId(userId: string): Promise<string | null> {
   return member?.familyId ?? null;
 }
 
+/**
+ * The signed-in member's own record.
+ *
+ * Two tables describe a person: `Profile` (created when an admin makes the
+ * account) and `FamilyMember` (created by family registration). An OTP member
+ * usually has only the latter, so reading `Profile` alone leaves them looking
+ * like they have no profile at all. `source` tells callers which row to write
+ * back to. See [[getMyFamilyId]] for the same split on households.
+ */
+export type MyMemberRecord = {
+  source: "profile" | "familyMember";
+  id: string;
+  familyId: string | null;
+  fullNameEn: string;
+  fullNameGu: string | null;
+  relation: string | null;
+  dateOfBirth: Date | null;
+  bloodGroup: string | null;
+  occupation: string | null;
+  occupationOther: string | null;
+  education: string | null;
+  course: string | null;
+  currentlyAt: string | null;
+  showPhone: boolean;
+  hasWhatsApp: boolean;
+};
+
+export async function getMyMemberRecord(userId: string): Promise<MyMemberRecord | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { mobile: true, communityId: true },
+  });
+  if (!user) return null;
+
+  const profile = await prisma.profile.findUnique({ where: { userId } });
+  if (profile) {
+    return {
+      source: "profile",
+      id: profile.id,
+      familyId: profile.familyId ?? (await getMyFamilyId(userId)),
+      fullNameEn: profile.fullNameEn,
+      fullNameGu: profile.fullNameGu,
+      relation: profile.relation,
+      dateOfBirth: profile.dateOfBirth,
+      bloodGroup: profile.bloodGroup,
+      occupation: profile.occupation,
+      occupationOther: profile.occupationOther,
+      education: profile.education,
+      course: profile.course,
+      currentlyAt: profile.currentlyAt,
+      showPhone: profile.showPhone,
+      hasWhatsApp: profile.hasWhatsApp,
+    };
+  }
+
+  if (!user.mobile) return null;
+  const member = await prisma.familyMember.findFirst({
+    where: {
+      mobile: user.mobile,
+      ...(user.communityId ? { family: { communityId: user.communityId } } : {}),
+    },
+  });
+  if (!member) return null;
+
+  return {
+    source: "familyMember",
+    id: member.id,
+    familyId: member.familyId,
+    fullNameEn: member.fullNameEn,
+    fullNameGu: member.fullNameGu,
+    relation: member.relation,
+    dateOfBirth: member.dateOfBirth,
+    bloodGroup: member.bloodGroup,
+    occupation: member.occupation,
+    occupationOther: member.occupationOther,
+    education: member.education,
+    course: member.course,
+    currentlyAt: member.currentlyAt,
+    showPhone: member.showPhone,
+    hasWhatsApp: member.hasWhatsApp,
+  };
+}
+
 export async function getActiveCommunityId(): Promise<string | null> {
   const c = await getActiveCommunity();
   return c?.id ?? null;

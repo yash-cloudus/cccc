@@ -23,13 +23,12 @@ import {
   AdminModalActions,
 } from "@/components/admin/admin-form";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
-import { DropdownWithOther } from "@/components/admin/dropdown-with-other";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
+import { FamilyDetailsFields } from "@/components/forms/family-details-fields";
 import {
   type CascadingOccupationValues,
   blankCascadingOccupation,
@@ -141,13 +140,19 @@ function blankForm() {
     surnameGu: "",
     surnameGroupId: "",
     addressEn: "",
+    // Gujarati address, elder name and map pin — the member registration form
+    // has always collected these; the admin form now matches it.
+    addressGu: "",
     city: "",
     nativePlace: "",
     email: "",
     villageAreaId: "",
     livesOutsideVillage: false,
     nativeElderNameEn: "",
+    nativeElderNameGu: "",
     nativeElderPhone: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
     headMobile: "",
     ...blankCascadingOccupation(),
     members: [] as MemberDraft[],
@@ -235,39 +240,10 @@ export function FamiliesClient({
   }, [rows, query]);
 
   const matchedGroup = matchGroup(groups, form.surnameEn);
-  const willCreateGroup =
-    Boolean(form.surnameEn.trim()) && !matchedGroup && !form.surnameGroupId;
-
-  function applySurnameEn(v: string) {
-    const match = matchGroup(groups, v);
-    setForm((prev) => ({
-      ...prev,
-      surnameEn: v,
-      surnameGroupId: match?.id ?? "",
-    }));
-    fromEn(v, (gu) => setForm((prev) => ({ ...prev, surnameGu: gu })), "surname");
-  }
-
-  function applySurnameGu(v: string) {
-    setForm((prev) => ({ ...prev, surnameGu: v }));
-    // Gujarati keyboard only — the English surname is never overwritten from here.
-    guInput(v, (gu) => setForm((prev) => ({ ...prev, surnameGu: gu })), "surname:gu");
-  }
-
   function updateMemberDraft(index: number, patch: Partial<MemberDraft>) {
     setForm((f) => ({
       ...f,
       members: f.members.map((m, i) => (i === index ? { ...m, ...patch } : m)),
-    }));
-  }
-
-  function onPickGroup(id: string) {
-    const g = groups.find((x) => x.id === id);
-    setForm((prev) => ({
-      ...prev,
-      surnameGroupId: id,
-      surnameEn: g?.nameEn ?? prev.surnameEn,
-      surnameGu: g?.nameGu ?? prev.surnameGu,
     }));
   }
 
@@ -332,13 +308,17 @@ export function FamiliesClient({
           ? lockedSurname.id
           : form.surnameGroupId || matchedGroup?.id) || undefined,
       addressEn: form.addressEn.trim() || undefined,
+      addressGu: form.addressGu.trim() || undefined,
       city: form.city.trim() || undefined,
       nativePlace: form.nativePlace.trim() || undefined,
       email: form.email.trim() || undefined,
       villageAreaId: form.livesOutsideVillage ? null : form.villageAreaId || null,
       livesOutsideVillage: form.livesOutsideVillage,
       nativeElderNameEn: form.nativeElderNameEn.trim() || undefined,
+      nativeElderNameGu: form.nativeElderNameGu.trim() || undefined,
       nativeElderPhone: form.nativeElderPhone.trim() || undefined,
+      latitude: form.latitude ?? undefined,
+      longitude: form.longitude ?? undefined,
       members: [
         {
           fullNameEn: form.headNameEn.trim(),
@@ -651,133 +631,18 @@ export function FamiliesClient({
       >
         <AdminFormSection title="Family details" />
 
-        {communityType === "PARIVAR" ? (
-          <p className="mb-3 rounded-xl border border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[13px] font-semibold text-[var(--ink-dim)]">
-            Surname (locked):{" "}
-            <span className="text-[var(--ink)]">
-              {lockedSurname
-                ? `${lockedSurname.nameEn}${lockedSurname.nameGu ? ` · ${lockedSurname.nameGu}` : ""}`
-                : form.surnameEn || "—"}
-            </span>
-          </p>
-        ) : (
-          <>
-            <AdminField label="Surname group">
-              <AdminSelect
-                value={form.surnameGroupId || matchedGroup?.id || ""}
-                onChange={onPickGroup}
-                className="w-full"
-                options={[
-                  {
-                    value: "",
-                    label: groups.length === 0
-                      ? "Will create from surname below…"
-                      : "Select group — or type new surname below",
-                  },
-                  ...groups.map((s) => ({ value: s.id, label: `${s.nameEn} · ${s.nameGu}` })),
-                ]}
-              />
-            </AdminField>
-
-            {willCreateGroup && (
-              <p className="mb-2 text-[11.5px] font-semibold text-[var(--leaf)]">
-                New surname group will be created: {form.surnameEn.trim()}
-                {form.surnameGu.trim() ? ` · ${form.surnameGu.trim()}` : ""}
-              </p>
-            )}
-            {matchedGroup && (
-              <p className="mb-2 text-[11.5px] text-[var(--ink-dim)]">
-                Matched existing group: {matchedGroup.nameEn} · {matchedGroup.nameGu}
-              </p>
-            )}
-
-            <AdminFormRow>
-              <AdminField label="Surname (English)" required>
-                <AdminInput value={form.surnameEn} onChange={applySurnameEn} />
-              </AdminField>
-              <AdminField label="Surname (ગુજરાતી)">
-                <AdminInput gujarati value={form.surnameGu} onChange={applySurnameGu} />
-              </AdminField>
-            </AdminFormRow>
-          </>
-        )}
-
-        <AdminField label="Address">
-          <Textarea
-            value={form.addressEn}
-            placeholder="Full postal address…"
-            onChange={(e) => setForm({ ...form, addressEn: e.target.value })}
-            className="min-h-[64px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
-          />
-        </AdminField>
-
-        {communityType === "PARIVAR" ? (
-          <AdminField label="City · શહેર" required>
-            <AdminSelect
-              value={form.city}
-              onChange={(v) => setForm({ ...form, city: v })}
-              className="w-full"
-              options={[
-                { value: "", label: "Select city…" },
-                ...cities.map((c) => ({
-                  value: c.nameEn,
-                  label: `${c.nameEn}${c.nameGu ? ` · ${c.nameGu}` : ""}`,
-                })),
-              ]}
-            />
-          </AdminField>
-        ) : (
-          <>
-            <AdminField label="Village · ગામ">
-              <AdminSelect
-                value={form.livesOutsideVillage ? "__outside__" : form.villageAreaId}
-                onChange={(v) => {
-                  if (v === "__outside__") {
-                    setForm({ ...form, livesOutsideVillage: true, villageAreaId: "" });
-                  } else {
-                    setForm({ ...form, livesOutsideVillage: false, villageAreaId: v });
-                  }
-                }}
-                className="w-full"
-                options={[
-                  { value: "", label: "Select village…" },
-                  ...villages.map((v) => ({
-                    value: v.id,
-                    label: `${v.nameEn}${v.nameGu ? ` · ${v.nameGu}` : ""}`,
-                  })),
-                  { value: "__outside__", label: "Lives outside · બહાર" },
-                ]}
-              />
-            </AdminField>
-            <AdminField
-              label={form.livesOutsideVillage ? "City · શહેર" : "City"}
-              required={form.livesOutsideVillage}
-            >
-              <AdminInput value={form.city} onChange={(v) => setForm({ ...form, city: v })} />
-            </AdminField>
-          </>
-        )}
-
-        <AdminFormRow>
-          <AdminField label="Native elder name">
-            <AdminInput
-              value={form.nativeElderNameEn}
-              onChange={(v) => setForm({ ...form, nativeElderNameEn: v })}
-            />
-          </AdminField>
-          <AdminField label="Native elder phone">
-            <AdminInput
-              value={form.nativeElderPhone}
-              onChange={(v) =>
-                setForm({
-                  ...form,
-                  nativeElderPhone: v.replace(/\D/g, "").slice(0, 10),
-                })
-              }
-            />
-          </AdminField>
-        </AdminFormRow>
-
+        <FamilyDetailsFields
+          variant="admin"
+          values={form}
+          onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
+          communityType={communityType}
+          lockedSurname={lockedSurname}
+          surnameGroups={groups}
+          cities={cities}
+          villages={villages}
+          allowNewSurname
+          t={(_gu, en) => en}
+        />
         <AdminFormSection title="Members" className="mt-5" />
         <p className="mb-3 text-[11.5px] text-[var(--faint)]">
           First person is the family head. Add other household members below — or later from

@@ -85,3 +85,68 @@ export function validateHeadMobile(
   }
   return null;
 }
+
+/* ══════════════════ shared client form model ══════════════════ */
+
+/**
+ * The family-details block, shared by the member "પરિવાર નોંધણી" wizard and the
+ * admin "Add family directly" modal. Field names match the API payload so both
+ * sides can hand this object straight to `familyDetailsToPayload`.
+ */
+export type FamilyDetailsValues = {
+  surnameGroupId: string;
+  surnameEn: string;
+  surnameGu: string;
+  addressEn: string;
+  addressGu: string;
+  city: string;
+  villageAreaId: string;
+  livesOutsideVillage: boolean;
+  nativeElderNameEn: string;
+  nativeElderNameGu: string;
+  nativeElderPhone: string;
+  /** Captured by the "નકશા પર સ્થળ" button; null until the member pins a spot. */
+  latitude: number | null;
+  longitude: number | null;
+};
+
+export function blankFamilyDetails(
+  partial: Partial<FamilyDetailsValues> = {},
+): FamilyDetailsValues {
+  return {
+    surnameGroupId: "",
+    surnameEn: "",
+    surnameGu: "",
+    addressEn: "",
+    addressGu: "",
+    city: "",
+    villageAreaId: "",
+    livesOutsideVillage: false,
+    nativeElderNameEn: "",
+    nativeElderNameGu: "",
+    nativeElderPhone: "",
+    latitude: null,
+    longitude: null,
+    ...partial,
+  };
+}
+
+/** Trim + drop empties so blank optional fields are stored as NULL, not "". */
+export function familyDetailsToPayload(v: FamilyDetailsValues) {
+  const t = (s: string) => s.trim() || undefined;
+  return {
+    surnameGroupId: v.surnameGroupId || undefined,
+    surnameEn: t(v.surnameEn),
+    surnameGu: t(v.surnameGu),
+    addressEn: v.addressEn.trim(),
+    addressGu: t(v.addressGu),
+    city: t(v.city),
+    villageAreaId: v.livesOutsideVillage ? null : v.villageAreaId || null,
+    livesOutsideVillage: v.livesOutsideVillage,
+    nativeElderNameEn: t(v.nativeElderNameEn),
+    nativeElderNameGu: t(v.nativeElderNameGu),
+    nativeElderPhone: t(v.nativeElderPhone),
+    latitude: v.latitude ?? undefined,
+    longitude: v.longitude ?? undefined,
+  };
+}

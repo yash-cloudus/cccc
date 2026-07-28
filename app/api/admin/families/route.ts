@@ -20,6 +20,9 @@ const schema = z.object({
   villageAreaId: z.string().optional().nullable(),
   livesOutsideVillage: z.boolean().optional(),
   nativeElderNameEn: z.string().optional().nullable(),
+  nativeElderNameGu: z.string().optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
   nativeElderPhone: z.string().optional().nullable(),
   members: z
     .array(
@@ -177,7 +180,10 @@ export async function POST(req: Request) {
         city: body.city?.trim() || null,
         villageAreaId,
         nativeElderNameEn: body.nativeElderNameEn?.trim() || null,
+        nativeElderNameGu: body.nativeElderNameGu?.trim() || null,
         nativeElderPhone: body.nativeElderPhone?.trim() || null,
+        latitude: body.latitude ?? null,
+        longitude: body.longitude ?? null,
         status: "APPROVED",
         approvedAt: new Date(),
         consentAccepted: true,

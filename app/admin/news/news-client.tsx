@@ -234,14 +234,16 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
     setError(null);
 
     if (draft.id) {
+      // Sent as-is, not `|| undefined`: a blank field is the admin removing the
+      // cover image / PDF / Gujarati text, and the API stores that as NULL.
       const res = await api.put<NewsRow>(`/api/news/${draft.id}`, {
         titleEn: draft.titleEn,
-        titleGu: draft.titleGu || undefined,
+        titleGu: draft.titleGu,
         contentEn: draft.contentEn,
-        contentGu: draft.contentGu || undefined,
-        imageUrl: draft.imageUrl || undefined,
-        documentUrl: draft.documentUrl || undefined,
-        documentName: draft.documentName || undefined,
+        contentGu: draft.contentGu,
+        imageUrl: draft.imageUrl,
+        documentUrl: draft.documentUrl,
+        documentName: draft.documentUrl ? draft.documentName : "",
         isPinned: draft.isPinned,
         isPublished: draft.isPublished,
         publishedAt: draft.publishDate
@@ -260,6 +262,8 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 contentEn: draft.contentEn,
                 contentGu: draft.contentGu || null,
                 imageUrl: draft.imageUrl || null,
+                documentUrl: draft.documentUrl || null,
+                documentName: draft.documentUrl ? draft.documentName || null : null,
                 isPinned: draft.isPinned,
                 isPublished: draft.isPublished,
                 publishedAtISO: draft.publishDate
@@ -576,12 +580,12 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                   onChange={(v) => setDraft({ ...draft, publishDate: v })}
                 />
               </AdminField>
-              <AdminField label="Author">
-                <AdminInput
-                  value={draft.author}
-                  placeholder="સમાજ એડમિન"
-                  onChange={(v) => setDraft({ ...draft, author: v })}
-                />
+              {/* Read-only: the author is the admin who posted, taken from the
+                  session — News has no free-text author column to save into. */}
+              <AdminField label="Author" hint="The admin who posted this">
+                <div className="flex min-h-[42px] items-center rounded-xl border border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 text-[13px] font-semibold text-[var(--ink-dim)]">
+                  {draft.author || "સમાજ એડમિન"}
+                </div>
               </AdminField>
             </AdminFormRow>
 

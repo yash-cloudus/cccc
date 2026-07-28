@@ -27,12 +27,14 @@ export async function PUT(req: Request, { params }: Params) {
     const body = z
       .object({
         titleEn: z.string().optional(),
-        titleGu: z.string().optional(),
+        // Nullable: the editor clears a field by sending "" / null, and an
+        // omitted key still means "leave it alone".
+        titleGu: z.string().nullish(),
         contentEn: z.string().optional(),
-        contentGu: z.string().optional(),
-        imageUrl: z.string().optional(),
-        documentUrl: z.string().optional(),
-        documentName: z.string().optional(),
+        contentGu: z.string().nullish(),
+        imageUrl: z.string().nullish(),
+        documentUrl: z.string().nullish(),
+        documentName: z.string().nullish(),
         isPinned: z.boolean().optional(),
         isPublished: z.boolean().optional(),
         sendNotification: z.boolean().optional(),
@@ -40,12 +42,25 @@ export async function PUT(req: Request, { params }: Params) {
       })
       .parse(await req.json());
     const { publishedAt, sendNotification, ...rest } = body;
+
+    /** Blank means "remove this"; undefined means "not part of this edit". */
+    const clear = (v: string | null | undefined) =>
+      v === undefined ? undefined : v && v.trim() ? v : null;
+
     // Only fires once — already-sent posts can't be re-notified from here.
     const shouldNotify = !!sendNotification && !existing.notificationSent;
     const item = await prisma.news.update({
       where: { id },
       data: {
-        ...rest,
+        ...(rest.titleEn !== undefined ? { titleEn: rest.titleEn } : {}),
+        ...(rest.contentEn !== undefined ? { contentEn: rest.contentEn } : {}),
+        ...(rest.isPinned !== undefined ? { isPinned: rest.isPinned } : {}),
+        ...(rest.isPublished !== undefined ? { isPublished: rest.isPublished } : {}),
+        titleGu: clear(rest.titleGu),
+        contentGu: clear(rest.contentGu),
+        imageUrl: clear(rest.imageUrl),
+        documentUrl: clear(rest.documentUrl),
+        documentName: clear(rest.documentName),
         ...(publishedAt ? { publishedAt: new Date(publishedAt) } : {}),
         ...(shouldNotify ? { notificationSent: true } : {}),
       },

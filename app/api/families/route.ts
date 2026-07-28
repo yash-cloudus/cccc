@@ -72,7 +72,10 @@ const createSchema = z.object({
   villageAreaId: z.string().optional().nullable(),
   livesOutsideVillage: z.boolean().optional(),
   nativeElderNameEn: z.string().optional(),
+  nativeElderNameGu: z.string().optional(),
   nativeElderPhone: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
   consentAccepted: z.boolean(),
   members: z
     .array(
@@ -186,7 +189,10 @@ export async function POST(req: Request) {
         city: body.city,
         villageAreaId,
         nativeElderNameEn: body.nativeElderNameEn,
+        nativeElderNameGu: body.nativeElderNameGu,
         nativeElderPhone: body.nativeElderPhone,
+        latitude: body.latitude,
+        longitude: body.longitude,
         consentAccepted: true,
         status: "PENDING",
         familyMembers: {

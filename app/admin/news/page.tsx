@@ -21,7 +21,8 @@ export default async function NewsPage() {
     documentUrl: n.documentUrl,
     documentName: n.documentName,
     publishedAtISO: new Date(n.publishedAt).toISOString(),
-    author: null,
+    author:
+      n.author?.profile?.fullNameGu || n.author?.profile?.fullNameEn || n.author?.username || null,
     isPinned: n.isPinned,
     isPublished: n.isPublished,
     notificationSent: n.notificationSent,

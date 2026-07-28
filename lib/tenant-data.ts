@@ -184,6 +184,12 @@ export async function getCities(communityId: string) {
 export async function getNews(communityId: string, publishedOnly = false) {
   return prisma.news.findMany({
     where: { communityId, ...(publishedOnly ? { isPublished: true } : {}) },
+    // The author is the admin who posted it — shown read-only on the post.
+    include: {
+      author: {
+        select: { username: true, profile: { select: { fullNameEn: true, fullNameGu: true } } },
+      },
+    },
     orderBy: [{ isPinned: "desc" }, { publishedAt: "desc" }],
   });
 }

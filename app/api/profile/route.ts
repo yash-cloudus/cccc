@@ -2,23 +2,22 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { fail, fromZod, ok } from "@/lib/api";
 import { requireSession } from "@/lib/auth/session";
-import { getMyFamilyId } from "@/lib/tenant";
+import { getMyMemberRecord } from "@/lib/tenant";
 
 /** Current member's own profile + family (session-scoped). */
 export async function GET() {
   try {
     const session = await requireSession();
-    const [profile, user, familyId] = await Promise.all([
-      prisma.profile.findUnique({ where: { userId: session.sub } }),
+    const [record, user] = await Promise.all([
+      getMyMemberRecord(session.sub),
       prisma.user.findUnique({ where: { id: session.sub }, select: { mobile: true } }),
-      getMyFamilyId(session.sub),
     ]);
 
-    // Loaded separately from the profile: an OTP member's profile has no
-    // familyId, so the household is resolved by mobile instead.
-    const family = familyId
+    // Loaded separately: an OTP member has no Profile row, so both the person
+    // and the household are resolved by mobile instead.
+    const family = record?.familyId
       ? await prisma.family.findUnique({
-          where: { id: familyId },
+          where: { id: record.familyId },
           include: {
             surnameGroup: true,
             familyMembers: { where: { isVisible: true }, orderBy: { createdAt: "asc" } },
@@ -27,7 +26,7 @@ export async function GET() {
       : null;
 
     return ok({
-      profile: profile ? { ...profile, familyId, family } : null,
+      profile: record ? { ...record, family } : null,
       mobile: user?.mobile ?? null,
       userId: session.sub,
     });
@@ -50,11 +49,24 @@ export async function PATCH(req: Request) {
   try {
     const session = await requireSession();
     const body = schema.parse(await req.json());
-    const existing = await prisma.profile.findUnique({ where: { userId: session.sub } });
-    if (!existing) return fail("Profile not found", 404);
-    const updated = await prisma.profile.update({
-      where: { userId: session.sub },
-      data: body,
+    const record = await getMyMemberRecord(session.sub);
+    if (!record) return fail("Profile not found", 404);
+
+    // Write back to whichever table this member actually lives in.
+    if (record.source === "profile") {
+      const updated = await prisma.profile.update({ where: { userId: session.sub }, data: body });
+      return ok(updated);
+    }
+
+    // FamilyMember has no showBusiness column; the rest map one to one.
+    const updated = await prisma.familyMember.update({
+      where: { id: record.id },
+      data: {
+        ...(body.showPhone !== undefined ? { showPhone: body.showPhone } : {}),
+        ...(body.occupation !== undefined ? { occupation: body.occupation } : {}),
+        ...(body.currentlyAt !== undefined ? { currentlyAt: body.currentlyAt } : {}),
+        ...(body.education !== undefined ? { education: body.education } : {}),
+      },
     });
     return ok(updated);
   } catch (e) {

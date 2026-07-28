@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Loader2, MapPin } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
@@ -21,7 +21,8 @@ import {
   resolveCascadingOccupationForSave,
 } from "@/lib/cascading-occupation";
 import type { OccupationTreeNode } from "@/lib/occupation-defaults";
-import { validateFamilyByType } from "@/lib/family-form";
+import { validateFamilyByType, type FamilyDetailsValues } from "@/lib/family-form";
+import { FamilyDetailsFields } from "@/components/forms/family-details-fields";
 
 type Group = { id: string; nameEn: string; nameGu: string | null };
 type Place = { id: string; nameEn: string; nameGu: string | null };
@@ -91,8 +92,6 @@ export function RegisterClient({
   const [step, setStep] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
   const [editingMemberIndex, setEditingMemberIndex] = useState<number | null>(null);
-  const [groupOpen, setGroupOpen] = useState(false);
-  const [placeOpen, setPlaceOpen] = useState(false);
   const [consent, setConsent] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -111,8 +110,12 @@ export function RegisterClient({
   );
   const [villageAreaId, setVillageAreaId] = useState(villages[0]?.id ?? "");
   const [livesOutsideVillage, setLivesOutsideVillage] = useState(false);
-  const [nativePlace, setNativePlace] = useState("");
-  const [email, setEmail] = useState("");
+  const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({
+    lat: null,
+    lng: null,
+  });
+  const [nativePlace] = useState("");
+  const [email] = useState("");
 
   const [form, setForm] = useState({
     addr: "",
@@ -222,6 +225,45 @@ export function RegisterClient({
         : "Select";
   }, [communityType, city, cities, livesOutsideVillage, villageAreaId, villages, lang]);
 
+  /**
+   * The shared <FamilyDetailsFields> speaks the API's field names, while this
+   * screen keeps its own state split across several hooks. Adapting here is a
+   * far smaller change than renaming state throughout the wizard.
+   */
+  const details: FamilyDetailsValues = {
+    surnameGroupId: selectedGroup?.id ?? surnameGroupId,
+    surnameEn: selectedGroup?.nameEn ?? "",
+    surnameGu: selectedGroup?.nameGu ?? "",
+    addressEn: form.addr,
+    addressGu: form.addrGu,
+    city,
+    villageAreaId,
+    livesOutsideVillage,
+    nativeElderNameEn: form.elder,
+    nativeElderNameGu: form.elderGu,
+    nativeElderPhone: form.elderPhone,
+    latitude: coords.lat,
+    longitude: coords.lng,
+  };
+
+  function applyDetails(patch: Partial<FamilyDetailsValues>) {
+    if (patch.surnameGroupId !== undefined) setSurnameGroupId(patch.surnameGroupId);
+    if (patch.city !== undefined) setCity(patch.city);
+    if (patch.villageAreaId !== undefined) setVillageAreaId(patch.villageAreaId);
+    if (patch.livesOutsideVillage !== undefined) setLivesOutsideVillage(patch.livesOutsideVillage);
+    if (patch.latitude !== undefined || patch.longitude !== undefined) {
+      setCoords({ lat: patch.latitude ?? null, lng: patch.longitude ?? null });
+    }
+    setForm((prev) => ({
+      ...prev,
+      ...(patch.addressEn !== undefined ? { addr: patch.addressEn } : {}),
+      ...(patch.addressGu !== undefined ? { addrGu: patch.addressGu } : {}),
+      ...(patch.nativeElderNameEn !== undefined ? { elder: patch.nativeElderNameEn } : {}),
+      ...(patch.nativeElderNameGu !== undefined ? { elderGu: patch.nativeElderNameGu } : {}),
+      ...(patch.nativeElderPhone !== undefined ? { elderPhone: patch.nativeElderPhone } : {}),
+    }));
+  }
+
   function validateStep1() {
     if (communityType === "PARIVAR") {
       if (!lockedSurname && !surnameGroupId) {
@@ -287,7 +329,10 @@ export function RegisterClient({
       villageAreaId: livesOutsideVillage ? null : villageAreaId || null,
       livesOutsideVillage,
       nativeElderNameEn: form.elder.trim() || undefined,
+      nativeElderNameGu: form.elderGu.trim() || undefined,
       nativeElderPhone: form.elderPhone.trim() || undefined,
+      latitude: coords.lat ?? undefined,
+      longitude: coords.lng ?? undefined,
       consentAccepted: true,
       members: [
         {
@@ -699,248 +744,18 @@ export function RegisterClient({
                 {T("પરિવારની માહિતી", "Family information")}
               </h2>
 
-              {communityType === "PARIVAR" ? (
-                <Field label={T("અટક", "Surname")}>
-                  <div className="flex min-h-[44px] items-center rounded-[13px] border border-[var(--line-input)] bg-[#F7F3EC] px-3.5 text-sm font-bold text-[var(--ink)]">
-                    {selectedGroup
-                      ? bilingualLabel(selectedGroup.nameEn, selectedGroup.nameGu)
-                      : "—"}
-                  </div>
-                </Field>
-              ) : (
-                <div className="mb-3 grid grid-cols-2 gap-2.5">
-                  <Field label={`${T("અટક જૂથ", "Surname group")} *`}>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setGroupOpen(!groupOpen)}
-                        className="samaj-fld flex w-full items-center justify-between bg-[var(--field)]"
-                      >
-                        <span className="truncate">
-                          {selectedGroup
-                            ? bilingualLabel(selectedGroup.nameEn, selectedGroup.nameGu)
-                            : T("પસંદ કરો", "Select")}
-                        </span>
-                        <ChevronDown className="h-5 w-5 flex-none text-[var(--brand)]" />
-                      </button>
-                      {groupOpen && (
-                        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
-                          {surnameGroups.map((g, i) => (
-                            <button
-                              key={g.id}
-                              type="button"
-                              onClick={() => {
-                                setSurnameGroupId(g.id);
-                                setGroupOpen(false);
-                              }}
-                              className={cn(
-                                "block w-full px-3 py-2.5 text-left text-sm",
-                                i > 0 && "border-t border-[var(--line-soft)]",
-                                surnameGroupId === g.id && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
-                              )}
-                            >
-                              {bilingualLabel(g.nameEn, g.nameGu)}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </Field>
-                  <Field label={T("(ગુજરાતી)", "(Gujarati)")}>
-                    <div className="flex min-h-[44px] items-center rounded-[13px] border border-dashed border-[var(--line-input)] bg-[#F7F3EC] px-3.5 text-sm text-[var(--ink-dim)]">
-                      {selectedGroup?.nameGu || selectedGroup?.nameEn || "—"}
-                    </div>
-                  </Field>
-                </div>
-              )}
+              <FamilyDetailsFields
+                variant="member"
+                values={details}
+                onChange={applyDetails}
+                communityType={communityType}
+                lockedSurname={lockedSurname}
+                surnameGroups={surnameGroups}
+                cities={cities}
+                villages={villages}
+                t={T}
+              />
 
-              <Field label={`${T("હાલનું સરનામું", "Current address")} (${T("English", "English")}) *`}>
-                <input
-                  className="samaj-fld"
-                  value={form.addr}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setForm((prev) => ({ ...prev, addr: v }));
-                    fromEn(v, (gu) => setForm((prev) => ({ ...prev, addrGu: gu })), "addr");
-                  }}
-                  placeholder={T("મકાન, વિસ્તાર, શહેર…", "House, area, city…")}
-                />
-              </Field>
-              <Field label={`${T("હાલનું સરનામું", "Current address")} (${T("ગુજરાતી", "Gujarati")})`}>
-                <GujaratiInput
-                  inputClassName="samaj-fld"
-                  value={form.addrGu}
-                  onChange={(v) => {
-                    setForm((prev) => ({ ...prev, addrGu: v }));
-                    guInput(v, (gu) => setForm((prev) => ({ ...prev, addrGu: gu })), "addr:gu");
-                  }}
-                  placeholder={T("ગુજરાતીમાં…", "In Gujarati…")}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (typeof navigator !== "undefined" && navigator.geolocation) {
-                      navigator.geolocation.getCurrentPosition(
-                        (pos) => {
-                          setForm((prev) => ({
-                            ...prev,
-                            loc: `${pos.coords.latitude.toFixed(4)}° N, ${pos.coords.longitude.toFixed(4)}° E`,
-                          }));
-                        },
-                        () =>
-                          setForm((prev) => ({
-                            ...prev,
-                            loc: city || T("સ્થળ સેવ થયું", "Location saved"),
-                          })),
-                      );
-                    } else {
-                      setForm((prev) => ({
-                        ...prev,
-                        loc: city || T("સ્થળ સેવ થયું", "Location saved"),
-                      }));
-                    }
-                  }}
-                  className="mt-2 flex h-12 w-full items-center gap-2.5 rounded-[13px] border-[1.5px] border-[var(--line-input)] bg-white px-3"
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#EAF2E8] text-[#1E7A3E]">
-                    <MapPin className="h-[19px] w-[19px]" />
-                  </span>
-                  <div className="min-w-0 flex-1 text-left">
-                    <div className="text-[13.5px] font-bold text-[var(--ink)]">
-                      {form.loc
-                        ? T("સ્થળ સેવ થયું", "Location captured")
-                        : T("નકશા પર સ્થળ પસંદ કરો", "Pin location on map")}
-                    </div>
-                    {form.loc && <div className="text-[11.5px] font-semibold text-[#1E7A3E]">{form.loc}</div>}
-                  </div>
-                </button>
-              </Field>
-
-              <Field
-                label={
-                  communityType === "PARIVAR"
-                    ? `${T("શહેર", "City")} *`
-                    : `${T("ગામ / શહેર", "Village / city")} *`
-                }
-              >
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setPlaceOpen(!placeOpen)}
-                    className="samaj-fld flex w-full items-center justify-between"
-                  >
-                    <span className="truncate">{placeLabel}</span>
-                    <ChevronDown className="h-5 w-5 text-[var(--brand)]" />
-                  </button>
-                  {placeOpen && (
-                    <div className="absolute left-0 right-0 top-full z-15 mt-1 max-h-56 overflow-y-auto rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
-                      {communityType === "PARIVAR"
-                        ? cities.map((c, i) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              onClick={() => {
-                                setCity(c.nameEn);
-                                setPlaceOpen(false);
-                              }}
-                              className={cn(
-                                "block w-full px-3 py-2.5 text-left text-sm",
-                                i > 0 && "border-t border-[var(--line-soft)]",
-                                city === c.nameEn && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
-                              )}
-                            >
-                              {bilingualLabel(c.nameEn, c.nameGu)}
-                            </button>
-                          ))
-                        : (
-                          <>
-                            {villages.map((v, i) => (
-                              <button
-                                key={v.id}
-                                type="button"
-                                onClick={() => {
-                                  setVillageAreaId(v.id);
-                                  setLivesOutsideVillage(false);
-                                  setPlaceOpen(false);
-                                }}
-                                className={cn(
-                                  "block w-full px-3 py-2.5 text-left text-sm",
-                                  i > 0 && "border-t border-[var(--line-soft)]",
-                                  !livesOutsideVillage &&
-                                    villageAreaId === v.id &&
-                                    "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
-                                )}
-                              >
-                                {bilingualLabel(v.nameEn, v.nameGu)}
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setLivesOutsideVillage(true);
-                                setVillageAreaId("");
-                                setPlaceOpen(false);
-                              }}
-                              className={cn(
-                                "block w-full border-t border-[var(--line-soft)] px-3 py-2.5 text-left text-sm",
-                                livesOutsideVillage && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
-                              )}
-                            >
-                              {T("ગામ બહાર રહે છે", "Lives outside village")}
-                            </button>
-                          </>
-                        )}
-                    </div>
-                  )}
-                </div>
-              </Field>
-
-              {(communityType === "GAM" && livesOutsideVillage) && (
-                <Field label={`${T("શહેર", "City")} *`}>
-                  <input
-                    className="samaj-fld"
-                    value={city}
-                    onChange={(e) => setCity(e.target.value)}
-                    placeholder={T("હાલનું શહેર…", "Current city…")}
-                  />
-                </Field>
-              )}
-              <Field label={T("વતનમાં રહેતા વડીલ (નામ) (English)", "Native elder name (English)")}>
-                <input
-                  className="samaj-fld"
-                  value={form.elder}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setForm((prev) => ({ ...prev, elder: v }));
-                    fromEn(v, (gu) => setForm((prev) => ({ ...prev, elderGu: gu })), "elder");
-                  }}
-                  placeholder={T("વડીલનું નામ…", "Elder name…")}
-                />
-              </Field>
-              <Field label={T("વતનમાં રહેતા વડીલ (નામ) (ગુજરાતી)", "Native elder name (Gujarati)")}>
-                <GujaratiInput
-                  inputClassName="samaj-fld"
-                  value={form.elderGu}
-                  onChange={(v) => {
-                    setForm((prev) => ({ ...prev, elderGu: v }));
-                    guInput(v, (gu) => setForm((prev) => ({ ...prev, elderGu: gu })), "elder:gu");
-                  }}
-                  placeholder={T("ગુજરાતીમાં…", "In Gujarati…")}
-                />
-              </Field>
-              <Field label={T("વતનમાં રહેતા વડીલ (ફોન)", "Native elder phone")}>
-                <input
-                  className="samaj-fld"
-                  value={form.elderPhone}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      elderPhone: e.target.value.replace(/\D/g, "").slice(0, 10),
-                    })
-                  }
-                  inputMode="numeric"
-                />
-              </Field>
               <PrimaryBtn
                 onClick={() => {
                   const err = validateStep1();
