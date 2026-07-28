@@ -49,25 +49,67 @@ export async function GET(req: Request) {
   }
 }
 
+const opt = (max = 191) => z.string().max(max).optional();
+
 const schema = z.object({
+  memberId: opt(),
   nameEn: z.string().min(2),
-  nameGu: z.string().optional(),
-  description: z.string().optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  website: z.string().optional(),
-  categoryId: z.string().optional(),
-  familyId: z.string().optional(),
+  nameGu: opt(),
+  description: opt(2000),
+  descriptionGu: opt(2000),
+  phone: z.string().regex(/^[6-9]\d{9}$/, "Valid 10-digit mobile required"),
+  whatsapp: z.union([z.literal(""), z.string().regex(/^[6-9]\d{9}$/)]).optional(),
+  email: z.union([z.literal(""), z.string().email()]).optional(),
+  address: z.string().min(3).max(2000),
+  addressGu: opt(2000),
+  city: opt(),
+  estd: opt(8),
+  mapUrl: opt(1000),
+  logoUrl: opt(1000),
+  website: opt(),
+  instagram: opt(),
+  facebook: opt(),
+  youtube: opt(),
+  categoryId: opt(),
+  familyId: opt(),
 });
 
 export async function POST(req: Request) {
   try {
     const session = await requireSession();
     const communityId = await getWritableCommunityId();
-    const body = schema.parse(await req.json());
+    const { memberId, ...body } = schema.parse(await req.json());
+
+    // Both the member and the category must belong to this community, so one
+    // tenant cannot attach a business to another tenant's records.
+    const member = memberId
+      ? await prisma.familyMember.findFirst({
+          where: { id: memberId, family: { communityId } },
+          select: { id: true, familyId: true },
+        })
+      : null;
+    if (memberId && !member) return fail("Member not found", 404);
+
+    if (body.categoryId) {
+      const category = await prisma.dropdownOption.findFirst({
+        where: { id: body.categoryId, communityId },
+        select: { id: true },
+      });
+      if (!category) return fail("Category not found", 404);
+    }
+
     const business = await prisma.business.create({
-      data: { ...body, communityId, userId: session.sub, isApproved: false },
+      data: {
+        ...body,
+        // Blank optional strings are stored as NULL rather than "".
+        whatsapp: body.whatsapp || null,
+        email: body.email || null,
+        communityId,
+        userId: session.sub,
+        memberId: member?.id ?? null,
+        familyId: body.familyId ?? member?.familyId ?? null,
+        isApproved: false,
+      },
     });
     return created(business);
   } catch (e) {

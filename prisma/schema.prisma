@@ -416,22 +416,37 @@ model Business {
   familyId    String?
   /** Vepar (Business) sub-category — DropdownOption under occupation root Vepar. */
   categoryId  String?
-  nameEn      String
-  nameGu      String?
-  description String?         @db.Text
-  phone       String?
-  address     String?         @db.Text
-  city        String?
-  website     String?
-  isApproved  Boolean         @default(false)
-  isVisible   Boolean         @default(true)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  community   Community       @relation(fields: [communityId], references: [id], onDelete: Cascade)
-  user        User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
-  family      Family?         @relation(fields: [familyId], references: [id], onDelete: SetNull)
-  category    DropdownOption? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  gallery     BusinessGallery[]
+  /** The family member who owns this business (picked in "સભ્ય પસંદ કરો"). */
+  memberId       String?
+  nameEn         String
+  nameGu         String?
+  /** English copy; `descriptionGu` / `addressGu` hold the Gujarati pair. */
+  description    String?         @db.Text
+  descriptionGu  String?         @db.Text
+  phone          String?
+  whatsapp       String?
+  email          String?
+  address        String?         @db.Text
+  addressGu      String?         @db.Text
+  city           String?
+  /** Founding year, shown as "ક્યારથી" in the directory. */
+  estd           String?
+  /** Google Maps link shown as directions in the directory. */
+  mapUrl         String?         @db.Text
+  logoUrl        String?         @db.Text
+  website        String?
+  instagram      String?
+  facebook       String?
+  youtube        String?
+  isApproved     Boolean         @default(false)
+  isVisible      Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  community      Community       @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  family         Family?         @relation(fields: [familyId], references: [id], onDelete: SetNull)
+  category       DropdownOption? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  gallery        BusinessGallery[]
 
   @@index([communityId, isApproved, isVisible])
   @@index([categoryId])

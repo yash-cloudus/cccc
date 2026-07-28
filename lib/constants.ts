@@ -136,3 +136,8 @@ export const SECONDARY_COLORS = ["#E8A33D", "#E0A62B", "#4E9C6B", "#C24450", "#5
 //   Community Admin: admin.{slug}.{ROOT_DOMAIN}   e.g. admin.saurashtra_patel.community.in
 // Local: set NEXT_PUBLIC_ROOT_DOMAIN=localhost → uses *.localhost:3000
 export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "community.in";
+
+// Ad banners a member may keep on the home screen (pending + active) at once,
+// and the yearly price shown on the "નવું બેનર ઉમેરો" screen.
+export const MAX_BANNERS_PER_MEMBER = 3;
+export const BANNER_PRICE_INR = 2000;
