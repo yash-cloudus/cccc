@@ -32,6 +32,9 @@ const putSchema = z.object({
   addressEn: z.string().optional(),
   addressGu: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
+  nativePlace: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  villageAreaId: z.string().optional().nullable(),
   businessGu: z.string().optional().nullable(),
   nativeElderNameEn: z.string().optional().nullable(),
   nativeElderNameGu: z.string().optional().nullable(),
@@ -77,11 +80,30 @@ export async function PUT(req: Request, { params }: Params) {
     if (!existing) return fail("Family not found", 404);
 
     const { members, surnameGroupId, ...familyData } = putSchema.parse(await req.json());
+    delete familyData.nativePlace;
+    delete familyData.email;
+
+    const community = await prisma.community.findUniqueOrThrow({
+      where: { id: communityId },
+      select: { type: true },
+    });
+
+    // Parivar surname is locked — ignore attempts to switch groups.
+    let nextSurnameGroupId = surnameGroupId;
+    if (community.type === "PARIVAR") {
+      const { getParivarLockedSurname } = await import("@/lib/community-defaults");
+      const locked = await getParivarLockedSurname(prisma, communityId);
+      if (locked) {
+        nextSurnameGroupId = locked.id;
+        familyData.surnameEn = locked.nameEn;
+        familyData.surnameGu = locked.nameGu;
+      }
+    }
 
     // If surname group is being changed, it must belong to this community.
-    if (surnameGroupId) {
+    if (nextSurnameGroupId) {
       const sg = await prisma.surnameGroup.findFirst({
-        where: { id: surnameGroupId, communityId },
+        where: { id: nextSurnameGroupId, communityId },
         select: { id: true },
       });
       if (!sg) return fail("Invalid surname group", 422);
@@ -90,7 +112,7 @@ export async function PUT(req: Request, { params }: Params) {
     await prisma.$transaction(async (tx) => {
       await tx.family.update({
         where: { id },
-        data: { ...familyData, ...(surnameGroupId ? { surnameGroupId } : {}) },
+        data: { ...familyData, ...(nextSurnameGroupId ? { surnameGroupId: nextSurnameGroupId } : {}) },
       });
 
       if (members) {
@@ -167,6 +189,26 @@ export async function PATCH(req: Request, { params }: Params) {
       },
     });
     if (res.count === 0) return fail("Family not found", 404);
+
+    const members = await prisma.familyMember.findMany({
+      where: { familyId: id, mobile: { not: null } },
+      select: { mobile: true },
+    });
+    for (const m of members) {
+      if (!m.mobile) continue;
+      if (status === "APPROVED") {
+        await prisma.user.updateMany({
+          where: { mobile: m.mobile, communityId },
+          data: { status: "APPROVED" },
+        });
+      } else if (status === "REJECTED") {
+        await prisma.user.updateMany({
+          where: { mobile: m.mobile, communityId, status: { not: "SUSPENDED" } },
+          data: { status: "REJECTED" },
+        });
+      }
+    }
+
     return ok({ id, status });
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);

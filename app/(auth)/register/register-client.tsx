@@ -7,15 +7,25 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, Loader2, MapPin } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
+import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { bloodToEnum, pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
+import { toast } from "sonner";
+import {
+  type CascadingOccupationValues,
+  blankCascadingOccupation,
+  resolveCascadingOccupationForSave,
+} from "@/lib/cascading-occupation";
+import type { OccupationTreeNode } from "@/lib/occupation-defaults";
+import { validateFamilyByType } from "@/lib/family-form";
 
 type Group = { id: string; nameEn: string; nameGu: string | null };
-type Village = { id: string; nameEn: string; nameGu: string | null };
+type Place = { id: string; nameEn: string; nameGu: string | null };
+type Relation = { nameEn: string; nameGu: string };
 
 type Member = {
   name: string;
@@ -24,26 +34,54 @@ type Member = {
   dob: string;
   blood: string;
   mobile: string;
+  whatsapp: string;
   hasWa: boolean;
-};
-
-const RELATIONS = [
-  { gu: "પુત્ર", en: "Son" },
-  { gu: "પુત્રી", en: "Daughter" },
-  { gu: "પત્ની", en: "Wife" },
-  { gu: "પિતા", en: "Father" },
-  { gu: "માતા", en: "Mother" },
-  { gu: "ભાઈ", en: "Brother" },
-];
+} & CascadingOccupationValues;
 
 const BLOOD = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
 
+function bilingualLabel(nameEn?: string | null, nameGu?: string | null) {
+  const en = (nameEn || "").trim();
+  const gu = (nameGu || "").trim();
+  if (en && gu && en !== gu) return `${en} · ${gu}`;
+  return en || gu || "—";
+}
+
+const blankMember = (): Member => ({
+  name: "",
+  nameGu: "",
+  relation: "Son",
+  dob: "",
+  blood: "B+",
+  mobile: "",
+  whatsapp: "",
+  hasWa: true,
+  ...blankCascadingOccupation(),
+});
+
 export function RegisterClient({
+  communityType,
+  lockedSurname,
   surnameGroups,
+  cities,
   villages,
+  relations,
+  occupationTree,
+  contactPerson,
 }: {
+  communityType: "PARIVAR" | "GAM";
+  lockedSurname: Group | null;
   surnameGroups: Group[];
-  villages: Village[];
+  cities: Place[];
+  villages: Place[];
+  relations: Relation[];
+  occupationTree: OccupationTreeNode[];
+  contactPerson: {
+    nameEn: string;
+    nameGu: string | null;
+    mobile: string;
+    role: "DATA_MANAGER" | "OWNER";
+  } | null;
 }) {
   const { lang } = useLang();
   const router = useRouter();
@@ -52,28 +90,29 @@ export function RegisterClient({
 
   const [step, setStep] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
+  const [editingMemberIndex, setEditingMemberIndex] = useState<number | null>(null);
   const [groupOpen, setGroupOpen] = useState(false);
-  const [halOpen, setHalOpen] = useState(false);
+  const [placeOpen, setPlaceOpen] = useState(false);
   const [consent, setConsent] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  const [surnameGroupId, setSurnameGroupId] = useState(surnameGroups[0]?.id ?? "");
-  const selectedGroup = useMemo(
-    () => surnameGroups.find((g) => g.id === surnameGroupId) ?? null,
-    [surnameGroups, surnameGroupId],
+  const initialGroupId =
+    lockedSurname?.id ?? surnameGroups[0]?.id ?? "";
+  const [surnameGroupId, setSurnameGroupId] = useState(initialGroupId);
+  const selectedGroup = useMemo(() => {
+    if (lockedSurname) return lockedSurname;
+    return surnameGroups.find((g) => g.id === surnameGroupId) ?? null;
+  }, [lockedSurname, surnameGroups, surnameGroupId]);
+
+  const [city, setCity] = useState(
+    communityType === "PARIVAR" ? cities[0]?.nameEn ?? "" : "",
   );
-
-  const cityOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const v of villages) {
-      if (v.nameEn) set.add(v.nameEn);
-    }
-    return [...set];
-  }, [villages]);
-
-  const [city, setCity] = useState(cityOptions[0] ?? "");
+  const [villageAreaId, setVillageAreaId] = useState(villages[0]?.id ?? "");
+  const [livesOutsideVillage, setLivesOutsideVillage] = useState(false);
+  const [nativePlace, setNativePlace] = useState("");
+  const [email, setEmail] = useState("");
 
   const [form, setForm] = useState({
     addr: "",
@@ -85,20 +124,76 @@ export function RegisterClient({
     m1name: "",
     m1nameGu: "",
     m1mobile: "",
+    m1whatsapp: "",
     m1dob: "",
     m1blood: "B+",
+    hasWhatsApp: true,
+    ...blankCascadingOccupation(),
   });
 
   const [members, setMembers] = useState<Member[]>([]);
-  const [newMember, setNewMember] = useState<Member>({
-    name: "",
-    nameGu: "",
-    relation: "Son",
-    dob: "",
-    blood: "B+",
-    mobile: "",
-    hasWa: true,
-  });
+  const [newMember, setNewMember] = useState<Member>(blankMember);
+
+  function openAddMember() {
+    setEditingMemberIndex(null);
+    setNewMember(blankMember());
+    setAddOpen(true);
+  }
+
+  function openEditMember(index: number) {
+    setEditingMemberIndex(index);
+    setNewMember(structuredClone(members[index]));
+    setAddOpen(true);
+  }
+
+  const relationChoices = useMemo(
+    () =>
+      relations.filter((r) => r.nameEn.toLowerCase() !== "head").length
+        ? relations.filter((r) => r.nameEn.toLowerCase() !== "head")
+        : [
+            { nameEn: "Son", nameGu: "પુત્ર" },
+            { nameEn: "Daughter", nameGu: "પુત્રી" },
+            { nameEn: "Wife", nameGu: "પત્ની" },
+            { nameEn: "Father", nameGu: "પિતા" },
+            { nameEn: "Mother", nameGu: "માતા" },
+            { nameEn: "Brother", nameGu: "ભાઈ" },
+          ],
+    [relations],
+  );
+
+  const relationLabel = (relation: string) => {
+    const found = relationChoices.find((r) => r.nameEn === relation);
+    return found ? bilingualLabel(found.nameEn, found.nameGu) : relation;
+  };
+
+  const relationBadgeLabel = (relation: string) => {
+    const found = relationChoices.find((r) => r.nameEn === relation);
+    return found?.nameGu || found?.nameEn || relation;
+  };
+
+  const formatShortDate = (value: string) => {
+    if (!value) return "";
+    const [y, m, d] = value.split("-");
+    if (!y || !m || !d) return value;
+    return `${Number(d)}/${Number(m)}/${String(y).slice(-2)}`;
+  };
+
+  const occupationLabel = (values: {
+    occupation?: string;
+    occupationOther?: string;
+    education?: string;
+    course?: string;
+  }) => values.occupationOther || values.course || values.education || values.occupation || "";
+
+  const contactName = contactPerson
+    ? pickText(contactPerson.nameGu, contactPerson.nameEn, lang)
+    : T("સમાજ સંપર્ક", "Community contact");
+  const contactRole = contactPerson?.role === "DATA_MANAGER"
+    ? T("ડેટા મેનેજર", "Data Manager")
+    : T("એડમિન", "Admin");
+  const contactMobile = contactPerson?.mobile || "";
+  const contactPhoneHref = contactMobile ? `tel:${contactMobile}` : "#";
+  const contactWhatsappHref = contactMobile ? `https://wa.me/91${contactMobile}` : "#";
 
   const steps = [1, 2, 3].map((n) => ({
     n,
@@ -106,16 +201,50 @@ export function RegisterClient({
     active: step === n,
   }));
 
+  const placeLabel = useMemo(() => {
+    if (communityType === "PARIVAR") return city || (lang === "gu" ? "પસંદ કરો" : "Select");
+    if (livesOutsideVillage) {
+      return city
+        ? `${lang === "gu" ? "બહાર" : "Outside"} · ${city}`
+        : lang === "gu"
+          ? "ગામ બહાર રહે છે"
+          : "Lives outside";
+    }
+    const v = villages.find((x) => x.id === villageAreaId);
+    return v ? pickText(v.nameGu, v.nameEn, lang) : lang === "gu" ? "પસંદ કરો" : "Select";
+  }, [communityType, city, livesOutsideVillage, villageAreaId, villages, lang]);
+
   function validateStep1() {
-    if (!surnameGroupId) return T("અટક જૂથ પસંદ કરો", "Pick a surname group");
+    if (communityType === "PARIVAR") {
+      if (!lockedSurname && !surnameGroupId) {
+        return T("અટક જૂથ પસંદ કરો", "Pick a surname group");
+      }
+    } else if (!surnameGroupId && !selectedGroup) {
+      return T("અટક જૂથ પસંદ કરો", "Pick a surname group");
+    }
     if (form.addr.trim().length < 3) return T("સરનામું જરૂરી છે", "Address is required");
+    const typeErr = validateFamilyByType(communityType, {
+      headNameEn: "x",
+      addressEn: form.addr,
+      city,
+      villageAreaId: livesOutsideVillage ? null : villageAreaId,
+      livesOutsideVillage,
+      surnameGroupId: selectedGroup?.id ?? surnameGroupId,
+      surnameEn: selectedGroup?.nameEn,
+    });
+    if (typeErr) {
+      if (typeErr.includes("City")) return T("શહેર જરૂરી છે", "City is required");
+      if (typeErr.includes("Village")) return T("ગામ પસંદ કરો", "Pick a village");
+      return typeErr;
+    }
     return null;
   }
 
   function validateStep2() {
     if (form.m1name.trim().length < 2) return T("વડાનું નામ જરૂરી છે", "Head name is required");
-    if (!/^\d{10}$/.test(form.m1mobile.replace(/\D/g, ""))) {
-      return T("લોગિન મોબાઈલ 10 અંકનો હોવો જોઈએ", "Login mobile must be 10 digits");
+    const mob = form.m1mobile.replace(/\D/g, "");
+    if (!/^[6-9]\d{9}$/.test(mob)) {
+      return T("લોગિન મોબાઈલ 10 અંકનો હોવો જોઈએ", "Login mobile must be 10 digits (6–9…)");
     }
     return null;
   }
@@ -131,8 +260,13 @@ export function RegisterClient({
     setBusy(true);
     setError(null);
 
+    const headOcc = await resolveCascadingOccupationForSave(occupationTree, form);
+    const memberOcc = await Promise.all(
+      members.map((m) => resolveCascadingOccupationForSave(occupationTree, m)),
+    );
+
     const payload = {
-      surnameGroupId,
+      surnameGroupId: selectedGroup.id,
       headNameEn: form.m1name.trim(),
       headNameGu: form.m1nameGu.trim() || undefined,
       surnameEn: selectedGroup.nameEn,
@@ -140,6 +274,10 @@ export function RegisterClient({
       addressEn: form.addr.trim(),
       addressGu: form.addrGu.trim() || undefined,
       city: city || undefined,
+      nativePlace: nativePlace.trim() || undefined,
+      email: email.trim() || undefined,
+      villageAreaId: livesOutsideVillage ? null : villageAreaId || null,
+      livesOutsideVillage,
       nativeElderNameEn: form.elder.trim() || undefined,
       nativeElderPhone: form.elderPhone.trim() || undefined,
       consentAccepted: true,
@@ -154,8 +292,12 @@ export function RegisterClient({
           dateOfBirth: form.m1dob || undefined,
           hasWhatsApp: true,
           isHead: true,
+          occupation: headOcc.occupation || undefined,
+          occupationOther: headOcc.occupationOther || undefined,
+          education: headOcc.education || undefined,
+          course: headOcc.course || undefined,
         },
-        ...members.map((m) => ({
+        ...members.map((m, i) => ({
           fullNameEn: m.name.trim(),
           fullNameGu: m.nameGu.trim() || undefined,
           relation: m.relation,
@@ -165,20 +307,28 @@ export function RegisterClient({
           dateOfBirth: m.dob || undefined,
           hasWhatsApp: m.hasWa,
           isHead: false,
+          occupation: memberOcc[i].occupation || undefined,
+          occupationOther: memberOcc[i].occupationOther || undefined,
+          education: memberOcc[i].education || undefined,
+          course: memberOcc[i].course || undefined,
         })),
       ],
     };
 
     const res = await api.post("/api/families", payload);
     setBusy(false);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) {
+      setError(res.error);
+      toast.error(res.error || T("નોંધણી થઈ નથી", "Registration failed"));
+      return;
+    }
     setSubmitted(true);
   }
 
   if (submitted) {
     return (
       <AppShell>
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-8 py-9 text-center">
+        <div className="flex flex-1 flex-col items-center px-7 py-9 text-center">
           <motion.div
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
@@ -191,25 +341,57 @@ export function RegisterClient({
           <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[21px] font-bold text-[var(--ink)]">
             {T("નોંધણી મળી ગઈ!", "Registration received!")}
           </div>
-          <p className="max-w-[280px] text-[13.5px] leading-relaxed text-[var(--ink-mid)]">
+          <p className="mt-2 max-w-[320px] text-[13.5px] leading-relaxed text-[var(--ink-mid)]">
             {T(
               "એડમિન મંજૂરી આપશે એટલે તમારા WhatsApp નંબર પર જાણ થશે. પછી એ જ નંબરથી લોગિન કરી શકાશે.",
               "Once the admin approves, you'll be notified on your WhatsApp number. You can then log in with that number.",
             )}
           </p>
-          {selectedGroup && (
-            <div className="samaj-card mt-1.5 w-full max-w-[300px] p-4 text-left">
-              <div className="mb-2.5 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
-                {T("અટક જૂથ", "SURNAME GROUP")}
+
+          <div className="mt-4 w-full max-w-[340px] rounded-[24px] border border-[var(--brand-line)] bg-white p-4 text-left shadow-[0_14px_35px_-24px_rgba(40,40,40,.25)]">
+            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
+              {T("સવાલિયા જૂથ માટે સંયોજક", "Coordinator for this group")}
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--brand-tint)] text-[18px] font-extrabold text-[var(--brand)]">
+                {(contactName || "?").trim()[0] || "?"}
               </div>
-              <div className="text-sm font-bold text-[var(--ink)]">
-                {pickText(selectedGroup.nameGu, selectedGroup.nameEn, lang)}
-              </div>
-              <div className="mt-1 text-[11.5px] font-medium text-[var(--faint)]">
-                {T("મંજૂરી માટે એડમિન કતારમાં", "In admin approval queue")}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[14px] font-bold text-[var(--ink)]">{contactName}</div>
+                <div className="mt-0.5 text-[12px] font-medium text-[var(--faint)]">
+                  {contactRole}
+                  {selectedGroup
+                    ? ` · ${bilingualLabel(selectedGroup.nameEn, selectedGroup.nameGu)}`
+                    : ""}
+                </div>
               </div>
             </div>
-          )}
+
+            <div className="mt-3 grid grid-cols-2 gap-2.5">
+              <a
+                href={contactPhoneHref}
+                className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--brand-tint)] text-[13px] font-extrabold text-[var(--brand)]"
+              >
+                {T("કોલ કરો", "Call")}
+              </a>
+              <a
+                href={contactWhatsappHref}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--success-tint)] text-[13px] font-extrabold text-[var(--wa-dark)]"
+              >
+                WhatsApp
+              </a>
+            </div>
+
+            <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--faint)]">
+              {T(
+                "તેઓનો નંબર કોઈ કારણસર ડાઉન હોય તો તેઓનો સંપર્ક કરી શકો છો.",
+                "If needed, you can contact them on this number while approval is pending.",
+              )}
+            </p>
+          </div>
+
           <button
             type="button"
             onClick={() => {
@@ -226,18 +408,25 @@ export function RegisterClient({
                 m1name: "",
                 m1nameGu: "",
                 m1mobile: "",
+                m1whatsapp: "",
                 m1dob: "",
                 m1blood: "B+",
+                hasWhatsApp: true,
+                ...blankCascadingOccupation(),
               });
             }}
-            className="mt-1 w-full max-w-[280px] rounded-[14px] border border-dashed border-[var(--brand-line)] bg-white py-3 text-sm font-bold text-[var(--brand)]"
+            className="mt-5 w-full max-w-[340px] rounded-[16px] border border-dashed border-[var(--brand-line)] bg-white py-3 text-sm font-bold text-[var(--brand)]"
           >
             {T("બીજા પરિવારની નોંધણી કરો", "Register another family")}
           </button>
           <Link
             href="/login"
-            className="flex h-[52px] w-full max-w-[280px] items-center justify-center rounded-2xl text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgb(var(--brand-rgb) / .6)]"
-            style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
+            className="mt-4 flex h-[52px] w-full max-w-[340px] items-center justify-center rounded-2xl border border-[color:rgb(var(--brand-rgb)/.18)] !text-white text-[15px] font-extrabold shadow-[0_12px_24px_-10px_rgb(var(--brand-rgb) / .45)]"
+            style={{
+              background: "linear-gradient(135deg,var(--brand),var(--brand-dark))",
+              color: "#fff",
+              textShadow: "0 1px 0 rgba(0,0,0,.12)",
+            }}
           >
             {T("લોગિન પર જાઓ", "Go to login")}
           </Link>
@@ -250,48 +439,65 @@ export function RegisterClient({
     return (
       <AppShell>
         <BackHeader
-          title={T("નવો સભ્ય ઉમેરો", "Add new member")}
+          title={editingMemberIndex === null ? T("નવો સભ્ય ઉમેરો", "Add new member") : T("સભ્યમાં ફેરફાર કરો", "Edit member")}
           subtitle={T("ઘરના સભ્યની માહિતી ભરો", "Fill in the household member's details")}
-          onBack={() => setAddOpen(false)}
+          onBack={() => {
+            setAddOpen(false);
+            setEditingMemberIndex(null);
+          }}
         />
         <div className="flex-1 px-4 py-[18px] pb-6">
           <Field label={`${T("પૂરું નામ", "Full name")} (${T("English", "English")}) *`}>
-            <input
-              className="samaj-fld"
-              value={newMember.name}
-              onChange={(e) => {
-                const v = e.target.value;
-                setNewMember((prev) => ({ ...prev, name: v }));
-                fromEn(v, (gu) => setNewMember((prev) => ({ ...prev, nameGu: gu })), "newMember");
-              }}
-              placeholder={T("નામ લખો…", "Enter name…")}
-            />
+            <div className="relative">
+              <input
+                className="samaj-fld pr-[120px]"
+                value={newMember.name}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setNewMember((prev) => ({ ...prev, name: v }));
+                  fromEn(v, (gu) => setNewMember((prev) => ({ ...prev, nameGu: gu })), "newMember");
+                }}
+                placeholder={T("નામ લખો…", "Enter name…")}
+              />
+              {selectedGroup && (
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-[#F1E4CC] bg-[#FFF7EA] px-2.5 py-1 text-[10.5px] font-extrabold text-[#9C6A1B]">
+                  {selectedGroup.nameEn}
+                </span>
+              )}
+            </div>
           </Field>
           <Field label={`${T("પૂરું નામ", "Full name")} (${T("ગુજરાતી", "Gujarati")})`}>
-            <GujaratiInput
-              inputClassName="samaj-fld"
-              value={newMember.nameGu}
-              onChange={(v) => {
-                setNewMember((prev) => ({ ...prev, nameGu: v }));
-                guInput(v, (gu) => setNewMember((prev) => ({ ...prev, nameGu: gu })), "newMember:gu");
-              }}
-            />
+            <div className="relative">
+              <GujaratiInput
+                inputClassName="samaj-fld pr-[150px]"
+                value={newMember.nameGu}
+                onChange={(v) => {
+                  setNewMember((prev) => ({ ...prev, nameGu: v }));
+                  guInput(v, (gu) => setNewMember((prev) => ({ ...prev, nameGu: gu })), "newMember:gu");
+                }}
+              />
+              {selectedGroup?.nameGu && (
+                <span className="pointer-events-none absolute right-12 top-1/2 -translate-y-1/2 rounded-full border border-[#F1E4CC] bg-[#FFF7EA] px-2.5 py-1 text-[10.5px] font-extrabold text-[#9C6A1B]">
+                  {selectedGroup.nameGu}
+                </span>
+              )}
+            </div>
           </Field>
           <Field label={`${T("સબંધ", "Relation")} *`}>
             <div className="flex flex-wrap gap-2">
-              {RELATIONS.map((r) => (
+              {relationChoices.map((r) => (
                 <button
-                  key={r.en}
+                  key={r.nameEn}
                   type="button"
-                  onClick={() => setNewMember({ ...newMember, relation: r.en })}
+                  onClick={() => setNewMember({ ...newMember, relation: r.nameEn })}
                   className={cn(
                     "rounded-full px-4 py-2.5 text-[13px] font-bold",
-                    newMember.relation === r.en
+                    newMember.relation === r.nameEn
                       ? "bg-[var(--brand)] text-white"
                       : "border border-[var(--line-field)] bg-white text-[var(--ink-dim)]",
                   )}
                 >
-                  {lang === "gu" ? r.gu : r.en}
+                  {lang === "gu" ? r.nameGu || r.nameEn : r.nameEn}
                 </button>
               ))}
             </div>
@@ -319,56 +525,108 @@ export function RegisterClient({
               </select>
             </Field>
           </div>
-          <Field label={T("મોબાઈલ (વૈકલ્પિક)", "Mobile (optional)")}>
-            <input
-              className="samaj-fld"
-              value={newMember.mobile}
-              onChange={(e) => setNewMember({ ...newMember, mobile: e.target.value })}
-              inputMode="numeric"
-            />
-          </Field>
-          <button
-            type="button"
-            onClick={() => setNewMember({ ...newMember, hasWa: !newMember.hasWa })}
-            className="samaj-card mb-4 flex items-center justify-between px-3.5 py-3"
-          >
-            <span className="text-[13.5px] font-semibold">
-              {T("આ નંબર પર WhatsApp છે", "This number has WhatsApp")}
-            </span>
-            <span
-              className={cn(
-                "relative h-[27px] w-[46px] rounded-2xl transition-colors",
-                newMember.hasWa ? "bg-[var(--brand)]" : "bg-[var(--scroll-thumb)]",
-              )}
-            >
-              <span
-                className={cn(
-                  "absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow transition-all",
-                  newMember.hasWa ? "left-[22px]" : "left-[3px]",
-                )}
+          <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
+            <Field label={T("મોબાઈલ", "Mobile")}>
+              <input
+                className="samaj-fld"
+                value={newMember.mobile}
+                onChange={(e) =>
+                  setNewMember({
+                    ...newMember,
+                    mobile: e.target.value.replace(/\D/g, "").slice(0, 10),
+                  })
+                }
+                inputMode="numeric"
               />
-            </span>
-          </button>
+            </Field>
+            {newMember.hasWa ? (
+              <div className="mb-3.5">
+                <div className="mb-1 text-xs font-bold text-[var(--muted)]">&nbsp;</div>
+                <button
+                  type="button"
+                  onClick={() => setNewMember({ ...newMember, hasWa: !newMember.hasWa })}
+                  className="samaj-card flex h-[48px] w-full items-center justify-between px-3.5"
+                >
+                  <span className="text-[13.5px] font-semibold">
+                    {T("આ નંબર પર WhatsApp છે", "This number has WhatsApp")}
+                  </span>
+                  <span
+                    className={cn(
+                      "relative h-[27px] w-[46px] rounded-2xl transition-colors",
+                      newMember.hasWa ? "bg-[var(--brand)]" : "bg-[var(--scroll-thumb)]",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow transition-all",
+                        newMember.hasWa ? "left-[22px]" : "left-[3px]",
+                      )}
+                    />
+                  </span>
+                </button>
+              </div>
+            ) : (
+              <Field
+                label={
+                  <span className="flex items-center justify-between gap-2">
+                    <span>{T("WhatsApp number", "WhatsApp number")}</span>
+                    <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--brand)]">
+                      <input
+                        type="checkbox"
+                        checked={false}
+                        onChange={() =>
+                          setNewMember((prev) => ({
+                            ...prev,
+                            hasWa: true,
+                            whatsapp: "",
+                          }))
+                        }
+                        className="size-3.5 accent-[var(--brand)]"
+                      />
+                      {T("same mobile", "same mobile")}
+                    </label>
+                  </span>
+                }
+              >
+                <input
+                  className="samaj-fld"
+                  value={newMember.whatsapp}
+                  onChange={(e) =>
+                    setNewMember({
+                      ...newMember,
+                      whatsapp: e.target.value.replace(/\D/g, "").slice(0, 10),
+                    })
+                  }
+                  inputMode="numeric"
+                  placeholder="98765 43210"
+                />
+              </Field>
+            )}
+          </div>
+          <div className="mb-3.5">
+            <CascadingOccupationFields
+              tree={occupationTree}
+              values={newMember}
+              onChange={(patch) => setNewMember((prev) => ({ ...prev, ...patch }))}
+            />
+          </div>
           <button
             type="button"
             onClick={() => {
               if (newMember.name.trim().length < 2) return;
-              setMembers([...members, newMember]);
+              if (editingMemberIndex === null) {
+                setMembers([...members, newMember]);
+              } else {
+                setMembers((prev) => prev.map((m, i) => (i === editingMemberIndex ? newMember : m)));
+              }
               setAddOpen(false);
-              setNewMember({
-                name: "",
-                nameGu: "",
-                relation: "Son",
-                dob: "",
-                blood: "B+",
-                mobile: "",
-                hasWa: true,
-              });
+              setEditingMemberIndex(null);
+              setNewMember(blankMember());
             }}
             className="flex h-[52px] w-full items-center justify-center rounded-2xl text-[15px] font-extrabold text-white"
             style={{ background: "linear-gradient(135deg,var(--brand),var(--brand-dark))" }}
           >
-            {T("સભ્ય ઉમેરો", "Add member")}
+            {editingMemberIndex === null ? T("સભ્ય ઉમેરો", "Add member") : T("ફેરફાર સચવો", "Save changes")}
           </button>
         </div>
       </AppShell>
@@ -417,7 +675,7 @@ export function RegisterClient({
       <div className="flex-1 px-4 py-4 pb-6">
         {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
-        {surnameGroups.length === 0 && (
+        {communityType === "GAM" && surnameGroups.length === 0 && (
           <p className="mb-3 rounded-[14px] border border-[#EFE3CB] bg-[#FDF9F0] p-3.5 text-xs text-[#8B7A55]">
             {T(
               "અટક જૂથ હજુ સેટ નથી. કૃપા કરી કોમ્યુનિટી એડમિનનો સંપર્ક કરો.",
@@ -432,50 +690,62 @@ export function RegisterClient({
               <h2 className="mb-3.5 text-[15px] font-extrabold text-[var(--ink)]">
                 {T("પરિવારની માહિતી", "Family information")}
               </h2>
-              <div className="mb-3 grid grid-cols-2 gap-2.5">
-                <Field label={`${T("અટક જૂથ", "Surname group")} *`}>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setGroupOpen(!groupOpen)}
-                      className="samaj-fld flex w-full items-center justify-between bg-[var(--field)]"
-                    >
-                      <span className="truncate">
-                        {selectedGroup
-                          ? pickText(selectedGroup.nameGu, selectedGroup.nameEn, lang)
-                          : T("પસંદ કરો", "Select")}
-                      </span>
-                      <ChevronDown className="h-5 w-5 flex-none text-[var(--brand)]" />
-                    </button>
-                    {groupOpen && (
-                      <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
-                        {surnameGroups.map((g, i) => (
-                          <button
-                            key={g.id}
-                            type="button"
-                            onClick={() => {
-                              setSurnameGroupId(g.id);
-                              setGroupOpen(false);
-                            }}
-                            className={cn(
-                              "block w-full px-3 py-2.5 text-left text-sm",
-                              i > 0 && "border-t border-[var(--line-soft)]",
-                              surnameGroupId === g.id && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
-                            )}
-                          >
-                            {pickText(g.nameGu, g.nameEn, lang)}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+
+              {communityType === "PARIVAR" ? (
+                <Field label={T("અટક", "Surname")}>
+                  <div className="flex min-h-[44px] items-center rounded-[13px] border border-[var(--line-input)] bg-[#F7F3EC] px-3.5 text-sm font-bold text-[var(--ink)]">
+                    {selectedGroup
+                      ? bilingualLabel(selectedGroup.nameEn, selectedGroup.nameGu)
+                      : "—"}
                   </div>
                 </Field>
-                <Field label={T("(ગુજરાતી)", "(Gujarati)")}>
-                  <div className="flex min-h-[44px] items-center rounded-[13px] border border-dashed border-[var(--line-input)] bg-[#F7F3EC] px-3.5 text-sm text-[var(--ink-dim)]">
-                    {selectedGroup?.nameGu || selectedGroup?.nameEn || "—"}
-                  </div>
-                </Field>
-              </div>
+              ) : (
+                <div className="mb-3 grid grid-cols-2 gap-2.5">
+                  <Field label={`${T("અટક જૂથ", "Surname group")} *`}>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setGroupOpen(!groupOpen)}
+                        className="samaj-fld flex w-full items-center justify-between bg-[var(--field)]"
+                      >
+                        <span className="truncate">
+                          {selectedGroup
+                            ? bilingualLabel(selectedGroup.nameEn, selectedGroup.nameGu)
+                            : T("પસંદ કરો", "Select")}
+                        </span>
+                        <ChevronDown className="h-5 w-5 flex-none text-[var(--brand)]" />
+                      </button>
+                      {groupOpen && (
+                        <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-48 overflow-y-auto rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
+                          {surnameGroups.map((g, i) => (
+                            <button
+                              key={g.id}
+                              type="button"
+                              onClick={() => {
+                                setSurnameGroupId(g.id);
+                                setGroupOpen(false);
+                              }}
+                              className={cn(
+                                "block w-full px-3 py-2.5 text-left text-sm",
+                                i > 0 && "border-t border-[var(--line-soft)]",
+                                surnameGroupId === g.id && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
+                              )}
+                            >
+                              {bilingualLabel(g.nameEn, g.nameGu)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </Field>
+                  <Field label={T("(ગુજરાતી)", "(Gujarati)")}>
+                    <div className="flex min-h-[44px] items-center rounded-[13px] border border-dashed border-[var(--line-input)] bg-[#F7F3EC] px-3.5 text-sm text-[var(--ink-dim)]">
+                      {selectedGroup?.nameGu || selectedGroup?.nameEn || "—"}
+                    </div>
+                  </Field>
+                </div>
+              )}
+
               <Field label={`${T("હાલનું સરનામું", "Current address")} (${T("English", "English")}) *`}>
                 <input
                   className="samaj-fld"
@@ -487,11 +757,12 @@ export function RegisterClient({
                   }}
                   placeholder={T("મકાન, વિસ્તાર, શહેર…", "House, area, city…")}
                 />
-                <input
-                  className="samaj-fld mt-2"
+              </Field>
+              <Field label={`${T("હાલનું સરનામું", "Current address")} (${T("ગુજરાતી", "Gujarati")})`}>
+                <GujaratiInput
+                  inputClassName="samaj-fld"
                   value={form.addrGu}
-                  onChange={(e) => {
-                    const v = e.target.value;
+                  onChange={(v) => {
                     setForm((prev) => ({ ...prev, addrGu: v }));
                     guInput(v, (gu) => setForm((prev) => ({ ...prev, addrGu: gu })), "addr:gu");
                   }}
@@ -503,15 +774,22 @@ export function RegisterClient({
                     if (typeof navigator !== "undefined" && navigator.geolocation) {
                       navigator.geolocation.getCurrentPosition(
                         (pos) => {
-                          setForm({
-                            ...form,
+                          setForm((prev) => ({
+                            ...prev,
                             loc: `${pos.coords.latitude.toFixed(4)}° N, ${pos.coords.longitude.toFixed(4)}° E`,
-                          });
+                          }));
                         },
-                        () => setForm({ ...form, loc: city || T("સ્થળ સેવ થયું", "Location saved") }),
+                        () =>
+                          setForm((prev) => ({
+                            ...prev,
+                            loc: city || T("સ્થળ સેવ થયું", "Location saved"),
+                          })),
                       );
                     } else {
-                      setForm({ ...form, loc: city || T("સ્થળ સેવ થયું", "Location saved") });
+                      setForm((prev) => ({
+                        ...prev,
+                        loc: city || T("સ્થળ સેવ થયું", "Location saved"),
+                      }));
                     }
                   }}
                   className="mt-2 flex h-12 w-full items-center gap-2.5 rounded-[13px] border-[1.5px] border-[var(--line-input)] bg-white px-3"
@@ -529,42 +807,97 @@ export function RegisterClient({
                   </div>
                 </button>
               </Field>
-              {cityOptions.length > 0 && (
-                <Field label={T("હાલ", "Currently at")}>
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setHalOpen(!halOpen)}
-                      className="samaj-fld flex w-full items-center justify-between"
-                    >
-                      {city || T("પસંદ કરો", "Select")}
-                      <ChevronDown className="h-5 w-5 text-[var(--brand)]" />
-                    </button>
-                    {halOpen && (
-                      <div className="absolute left-0 right-0 top-full z-15 mt-1 overflow-hidden rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
-                        {cityOptions.map((o, i) => (
-                          <button
-                            key={o}
-                            type="button"
-                            onClick={() => {
-                              setCity(o);
-                              setHalOpen(false);
-                            }}
-                            className={cn(
-                              "block w-full px-3 py-2.5 text-left text-sm",
-                              i > 0 && "border-t border-[var(--line-soft)]",
-                              city === o && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
-                            )}
-                          >
-                            {o}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+
+              <Field
+                label={
+                  communityType === "PARIVAR"
+                    ? `${T("શહેર", "City")} *`
+                    : `${T("ગામ / શહેર", "Village / city")} *`
+                }
+              >
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setPlaceOpen(!placeOpen)}
+                    className="samaj-fld flex w-full items-center justify-between"
+                  >
+                    <span className="truncate">{placeLabel}</span>
+                    <ChevronDown className="h-5 w-5 text-[var(--brand)]" />
+                  </button>
+                  {placeOpen && (
+                    <div className="absolute left-0 right-0 top-full z-15 mt-1 max-h-56 overflow-y-auto rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
+                      {communityType === "PARIVAR"
+                        ? cities.map((c, i) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onClick={() => {
+                                setCity(c.nameEn);
+                                setPlaceOpen(false);
+                              }}
+                              className={cn(
+                                "block w-full px-3 py-2.5 text-left text-sm",
+                                i > 0 && "border-t border-[var(--line-soft)]",
+                                city === c.nameEn && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
+                              )}
+                            >
+                              {pickText(c.nameGu, c.nameEn, lang)}
+                            </button>
+                          ))
+                        : (
+                          <>
+                            {villages.map((v, i) => (
+                              <button
+                                key={v.id}
+                                type="button"
+                                onClick={() => {
+                                  setVillageAreaId(v.id);
+                                  setLivesOutsideVillage(false);
+                                  setPlaceOpen(false);
+                                }}
+                                className={cn(
+                                  "block w-full px-3 py-2.5 text-left text-sm",
+                                  i > 0 && "border-t border-[var(--line-soft)]",
+                                  !livesOutsideVillage &&
+                                    villageAreaId === v.id &&
+                                    "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
+                                )}
+                              >
+                                {pickText(v.nameGu, v.nameEn, lang)}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLivesOutsideVillage(true);
+                                setVillageAreaId("");
+                                setPlaceOpen(false);
+                              }}
+                              className={cn(
+                                "block w-full border-t border-[var(--line-soft)] px-3 py-2.5 text-left text-sm",
+                                livesOutsideVillage && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
+                              )}
+                            >
+                              {T("ગામ બહાર રહે છે", "Lives outside village")}
+                            </button>
+                          </>
+                        )}
+                    </div>
+                  )}
+                </div>
+              </Field>
+
+              {(communityType === "GAM" && livesOutsideVillage) && (
+                <Field label={`${T("શહેર", "City")} *`}>
+                  <input
+                    className="samaj-fld"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder={T("હાલનું શહેર…", "Current city…")}
+                  />
                 </Field>
               )}
-              <Field label={T("વતનમાં રહેતા વડીલ (નામ)", "Native elder (name)")}>
+              <Field label={T("વતનમાં રહેતા વડીલ (નામ) (English)", "Native elder name (English)")}>
                 <input
                   className="samaj-fld"
                   value={form.elder}
@@ -573,22 +906,30 @@ export function RegisterClient({
                     setForm((prev) => ({ ...prev, elder: v }));
                     fromEn(v, (gu) => setForm((prev) => ({ ...prev, elderGu: gu })), "elder");
                   }}
+                  placeholder={T("વડીલનું નામ…", "Elder name…")}
                 />
-                <input
-                  className="samaj-fld mt-2"
+              </Field>
+              <Field label={T("વતનમાં રહેતા વડીલ (નામ) (ગુજરાતી)", "Native elder name (Gujarati)")}>
+                <GujaratiInput
+                  inputClassName="samaj-fld"
                   value={form.elderGu}
-                  onChange={(e) => {
-                    const v = e.target.value;
+                  onChange={(v) => {
                     setForm((prev) => ({ ...prev, elderGu: v }));
                     guInput(v, (gu) => setForm((prev) => ({ ...prev, elderGu: gu })), "elder:gu");
                   }}
+                  placeholder={T("ગુજરાતીમાં…", "In Gujarati…")}
                 />
               </Field>
-              <Field label={T("વતનમાં રહેતા વડીલ (ફોન)", "Native elder (phone)")}>
+              <Field label={T("વતનમાં રહેતા વડીલ (ફોન)", "Native elder phone")}>
                 <input
                   className="samaj-fld"
                   value={form.elderPhone}
-                  onChange={(e) => setForm({ ...form, elderPhone: e.target.value })}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      elderPhone: e.target.value.replace(/\D/g, "").slice(0, 10),
+                    })
+                  }
                   inputMode="numeric"
                 />
               </Field>
@@ -613,7 +954,9 @@ export function RegisterClient({
                     {T("પરિવારની માહિતી", "FAMILY INFO")}
                   </div>
                   <div className="mt-0.5 text-sm font-bold">
-                    {selectedGroup ? pickText(selectedGroup.nameGu, selectedGroup.nameEn, lang) : "—"}
+                    {selectedGroup
+                      ? bilingualLabel(selectedGroup.nameEn, selectedGroup.nameGu)
+                      : "—"}
                   </div>
                 </div>
                 <button type="button" onClick={() => setStep(1)} className="text-xs font-bold text-[var(--brand)] underline">
@@ -631,25 +974,45 @@ export function RegisterClient({
                   </span>
                 </div>
                 <Field label={`${T("પૂરું નામ", "Full name")} *`}>
-                  <input
-                    className="samaj-fld"
-                    value={form.m1name}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setForm((prev) => ({ ...prev, m1name: v }));
-                      fromEn(v, (gu) => setForm((prev) => ({ ...prev, m1nameGu: gu })), "m1");
-                    }}
-                  />
+                  <div className="relative">
+                    <input
+                      className="samaj-fld pr-[120px]"
+                      value={form.m1name}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setForm((prev) => ({ ...prev, m1name: v }));
+                        fromEn(v, (gu) => setForm((prev) => ({ ...prev, m1nameGu: gu })), "m1");
+                      }}
+                    />
+                    {selectedGroup && (
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-[#F1E4CC] bg-[#FFF7EA] px-2.5 py-1 text-[10.5px] font-extrabold text-[#9C6A1B]">
+                        {selectedGroup.nameEn}
+                      </span>
+                    )}
+                  </div>
                 </Field>
                 <Field label={`${T("પૂરું નામ", "Full name")} (${T("ગુજરાતી", "Gujarati")})`}>
-                  <GujaratiInput
-                    inputClassName="samaj-fld"
-                    value={form.m1nameGu}
-                    onChange={(v) => {
-                      setForm((prev) => ({ ...prev, m1nameGu: v }));
-                      guInput(v, (gu) => setForm((prev) => ({ ...prev, m1nameGu: gu })), "m1:gu");
-                    }}
-                  />
+                  <div className="relative">
+                    <GujaratiInput
+                      inputClassName="samaj-fld pr-[150px]"
+                      value={form.m1nameGu}
+                      onChange={(v) => {
+                        setForm((prev) => ({ ...prev, m1nameGu: v }));
+                        guInput(v, (gu) => setForm((prev) => ({ ...prev, m1nameGu: gu })), "m1:gu");
+                      }}
+                    />
+                    {selectedGroup?.nameGu && (
+                      <span className="pointer-events-none absolute right-12 top-1/2 -translate-y-1/2 rounded-full border border-[#F1E4CC] bg-[#FFF7EA] px-2.5 py-1 text-[10.5px] font-extrabold text-[#9C6A1B]">
+                        {selectedGroup.nameGu}
+                      </span>
+                    )}
+                  </div>
+                </Field>
+                <Field label={`${T("હાલ", "Currently at")} *`}>
+                  <div className="samaj-fld flex items-center justify-between bg-[#F7F3EC] text-[var(--ink)]">
+                    <span>{placeLabel || T("પસંદ કરો", "Select")}</span>
+                    <ChevronDown className="h-4 w-4 text-[var(--brand)]" />
+                  </div>
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
                   <Field label={T("જન્મ", "DOB")}>
@@ -672,34 +1035,134 @@ export function RegisterClient({
                     </select>
                   </Field>
                 </div>
-                <Field label={`${T("મોબાઈલ (લોગિન)", "Mobile (login)")} *`}>
-                  <input
-                    className="samaj-fld"
-                    value={form.m1mobile}
-                    onChange={(e) => setForm({ ...form, m1mobile: e.target.value })}
-                    inputMode="numeric"
-                  />
-                </Field>
+                <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
+                  <Field label={`${T("મોબાઈલ (લોગિન)", "Mobile (login)")} *`}>
+                    <input
+                      className="samaj-fld"
+                      value={form.m1mobile}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          m1mobile: e.target.value.replace(/\D/g, "").slice(0, 10),
+                        })
+                      }
+                      inputMode="numeric"
+                    />
+                  </Field>
+                  {form.hasWhatsApp ? (
+                    <div className="mb-3.5">
+                      <div className="mb-1 text-xs font-bold text-[var(--muted)]">&nbsp;</div>
+                      <button
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, hasWhatsApp: !prev.hasWhatsApp }))}
+                        className="samaj-card flex h-[48px] w-full items-center justify-between px-3.5"
+                      >
+                        <span className="text-[13.5px] font-semibold">
+                          {T("આ નંબર પર WhatsApp છે", "This number has WhatsApp")}
+                        </span>
+                        <span
+                          className={cn(
+                            "relative h-[27px] w-[46px] rounded-2xl transition-colors",
+                            form.hasWhatsApp ? "bg-[var(--brand)]" : "bg-[var(--scroll-thumb)]",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow transition-all",
+                              form.hasWhatsApp ? "left-[22px]" : "left-[3px]",
+                            )}
+                          />
+                        </span>
+                      </button>
+                    </div>
+                  ) : (
+                    <Field
+                      label={
+                        <span className="flex items-center justify-between gap-2">
+                          <span>{T("WhatsApp number", "WhatsApp number")}</span>
+                          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--brand)]">
+                            <input
+                              type="checkbox"
+                              checked={false}
+                              onChange={() =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  hasWhatsApp: true,
+                                  m1whatsapp: "",
+                                }))
+                              }
+                              className="size-3.5 accent-[var(--brand)]"
+                            />
+                            {T("same mobile", "same mobile")}
+                          </label>
+                        </span>
+                      }
+                    >
+                      <input
+                        className="samaj-fld"
+                        value={form.m1whatsapp}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            m1whatsapp: e.target.value.replace(/\D/g, "").slice(0, 10),
+                          })
+                        }
+                        inputMode="numeric"
+                        placeholder="98765 43210"
+                      />
+                    </Field>
+                  )}
+                </div>
+                <CascadingOccupationFields
+                  tree={occupationTree}
+                  values={form}
+                  onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+                />
               </div>
               {members.map((m, i) => (
                 <div key={i} className="samaj-card mb-3 p-[15px]">
                   <div className="mb-2 flex justify-between">
                     <b>{T(`સભ્ય ${i + 2}`, `Member ${i + 2}`)}</b>
-                    <span className="rounded-lg bg-[#F4EFE6] px-2 py-0.5 text-[10px] font-bold text-[var(--ink-dim)]">
-                      {m.relation}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-lg bg-[#F4EFE6] px-2 py-0.5 text-[10px] font-bold text-[var(--ink-dim)]">
+                        {(() => {
+                          const relation = relationChoices.find((r) => r.nameEn === m.relation);
+                          return relation
+                            ? bilingualLabel(relation.nameEn, relation.nameGu)
+                            : m.relation;
+                        })()}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => openEditMember(i)}
+                        className="text-[11px] font-bold text-[var(--brand)]"
+                      >
+                        {T("ફેરફાર", "Edit")}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMembers((prev) => prev.filter((_, idx) => idx !== i))}
+                        className="text-[11px] font-bold text-[var(--danger)]"
+                      >
+                        {T("કાઢી નાખો", "Remove")}
+                      </button>
+                    </div>
                   </div>
-                  <div className="samaj-fld flex justify-between">
-                    {lang === "gu" && m.nameGu ? m.nameGu : m.name}
-                    <span className="rounded-md bg-[#F4EFE6] px-2 py-0.5 text-[11px] font-bold text-[var(--muted)]">
-                      {selectedGroup ? selectedGroup.nameEn : ""}
+                  <div className="samaj-fld flex flex-wrap items-center justify-between gap-2">
+                    <span className="min-w-0 flex-1 break-words font-semibold text-[var(--ink)]">
+                      {lang === "gu" && m.nameGu ? m.nameGu : m.name}
+                    </span>
+                    <span className="shrink-0 rounded-md bg-[#F4EFE6] px-2 py-0.5 text-[11px] font-bold text-[var(--muted)]">
+                      {selectedGroup
+                        ? bilingualLabel(selectedGroup.nameEn, selectedGroup.nameGu)
+                        : ""}
                     </span>
                   </div>
                 </div>
               ))}
               <button
                 type="button"
-                onClick={() => setAddOpen(true)}
+                onClick={openAddMember}
                 className="mb-3 flex h-12 w-full items-center justify-center rounded-[14px] border border-dashed border-[var(--brand-line)] bg-white text-sm font-bold text-[var(--brand)]"
               >
                 ＋ {T("બીજા સભ્ય ઉમેરો", "Add another member")}
@@ -726,10 +1189,10 @@ export function RegisterClient({
                 </div>
                 <Kv
                   k={T("અટક", "Surname")}
-                  v={selectedGroup ? pickText(selectedGroup.nameGu, selectedGroup.nameEn, lang) : "—"}
+                  v={selectedGroup ? bilingualLabel(selectedGroup.nameEn, selectedGroup.nameGu) : "—"}
                 />
                 <Kv k={T("સરનામું", "Address")} v={form.addr || "—"} />
-                <Kv k={T("હાલ", "Currently at")} v={city || "—"} />
+                <Kv k={T("હાલ", "Currently at")} v={placeLabel || "—"} />
                 <button type="button" onClick={() => setStep(1)} className="mt-1.5 text-xs font-bold text-[var(--brand)] underline">
                   {T("ફેરફાર કરવો?", "Make changes?")}
                 </button>
@@ -743,14 +1206,52 @@ export function RegisterClient({
                     {T("ફેરફાર", "Edit")}
                   </button>
                 </div>
-                {[form.m1name, ...members.map((m) => m.name)].map((n, i) => (
-                  <div key={i} className="flex items-center gap-3 border-t border-[var(--cream)] py-2 first:border-0">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--danger-tint)] text-[15px] font-extrabold text-[var(--danger)]">
-                      {n.trim()[0] || "?"}
+                {[
+                  {
+                    name: form.m1name,
+                    nameGu: form.m1nameGu,
+                    relation: "Head",
+                    dob: form.m1dob,
+                    blood: form.m1blood,
+                    occupation: occupationLabel(form),
+                  },
+                  ...members.map((m) => ({
+                    name: m.name,
+                    nameGu: m.nameGu,
+                    relation: m.relation,
+                    dob: m.dob,
+                    blood: m.blood,
+                    occupation: occupationLabel(m),
+                  })),
+                ].map((member, i) => {
+                  const displayName = lang === "gu" && member.nameGu ? member.nameGu : member.name;
+                  const parts = [
+                    relationLabel(member.relation),
+                    member.dob ? `${T("જન્મ", "DOB")} ${formatShortDate(member.dob)}` : "",
+                    member.blood || "",
+                    member.occupation || "",
+                  ].filter(Boolean);
+                  return (
+                    <div key={i} className="flex items-start gap-3 border-t border-[var(--cream)] py-3 first:border-0">
+                      <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-[var(--danger-tint)] text-[15px] font-extrabold text-[var(--danger)]">
+                        {(displayName || "?").trim()[0] || "?"}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[13.5px] font-bold text-[var(--ink)]">{displayName}</div>
+                            <div className="mt-0.5 text-[12px] leading-relaxed text-[var(--ink-mid)]">
+                              {parts.join(" · ")}
+                            </div>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-[#F8F1E6] px-2.5 py-1 text-[10.5px] font-bold text-[var(--ink-dim)]">
+                            {relationBadgeLabel(member.relation)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 text-[13.5px] font-bold">{n}</div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <button
                 type="button"
@@ -776,7 +1277,7 @@ export function RegisterClient({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="mb-3.5">
       <div className="mb-1 text-xs font-bold text-[var(--muted)]">{label}</div>

@@ -222,15 +222,16 @@ export async function middleware(req: NextRequest) {
   if (!token || !secret) {
     if (pathname.startsWith("/api/")) {
       if (
-        req.method === "GET" &&
-        (pathname.startsWith("/api/news") ||
-          pathname.startsWith("/api/ads") ||
-          pathname.startsWith("/api/gallery") ||
-          pathname.startsWith("/api/businesses") ||
-          pathname.startsWith("/api/blood-donors") ||
-          pathname.startsWith("/api/families") ||
-          pathname.startsWith("/api/results") ||
-          pathname === "/api/health")
+        (req.method === "GET" &&
+          (pathname.startsWith("/api/news") ||
+            pathname.startsWith("/api/ads") ||
+            pathname.startsWith("/api/gallery") ||
+            pathname.startsWith("/api/businesses") ||
+            pathname.startsWith("/api/blood-donors") ||
+            pathname.startsWith("/api/families") ||
+            pathname.startsWith("/api/results") ||
+            pathname === "/api/health")) ||
+        (req.method === "POST" && pathname === "/api/families")
       ) {
         return next();
       }

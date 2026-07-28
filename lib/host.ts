@@ -137,17 +137,17 @@ export function parseHost(
 
   const parts = hostname.split(".").filter(Boolean);
 
-  // Local: admin.{slug}.localhost
+  // Local: admin.{slug}.localhost or admin.foo.bar.localhost -> foo_bar
   if (parts.length >= 3 && parts[parts.length - 1] === "localhost" && parts[0] === "admin") {
-    const slug = parts[1];
+    const slug = parts.slice(1, -1).join("_");
     if (slug && !RESERVED_TOP.has(slug) && slug !== "admin") {
       return { kind: "admin", slug, hostname, singleHost: false };
     }
   }
 
-  // Local: {slug}.localhost
-  if (parts.length === 2 && parts[1] === "localhost") {
-    const slug = parts[0];
+  // Local: {slug}.localhost or foo.bar.localhost -> foo_bar
+  if (parts.length >= 2 && parts[parts.length - 1] === "localhost") {
+    const slug = parts.slice(0, -1).join("_");
     if (slug && !RESERVED_TOP.has(slug) && slug !== "admin") {
       return { kind: "site", slug, hostname, singleHost: false };
     }

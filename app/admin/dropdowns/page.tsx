@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
 import { getSurnameGroups, getDropdownOptions } from "@/lib/tenant-data";
+import { seedCityDefaults, seedGamVillages } from "@/lib/community-defaults";
 import { seedRelationshipDefaults } from "@/lib/constants";
 import {
   isStudentOccupation,
@@ -37,7 +38,6 @@ export default async function DropdownsPage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  // Backfill nested occupation tree for communities created before this feature.
   const nestedCount = await prisma.dropdownOption.count({
     where: { communityId: community.id, type: "occupation", parentId: { not: null } },
   });
@@ -48,7 +48,6 @@ export default async function DropdownsPage() {
     await seedOccupationDefaults(prisma, community.id);
   }
 
-  // Backfill relationship masters for communities created before seeding existed.
   const relationCount = await prisma.dropdownOption.count({
     where: { communityId: community.id, type: "relationship" },
   });
@@ -56,10 +55,27 @@ export default async function DropdownsPage() {
     await seedRelationshipDefaults(prisma, community.id);
   }
 
-  const [surnames, options, bloodGroups] = await Promise.all([
+  if (community.type === "PARIVAR") {
+    const cityCount = await prisma.dropdownOption.count({
+      where: { communityId: community.id, type: "city" },
+    });
+    if (cityCount === 0) await seedCityDefaults(prisma, community.id);
+  } else {
+    const villageCount = await prisma.villageArea.count({ where: { communityId: community.id } });
+    if (villageCount === 0) {
+      await seedGamVillages(prisma, community.id, community.village || community.nameEn);
+    }
+  }
+
+  const [surnames, options, bloodGroups, villages] = await Promise.all([
     getSurnameGroups(community.id),
     getDropdownOptions(community.id),
     prisma.bloodGroup.findMany({ orderBy: { type: "asc" } }),
+    prisma.villageArea.findMany({
+      where: { communityId: community.id },
+      include: { _count: { select: { families: true } } },
+      orderBy: [{ nameEn: "asc" }],
+    }),
   ]);
 
   const childCountByParent = new Map<string, number>();
@@ -85,6 +101,17 @@ export default async function DropdownsPage() {
       needsReview: s.needsReview,
       childCount: 0,
     })),
+    city: options
+      .filter((o) => o.type === "city" && o.parentId === null)
+      .map((o) => toRow(o)),
+    village: villages.map((v) => ({
+      id: v.id,
+      nameEn: v.nameEn,
+      nameGu: v.nameGu,
+      isActive: true,
+      inUse: v._count.families,
+      childCount: 0,
+    })),
     blood: bloodGroups.map((b) => ({
       id: b.id,
       nameEn: b.label,
@@ -97,7 +124,6 @@ export default async function DropdownsPage() {
     relationship: options
       .filter((o) => o.type === "relationship" && o.parentId === null)
       .map((o) => toRow(o)),
-    // Connected to Occupation → Student / Vepar children (same DropdownOption tree).
     student: studentRoot
       ? options.filter((o) => o.parentId === studentRoot.id).map((o) => toRow(o, countOf(o.id)))
       : [],
@@ -106,8 +132,15 @@ export default async function DropdownsPage() {
       : [],
   };
 
+  const lockedSurname =
+    community.type === "PARIVAR" && surnames[0]
+      ? { nameEn: surnames[0].nameEn, nameGu: surnames[0].nameGu }
+      : null;
+
   return (
     <DropdownsClient
+      communityType={community.type}
+      lockedSurname={lockedSurname}
       initialRows={rows}
       roots={{
         student: studentRoot ? toRow(studentRoot) : null,

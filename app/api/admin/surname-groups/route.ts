@@ -27,6 +27,13 @@ const createSchema = z.object({
 export async function POST(req: Request) {
   try {
     const { communityId } = await requireAdmin();
+    const community = await prisma.community.findUnique({
+      where: { id: communityId },
+      select: { type: true },
+    });
+    if (community?.type === "PARIVAR") {
+      return fail("Parivar communities have a locked surname — add/change is not allowed", 403);
+    }
     const body = createSchema.parse(await req.json());
     const item = await prisma.surnameGroup.create({
       data: {
@@ -48,6 +55,13 @@ const updateSchema = createSchema.partial().extend({ id: z.string().min(1) });
 export async function PATCH(req: Request) {
   try {
     const { communityId } = await requireAdmin();
+    const community = await prisma.community.findUnique({
+      where: { id: communityId },
+      select: { type: true },
+    });
+    if (community?.type === "PARIVAR") {
+      return fail("Parivar surname is locked — rename via platform if needed", 403);
+    }
     const { id, ...data } = updateSchema.parse(await req.json());
     const existing = await prisma.surnameGroup.findFirst({
       where: { id, communityId },
@@ -64,6 +78,13 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const { communityId } = await requireAdmin();
+    const community = await prisma.community.findUnique({
+      where: { id: communityId },
+      select: { type: true },
+    });
+    if (community?.type === "PARIVAR") {
+      return fail("Parivar surname is locked and cannot be deleted", 403);
+    }
     const id = new URL(req.url).searchParams.get("id");
     if (!id) return fail("id is required");
     const inUse = await prisma.family.count({ where: { communityId, surnameGroupId: id } });
