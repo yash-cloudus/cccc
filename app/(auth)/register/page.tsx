@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { ensureParivarLockedSurname } from "@/lib/community-defaults";
 import { getActiveCommunity } from "@/lib/tenant";
 import {
   getDropdownOptions,
@@ -14,6 +15,11 @@ export const dynamic = "force-dynamic";
 export default async function RegisterPage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
+
+  const locked =
+    community.type === "PARIVAR"
+      ? await ensureParivarLockedSurname(prisma, community.id)
+      : null;
 
   const [surnameGroups, villages, cities, relations, occupationTree, contactPerson] = await Promise.all([
     getSurnameGroups(community.id),
@@ -46,8 +52,9 @@ export default async function RegisterPage() {
     }),
   ]);
 
-  const lockedSurname =
-    community.type === "PARIVAR" && surnameGroups[0]
+  const lockedSurname = locked
+    ? { id: locked.id, nameEn: locked.nameEn, nameGu: locked.nameGu }
+    : community.type === "PARIVAR" && surnameGroups[0]
       ? {
           id: surnameGroups[0].id,
           nameEn: surnameGroups[0].nameEn,

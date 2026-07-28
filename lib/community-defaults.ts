@@ -32,6 +32,23 @@ export async function seedCityDefaults(tx: Tx, communityId: string) {
   }
 }
 
+/** Strip common community suffixes so "Vavliya Parivar" → "Vavliya". */
+export function surnameFromCommunityName(name?: string | null) {
+  const raw = (name || "").trim();
+  if (!raw) return "";
+  return raw
+    .replace(/\s+(parivar|samaj|community|gam|family|પરિવાર|સમાજ|ગામ)\s*$/iu, "")
+    .trim();
+}
+
+function titleCaseEn(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+}
+
 export async function seedLockedSurname(
   tx: Tx,
   communityId: string,
@@ -48,6 +65,29 @@ export async function seedLockedSurname(
   return tx.surnameGroup.create({
     data: { communityId, nameEn: en, nameGu: gu, sortOrder: 0 },
   });
+}
+
+/**
+ * Ensure Parivar communities always have a locked default surname group.
+ * Creates one from community name when missing (safe backfill).
+ */
+export async function ensureParivarLockedSurname(tx: Tx, communityId: string) {
+  const community = await tx.community.findUnique({
+    where: { id: communityId },
+    select: { type: true, nameEn: true, nameGu: true },
+  });
+  if (!community || community.type !== "PARIVAR") return null;
+
+  const existing = await tx.surnameGroup.findFirst({
+    where: { communityId },
+    orderBy: { createdAt: "asc" },
+  });
+  if (existing) return existing;
+
+  const enRaw = surnameFromCommunityName(community.nameEn) || community.nameEn.trim() || "Family";
+  const guRaw =
+    surnameFromCommunityName(community.nameGu) || community.nameGu?.trim() || enRaw;
+  return seedLockedSurname(tx, communityId, titleCaseEn(enRaw), guRaw);
 }
 
 export async function seedGamVillages(
@@ -87,25 +127,27 @@ export async function seedCommunityDefaults(tx: Tx, communityId: string, opts: S
   await seedOccupationDefaults(tx, communityId);
 
   if (opts.type === "PARIVAR") {
-    const en = opts.primarySurnameEn?.trim();
-    if (en) {
-      await seedLockedSurname(tx, communityId, en, opts.primarySurnameGu?.trim() || en);
-    }
+    const community = await tx.community.findUnique({
+      where: { id: communityId },
+      select: { nameEn: true, nameGu: true },
+    });
+    const en =
+      opts.primarySurnameEn?.trim() ||
+      titleCaseEn(surnameFromCommunityName(community?.nameEn) || community?.nameEn || "") ||
+      "Family";
+    const gu =
+      opts.primarySurnameGu?.trim() ||
+      surnameFromCommunityName(community?.nameGu) ||
+      community?.nameGu?.trim() ||
+      en;
+    await seedLockedSurname(tx, communityId, en, gu);
     await seedCityDefaults(tx, communityId);
   } else {
     await seedGamVillages(tx, communityId, opts.communityVillage);
   }
 }
 
-/** True when this community is Parivar with a single locked surname group. */
+/** Parivar locked surname — creates from community name if missing. */
 export async function getParivarLockedSurname(tx: Tx, communityId: string) {
-  const community = await tx.community.findUnique({
-    where: { id: communityId },
-    select: { type: true },
-  });
-  if (!community || community.type !== "PARIVAR") return null;
-  return tx.surnameGroup.findFirst({
-    where: { communityId },
-    orderBy: { createdAt: "asc" },
-  });
+  return ensureParivarLockedSurname(tx, communityId);
 }

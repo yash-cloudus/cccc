@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { ensureParivarLockedSurname } from "@/lib/community-defaults";
 import { getActiveCommunity } from "@/lib/tenant";
 import {
   getDropdownOptions,
@@ -30,6 +31,11 @@ export default async function ReviewRegistrationPage({
   const community = await getActiveCommunity();
   if (!community) notFound();
 
+  const locked =
+    community.type === "PARIVAR"
+      ? await ensureParivarLockedSurname(prisma, community.id)
+      : null;
+
   const [family, surnameGroups, occupationTree, villages, cities, relations] =
     await Promise.all([
       getFamily(community.id, id),
@@ -44,8 +50,9 @@ export default async function ReviewRegistrationPage({
     ]);
   if (!family) notFound();
 
-  const lockedSurname =
-    community.type === "PARIVAR" && surnameGroups[0]
+  const lockedSurname = locked
+    ? { id: locked.id, nameEn: locked.nameEn, nameGu: locked.nameGu }
+    : community.type === "PARIVAR" && surnameGroups[0]
       ? {
           id: surnameGroups[0].id,
           nameEn: surnameGroups[0].nameEn,

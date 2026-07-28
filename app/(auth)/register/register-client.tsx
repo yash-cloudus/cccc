@@ -202,7 +202,11 @@ export function RegisterClient({
   }));
 
   const placeLabel = useMemo(() => {
-    if (communityType === "PARIVAR") return city || (lang === "gu" ? "પસંદ કરો" : "Select");
+    if (communityType === "PARIVAR") {
+      const c = cities.find((x) => x.nameEn === city);
+      if (c) return bilingualLabel(c.nameEn, c.nameGu);
+      return city || (lang === "gu" ? "પસંદ કરો" : "Select");
+    }
     if (livesOutsideVillage) {
       return city
         ? `${lang === "gu" ? "બહાર" : "Outside"} · ${city}`
@@ -211,8 +215,12 @@ export function RegisterClient({
           : "Lives outside";
     }
     const v = villages.find((x) => x.id === villageAreaId);
-    return v ? pickText(v.nameGu, v.nameEn, lang) : lang === "gu" ? "પસંદ કરો" : "Select";
-  }, [communityType, city, livesOutsideVillage, villageAreaId, villages, lang]);
+    return v
+      ? bilingualLabel(v.nameEn, v.nameGu)
+      : lang === "gu"
+        ? "પસંદ કરો"
+        : "Select";
+  }, [communityType, city, cities, livesOutsideVillage, villageAreaId, villages, lang]);
 
   function validateStep1() {
     if (communityType === "PARIVAR") {
@@ -841,7 +849,7 @@ export function RegisterClient({
                                 city === c.nameEn && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
                               )}
                             >
-                              {pickText(c.nameGu, c.nameEn, lang)}
+                              {bilingualLabel(c.nameEn, c.nameGu)}
                             </button>
                           ))
                         : (
@@ -863,7 +871,7 @@ export function RegisterClient({
                                     "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
                                 )}
                               >
-                                {pickText(v.nameGu, v.nameEn, lang)}
+                                {bilingualLabel(v.nameEn, v.nameGu)}
                               </button>
                             ))}
                             <button

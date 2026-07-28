@@ -2,7 +2,11 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
 import { getSurnameGroups, getDropdownOptions } from "@/lib/tenant-data";
-import { seedCityDefaults, seedGamVillages } from "@/lib/community-defaults";
+import {
+  ensureParivarLockedSurname,
+  seedCityDefaults,
+  seedGamVillages,
+} from "@/lib/community-defaults";
 import { seedRelationshipDefaults } from "@/lib/constants";
 import {
   isStudentOccupation,
@@ -56,6 +60,7 @@ export default async function DropdownsPage() {
   }
 
   if (community.type === "PARIVAR") {
+    await ensureParivarLockedSurname(prisma, community.id);
     const cityCount = await prisma.dropdownOption.count({
       where: { communityId: community.id, type: "city" },
     });

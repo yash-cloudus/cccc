@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { ensureParivarLockedSurname } from "@/lib/community-defaults";
 import { getActiveCommunity } from "@/lib/tenant";
 import {
   getFamilies,
@@ -15,6 +16,11 @@ export const dynamic = "force-dynamic";
 export default async function FamiliesPage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
+
+  const locked =
+    community.type === "PARIVAR"
+      ? await ensureParivarLockedSurname(prisma, community.id)
+      : null;
 
   const [families, surnameGroups, relationOptions, occupationTree, villages, cities] =
     await Promise.all([
@@ -41,8 +47,9 @@ export default async function FamiliesPage() {
     members: f._count.familyMembers,
   }));
 
-  const lockedSurname =
-    community.type === "PARIVAR" && surnameGroups[0]
+  const lockedSurname = locked
+    ? { id: locked.id, nameEn: locked.nameEn, nameGu: locked.nameGu }
+    : community.type === "PARIVAR" && surnameGroups[0]
       ? {
           id: surnameGroups[0].id,
           nameEn: surnameGroups[0].nameEn,
