@@ -339,11 +339,14 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 <button
                   type="button"
                   onClick={() => togglePinned(n)}
-                  className="cursor-pointer text-base leading-none"
+                  className={cn(
+                    "cursor-pointer text-[12px] font-bold transition-colors",
+                    n.isPinned ? "text-[var(--brand)]" : "text-[var(--faint)] hover:text-[var(--ink)]"
+                  )}
                   aria-label={n.isPinned ? "Unpin post" : "Pin post"}
                   title={n.isPinned ? "Unpin" : "Pin to top"}
                 >
-                  {n.isPinned ? "📌" : <span className="text-[var(--faint)]">—</span>}
+                  {n.isPinned ? "Pinned" : "Unpinned"}
                 </button>
               </AdminTd>
               <AdminTd>

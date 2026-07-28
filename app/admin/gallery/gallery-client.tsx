@@ -326,6 +326,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                 <AdminInput
                   type="date"
                   value={draft.startDate}
+                  min={draft.id ? undefined : new Date().toISOString().split("T")[0]}
                   onChange={(v) => setDraft({ ...draft, startDate: v })}
                 />
               </AdminField>
@@ -333,6 +334,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                 <AdminInput
                   type="date"
                   value={draft.endDate}
+                  min={draft.startDate || (draft.id ? undefined : new Date().toISOString().split("T")[0])}
                   onChange={(v) => setDraft({ ...draft, endDate: v })}
                 />
               </AdminField>

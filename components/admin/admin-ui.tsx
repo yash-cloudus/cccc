@@ -295,6 +295,7 @@ export function AdminInput({
   placeholder,
   gujarati,
   onBlur,
+  min,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -304,6 +305,7 @@ export function AdminInput({
   /** Adds the on-screen Gujarati keyboard button at the trailing edge. */
   gujarati?: boolean;
   onBlur?: () => void;
+  min?: string;
 }) {
   if (gujarati) {
     return (
@@ -327,6 +329,7 @@ export function AdminInput({
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
+      min={min}
       className={cn(ADMIN_INPUT_CLASS, className)}
     />
   );
