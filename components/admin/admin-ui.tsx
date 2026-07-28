@@ -1,9 +1,44 @@
 "use client";
 
-import { Search, ChevronDown, Check } from "lucide-react";
+import { Search, ChevronDown, Check, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { cn } from "@/lib/utils";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
+
+/** Small icon+label action chip — action columns felt too bare as plain text links. */
+export function ActionBtn({
+  icon: Icon,
+  label,
+  onClick,
+  tone = "default",
+}: {
+  icon: LucideIcon;
+  label: string;
+  onClick: () => void;
+  tone?: "default" | "danger" | "warn" | "success";
+}) {
+  const toneClass = {
+    default: "border-[var(--line-admin)] text-[var(--ink-mid)] hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
+    danger: "border-[var(--danger-tint)] text-[var(--danger)] hover:bg-[var(--danger-tint)]",
+    warn: "border-[var(--gold-tint)] text-[var(--warn)] hover:bg-[var(--gold-tint)]",
+    success: "border-[var(--success-tint)] text-[var(--success)] hover:bg-[var(--success-tint)]",
+  }[tone];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      className={cn(
+        "flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap transition-colors",
+        toneClass,
+      )}
+    >
+      <Icon className="size-3.5" strokeWidth={2.3} />
+      {label}
+    </button>
+  );
+}
 
 export function AdminH2({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
@@ -246,6 +281,35 @@ export function SearchInput({
   );
 }
 
+/** Circular trigger for the mobile "more filters" sheet — sits next to SearchInput, same 42px height. */
+export function FilterButton({
+  onClick,
+  active,
+  className,
+}: {
+  onClick: () => void;
+  /** Shows a dot badge when a non-default filter is applied. */
+  active?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label="Filters"
+      className={cn(
+        "relative flex size-[42px] shrink-0 cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-[var(--line-admin)] bg-[var(--field)] text-[var(--brand)] transition-colors hover:border-[var(--brand)] hover:bg-white",
+        className,
+      )}
+    >
+      <SlidersHorizontal className="size-[17px]" strokeWidth={2.1} />
+      {active && (
+        <span className="absolute top-[3px] right-[3px] size-[7px] rounded-full bg-[var(--brand)]" />
+      )}
+    </button>
+  );
+}
+
 export function QStat({ count, color, label }: { count: number; color: string; label: string }) {
   return (
     <div className="rounded-[10px] border border-[#EAE4D8] bg-[#FBFAF7] px-3 py-[7px] text-xs text-[var(--ink-dim)]">
@@ -258,22 +322,28 @@ export function LinkAction({
   children,
   onClick,
   danger,
+  tone,
   className,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   danger?: boolean;
+  /** Extra colour options beyond the default blue / danger red. */
+  tone?: "warn" | "success";
   className?: string;
 }) {
+  const toneClass = danger
+    ? "text-[var(--danger)]"
+    : tone === "warn"
+      ? "text-[var(--warn)]"
+      : tone === "success"
+        ? "text-[var(--success)]"
+        : "text-[#3D7BC4]";
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "cursor-pointer text-xs font-bold underline",
-        danger ? "text-[var(--danger)]" : "text-[#3D7BC4]",
-        className
-      )}
+      className={cn("cursor-pointer text-xs font-bold underline", toneClass, className)}
     >
       {children}
     </button>
@@ -466,6 +536,104 @@ export function AdminSelect({
             <SelectPrimitive.ScrollDownArrow className="sticky bottom-0 z-10 flex w-full cursor-default justify-center bg-white/90 py-1 text-[var(--faint)]">
               <ChevronDown className="size-3.5" strokeWidth={2.5} />
             </SelectPrimitive.ScrollDownArrow>
+          </SelectPrimitive.Popup>
+        </SelectPrimitive.Positioner>
+      </SelectPrimitive.Portal>
+    </SelectPrimitive.Root>
+  );
+}
+
+/** Same dropdown as `AdminSelect`, but each option carries a colour swatch —
+ * used for the album Accent colour picker so users can see the colour, not
+ * just its name, both on the trigger and in the option list. */
+export function AdminColorSelect({
+  value,
+  onChange,
+  options,
+  className,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  /** `value` doubles as the swatch colour (accent colours are stored as hex). */
+  options: { value: string; label: string }[];
+  className?: string;
+  ariaLabel?: string;
+}) {
+  const selected = options.find((o) => o.value === value);
+
+  return (
+    <SelectPrimitive.Root value={value} onValueChange={(v) => onChange(v ?? "")}>
+      <SelectPrimitive.Trigger
+        aria-label={ariaLabel}
+        className={cn(
+          "flex h-[42px] w-full cursor-pointer items-center justify-between gap-2 rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none",
+          "transition-colors hover:border-[var(--line-strong)] hover:bg-white",
+          "focus-visible:border-[var(--brand)] focus-visible:ring-[3px] focus-visible:ring-[rgb(var(--brand-rgb)/0.12)]",
+          "data-[popup-open]:border-[var(--brand)] data-[popup-open]:bg-white",
+          "select-none",
+          className,
+        )}
+      >
+        <span className="flex flex-1 items-center gap-2 truncate text-left">
+          <span
+            className="size-[15px] shrink-0 rounded-full border border-black/10"
+            style={{ background: selected?.value }}
+          />
+          <SelectPrimitive.Value placeholder="—" className="flex-1 truncate text-left">
+            {selected?.label ?? "—"}
+          </SelectPrimitive.Value>
+        </span>
+        <SelectPrimitive.Icon render={<span />}>
+          <ChevronDown
+            className="size-[15px] shrink-0 text-[var(--faint)] transition-transform duration-200 [[data-popup-open]_&]:rotate-180"
+            strokeWidth={2.2}
+          />
+        </SelectPrimitive.Icon>
+      </SelectPrimitive.Trigger>
+
+      <SelectPrimitive.Portal>
+        <SelectPrimitive.Positioner sideOffset={4} alignItemWithTrigger={false} className="isolate z-[9999]">
+          <SelectPrimitive.Popup
+            className={cn(
+              "max-h-[240px] w-(--anchor-width) min-w-[120px] overflow-y-auto",
+              "rounded-[13px] border border-[var(--line-admin)] bg-white shadow-[0_8px_24px_-4px_rgba(42,35,32,0.14)]",
+              "origin-(--transform-origin)",
+              "data-[starting-style]:opacity-0 data-[starting-style]:scale-95",
+              "data-[ending-style]:opacity-0 data-[ending-style]:scale-95",
+              "transition-[opacity,transform] duration-150 ease-out",
+            )}
+          >
+            <SelectPrimitive.List className="p-1">
+              {options.map((o) => (
+                <SelectPrimitive.Item
+                  key={o.value}
+                  value={o.value}
+                  className={cn(
+                    "group relative flex cursor-pointer select-none items-center gap-2 rounded-[9px] py-[7px] pr-8 pl-2.5",
+                    "text-[13px] font-medium text-[var(--ink)]",
+                    "outline-none",
+                    "transition-colors",
+                    "hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
+                    "data-[highlighted]:bg-[var(--brand-tint)] data-[highlighted]:text-[var(--brand)]",
+                    "data-[selected]:font-semibold data-[selected]:text-[var(--brand)]",
+                  )}
+                >
+                  <span
+                    className="size-[14px] shrink-0 rounded-full border border-black/10"
+                    style={{ background: o.value }}
+                  />
+                  <SelectPrimitive.ItemText className="flex-1 truncate">{o.label}</SelectPrimitive.ItemText>
+                  <SelectPrimitive.ItemIndicator
+                    render={
+                      <span className="pointer-events-none absolute right-2.5 flex size-4 items-center justify-center opacity-0 group-data-[selected]:opacity-100" />
+                    }
+                  >
+                    <Check className="size-[13px] text-[var(--brand)]" strokeWidth={2.8} />
+                  </SelectPrimitive.ItemIndicator>
+                </SelectPrimitive.Item>
+              ))}
+            </SelectPrimitive.List>
           </SelectPrimitive.Popup>
         </SelectPrimitive.Positioner>
       </SelectPrimitive.Portal>

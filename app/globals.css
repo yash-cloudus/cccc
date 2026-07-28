@@ -357,6 +357,15 @@ a:hover {
   box-shadow: var(--shadow-card);
 }
 
+/* Gallery album cards: drop shadow tinted with the album's own accent colour
+   on hover. Set `--accent` (via inline style) on the same element. */
+.album-hover {
+  transition: box-shadow 0.2s ease;
+}
+.album-hover:hover {
+  box-shadow: 0 14px 28px -14px color-mix(in srgb, var(--accent, #8e2230) 45%, transparent);
+}
+
 .samaj-fld {
   width: 100%;
   min-height: 48px;

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { created, fail, fromZod, ok } from "@/lib/api";
 import { requireSession, hasRole } from "@/lib/auth/session";
 import { getActiveCommunityId, getWritableCommunityId } from "@/lib/tenant";
+import { notifyNewsPost } from "@/lib/notifications";
 
 export async function GET(req: Request) {
   try {
@@ -89,25 +90,7 @@ export async function POST(req: Request) {
     });
 
     if (body.sendNotification) {
-      const notification = await prisma.notification.create({
-        data: {
-          titleEn: news.titleEn,
-          titleGu: news.titleGu,
-          bodyEn: news.contentEn.slice(0, 280),
-          bodyGu: news.contentGu?.slice(0, 280),
-          linkUrl: `/news/${news.id}`,
-          channel: "IN_APP",
-        },
-      });
-      const users = await prisma.user.findMany({
-        where: { status: "APPROVED", communityId },
-        select: { id: true },
-      });
-      if (users.length) {
-        await prisma.notificationLog.createMany({
-          data: users.map((u) => ({ notificationId: notification.id, userId: u.id })),
-        });
-      }
+      await notifyNewsPost(news, communityId);
     }
 
     return created(news);

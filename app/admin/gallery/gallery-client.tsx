@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { ImageIcon, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Eye, EyeOff, ImageIcon, Plus, Trash2, Upload } from "lucide-react";
 import {
+  ActionBtn,
   AdminBtn,
+  AdminColorSelect,
   AdminH2,
   AdminHint,
   AdminInput,
   AdminSelect,
-  LinkAction,
+  FilterButton,
+  SearchInput,
 } from "@/components/admin/admin-ui";
 import {
   AdminField,
@@ -19,8 +22,16 @@ import {
   AdminMultiImagePicker,
   AdminSegmented,
 } from "@/components/admin/admin-form";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { toast } from "sonner";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
+import { accentGradient, accentVarStyle, ALBUM_HOVER_SHADOW, formatDateDMY } from "@/lib/format";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 
@@ -39,7 +50,6 @@ export type AlbumRow = {
   isVisible: boolean;
   photos: number;
   images: AlbumImage[];
-  date: string;
 };
 
 type Draft = {
@@ -75,6 +85,22 @@ const emptyDraft: Draft = {
 const isExpired = (endDateISO: string | null) =>
   !!endDateISO && new Date(endDateISO).getTime() < Date.now();
 
+/** Colour the end date like the status badge as it approaches/passes: red once
+ * expired, amber inside the last 10 days, otherwise the card's normal text colour. */
+function endDateUrgencyClass(endDateISO: string | null): string {
+  if (!endDateISO) return "";
+  const daysLeft = Math.ceil((new Date(endDateISO).getTime() - Date.now()) / 86_400_000);
+  if (daysLeft < 0) return "text-[var(--danger)]";
+  if (daysLeft <= 10) return "text-[var(--warn)]";
+  return "";
+}
+
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "All albums" },
+  { value: "visible", label: "Visible" },
+  { value: "expired", label: "Expired" },
+];
+
 /** Album accent colours — same set as Admin.dc.html `accentOpts`. */
 const ACCENTS = [
   { value: "#8E2230", label: "Maroon" },
@@ -88,8 +114,28 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<AlbumRow[]>(initialRows);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [preview, setPreview] = useState<AlbumRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "visible" | "expired">("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const filteredRows = useMemo(() => {
+    const term = q.trim().toLowerCase();
+
+    return rows.filter((a) => {
+      const expired = isExpired(a.endDateISO);
+      if (statusFilter === "visible" && !(a.isVisible && !expired)) return false;
+      if (statusFilter === "expired" && !expired) return false;
+
+      if (!term) return true;
+      return (
+        a.titleEn.toLowerCase().includes(term) ||
+        (a.titleGu || "").toLowerCase().includes(term)
+      );
+    });
+  }, [rows, q, statusFilter]);
 
   function openCreate() {
     setError(null);
@@ -112,13 +158,6 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       images: a.images.map((i) => i.imageUrl),
     });
   }
-
-  const fmtDate = (iso: string) =>
-    new Date(iso).toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
 
   /** Create or update in one path — the dialog is the same for both. */
   async function saveAlbum() {
@@ -165,23 +204,34 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       images: draft.images.map((imageUrl) => ({ imageUrl, caption: null })),
       startDateISO: draft.startDate || null,
       endDateISO: draft.endDate || null,
-      date: draft.startDate ? fmtDate(draft.startDate) : "—",
     };
 
     setRows((prev) =>
       draft.id ? prev.map((r) => (r.id === draft.id ? row : r)) : [row, ...prev],
     );
     setDraft(null);
+    toast.success(draft.id ? "Album updated" : "Album created");
   }
 
   async function toggleVisible(a: AlbumRow) {
     const next = !a.isVisible;
+    const ok = await confirmDialog({
+      title: next ? "Show this album?" : "Hide this album?",
+      description: next
+        ? "It will become visible again in the User App."
+        : "It will no longer be visible in the User App until shown again.",
+      confirmLabel: next ? "Show" : "Hide",
+      tone: next ? "primary" : "danger",
+    });
+    if (!ok) return;
     setRows((prev) => prev.map((r) => (r.id === a.id ? { ...r, isVisible: next } : r)));
     const res = await api.patch(`/api/gallery`, { id: a.id, isVisible: next });
     if (!res.ok) {
       setRows((prev) => prev.map((r) => (r.id === a.id ? { ...r, isVisible: !next } : r)));
-      setError(res.error);
+      toast.error(res.error || "Could not update");
+      return;
     }
+    toast.success(next ? "Album shown" : "Album hidden");
   }
 
   async function remove(id: string) {
@@ -193,19 +243,67 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
     });
     if (!ok) return;
     const res = await api.del(`/api/gallery?id=${id}`);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) {
+      toast.error(res.error || "Could not delete");
+      return;
+    }
     setRows((prev) => prev.filter((r) => r.id !== id));
+    toast.success("Album deleted");
   }
 
   return (
     <>
-      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
-        <AdminH2 className="mb-0">Event Gallery — albums</AdminH2>
-        <AdminBtn onClick={openCreate}>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <AdminH2 className="mb-0 shrink-0">Event Gallery — albums</AdminH2>
+
+        <div className="flex w-full items-center gap-2.5 md:w-auto">
+          <SearchInput
+            value={q}
+            onChange={setQ}
+            placeholder="Search albums…"
+            className="min-w-0 flex-1 md:w-[210px] md:flex-none"
+          />
+          <FilterButton
+            className="md:hidden"
+            active={statusFilter !== "all"}
+            onClick={() => setFiltersOpen(true)}
+          />
+          <div className="hidden items-center gap-2.5 md:flex">
+            <AdminSelect
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as "all" | "visible" | "expired")}
+              options={STATUS_FILTER_OPTIONS}
+              className="w-[150px] shrink-0"
+              ariaLabel="Filter by status"
+            />
+            <AdminBtn className="shrink-0" onClick={openCreate}>
+              <Plus className="size-4" />
+              Create album (folder)
+            </AdminBtn>
+          </div>
+        </div>
+        <AdminBtn className="w-full justify-center md:hidden" onClick={openCreate}>
           <Plus className="size-4" />
           Create album (folder)
         </AdminBtn>
       </div>
+
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="md:hidden">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            <AdminSelect
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as "all" | "visible" | "expired")}
+              options={STATUS_FILTER_OPTIONS}
+              className="w-full"
+              ariaLabel="Filter by status"
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AdminHint className="mt-0 mb-5 max-w-3xl text-[12.5px]">
         Create a folder with a name, start &amp; end date, then upload multiple images into it.
@@ -213,57 +311,82 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
         album is automatically deactivated.
       </AdminHint>
 
-      {error && !draft && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
-
       <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
-        {rows.map((a) => {
+        {filteredRows.map((a) => {
           const expired = isExpired(a.endDateISO);
           const statusLabel = a.isVisible ? "Visible" : expired ? "Expired" : "Hidden";
           return (
             <article
               key={a.id}
-              className="flex flex-col overflow-hidden rounded-2xl border border-[var(--line-admin)] bg-white"
+              style={accentVarStyle(a.accent)}
+              className={cn(
+                "flex flex-col overflow-hidden rounded-2xl border border-[var(--line-admin)] bg-white",
+                ALBUM_HOVER_SHADOW,
+              )}
             >
-              <div className="relative h-[132px] bg-[var(--surface-admin)]">
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setPreview(a)}
+                onKeyDown={(e) => e.key === "Enter" && setPreview(a)}
+                style={{ background: accentGradient(a.accent) }}
+                className="relative h-[132px] cursor-pointer"
+              >
                 {a.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={a.coverUrl} alt="" className="size-full object-cover" />
                 ) : (
                   <span className="flex size-full items-center justify-center">
-                    <ImageIcon className="size-8 text-[var(--faint-soft)]" strokeWidth={1.6} />
+                    <ImageIcon className="size-8 text-white/85" strokeWidth={1.6} />
                   </span>
                 )}
-                <span
-                  className={cn(
-                    "absolute top-2.5 right-2.5 rounded-full px-2 py-0.5 text-[10.5px] font-bold",
-                    a.isVisible
-                      ? "bg-[var(--success-tint)] text-[var(--success)]"
-                      : expired
-                        ? "bg-[var(--danger-tint)] text-[var(--danger)]"
-                        : "bg-[var(--line-soft)] text-[var(--muted)]",
-                  )}
-                >
-                  {statusLabel}
-                </span>
               </div>
 
               <div className="flex min-w-0 flex-1 flex-col p-3.5">
                 <h3 className="truncate text-[14px] font-extrabold text-[var(--ink)]">
                   {a.titleGu || a.titleEn}
                 </h3>
-                <p className="mt-0.5 text-[11.5px] font-semibold text-[var(--faint)]">
-                  {a.date} · {a.photos} photo{a.photos === 1 ? "" : "s"}
-                  {a.youtubeUrl ? " · video" : ""}
-                </p>
+                <div className="mt-0.5 flex items-center justify-between gap-2">
+                  <p className="min-w-0 truncate text-[11.5px] font-semibold text-[var(--faint)]">
+                    {a.startDateISO || a.endDateISO ? (
+                      <>
+                        {a.startDateISO && formatDateDMY(a.startDateISO)}
+                        {a.startDateISO && a.endDateISO && " – "}
+                        {a.endDateISO && (
+                          <span className={endDateUrgencyClass(a.endDateISO)}>
+                            {formatDateDMY(a.endDateISO)}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      "—"
+                    )}{" "}
+                    · {a.photos} photo{a.photos === 1 ? "" : "s"}
+                    {a.youtubeUrl ? " · video" : ""}
+                  </p>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                      a.isVisible
+                        ? "bg-[var(--success-tint)] text-[var(--success)]"
+                        : expired
+                          ? "bg-[var(--danger-tint)] text-[var(--danger)]"
+                          : "bg-[var(--line-soft)] text-[var(--muted)]",
+                    )}
+                  >
+                    {statusLabel}
+                  </span>
+                </div>
 
-                <div className="mt-3 flex flex-wrap gap-2.5 border-t border-[var(--line-soft)] pt-3">
-                  <LinkAction onClick={() => openEdit(a)}>Upload / manage</LinkAction>
-                  <LinkAction onClick={() => toggleVisible(a)}>
-                    {a.isVisible ? "Hide" : "Show"}
-                  </LinkAction>
-                  <LinkAction danger onClick={() => remove(a.id)}>
-                    Delete
-                  </LinkAction>
+                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[var(--line-soft)] pt-3">
+                  <ActionBtn icon={Upload} label="Upload / manage" onClick={() => openEdit(a)} />
+                  <ActionBtn
+                    icon={a.isVisible ? EyeOff : Eye}
+                    label={a.isVisible ? "Hide" : "Show"}
+                    tone={a.isVisible ? "warn" : "success"}
+                    onClick={() => toggleVisible(a)}
+                  />
+                  <ActionBtn icon={Trash2} label="Delete" tone="danger" onClick={() => remove(a.id)} />
                 </div>
               </div>
             </article>
@@ -271,9 +394,9 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
         })}
       </div>
 
-      {rows.length === 0 && (
+      {filteredRows.length === 0 && (
         <p className="py-10 text-center text-[13px] text-[var(--faint)]">
-          No albums yet — create your first folder.
+          {rows.length === 0 ? "No albums yet — create your first folder." : "No matching albums."}
         </p>
       )}
 
@@ -341,7 +464,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
             </AdminFormRow>
 
             <AdminField label="Accent color">
-              <AdminSelect
+              <AdminColorSelect
                 value={draft.accent}
                 onChange={(v) => setDraft({ ...draft, accent: v })}
                 className="w-full"
@@ -392,6 +515,116 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
 
             {error && <p className="text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
           </>
+        )}
+      </AdminModal>
+
+      <AdminModal
+        open={preview !== null}
+        onClose={() => setPreview(null)}
+        title={preview ? preview.titleGu || preview.titleEn : ""}
+        subtitle="How this album appears in the User App."
+        width="lg"
+      >
+        {preview && (
+          <div className="overflow-hidden rounded-2xl border border-[var(--line-admin)]">
+            <div
+              className="flex h-[160px] items-center justify-center overflow-hidden text-white"
+              style={{ background: accentGradient(preview.accent) }}
+            >
+              {preview.coverUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview.coverUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <ImageIcon className="size-11" strokeWidth={1.6} />
+              )}
+            </div>
+            <div className="p-4">
+              {(() => {
+                const expired = isExpired(preview.endDateISO);
+                const statusLabel = preview.isVisible ? "Visible" : expired ? "Expired" : "Hidden";
+                return (
+                  <span
+                    className={cn(
+                      "inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                      preview.isVisible
+                        ? "bg-[var(--success-tint)] text-[var(--success)]"
+                        : expired
+                          ? "bg-[var(--danger-tint)] text-[var(--danger)]"
+                          : "bg-[var(--line-soft)] text-[var(--muted)]",
+                    )}
+                  >
+                    {statusLabel}
+                  </span>
+                );
+              })()}
+              <h3 className="mt-2 font-[family-name:var(--font-noto-serif-gujarati)] text-lg font-bold text-[var(--ink)]">
+                {preview.titleGu || preview.titleEn}
+              </h3>
+              <p className="mt-1 text-[11.5px] font-semibold text-[var(--faint)]">
+                {preview.startDateISO || preview.endDateISO ? (
+                  <>
+                    {preview.startDateISO && formatDateDMY(preview.startDateISO)}
+                    {preview.startDateISO && preview.endDateISO && " – "}
+                    {preview.endDateISO && (
+                      <span className={endDateUrgencyClass(preview.endDateISO)}>
+                        {formatDateDMY(preview.endDateISO)}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  "—"
+                )}{" "}
+                · {preview.photos} photo{preview.photos === 1 ? "" : "s"}
+              </p>
+              {preview.description && (
+                <p className="mt-3 whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
+                  {preview.description}
+                </p>
+              )}
+
+              {preview.images.length === 0 ? (
+                <p className="mt-4 py-6 text-center text-[13px] text-[var(--faint)]">
+                  No photos in this album yet.
+                </p>
+              ) : (
+                <div className="mt-4 grid grid-cols-4 gap-2">
+                  {preview.images.map((img, i) => (
+                    <div
+                      key={`${img.imageUrl}-${i}`}
+                      className="relative overflow-hidden rounded-[10px] border border-[var(--line)]"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={img.imageUrl} alt={img.caption || ""} className="h-16 w-full object-cover" />
+                      <a
+                        href={img.imageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label="View photo"
+                        title="View photo"
+                        className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-black/55 text-white"
+                      >
+                        <Eye className="size-3" strokeWidth={2.3} />
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {preview.youtubeUrl && (
+                <a
+                  href={preview.youtubeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-4 flex items-center gap-3 rounded-xl border border-[var(--line-admin)] p-3"
+                >
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-[var(--info-tint)] text-[var(--info)]">
+                    <ImageIcon className="size-[18px]" strokeWidth={1.85} />
+                  </div>
+                  <span className="text-[13px] font-bold text-[var(--ink)]">Watch video</span>
+                </a>
+              )}
+            </div>
+          </div>
         )}
       </AdminModal>
     </>

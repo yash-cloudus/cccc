@@ -1,25 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  Bell,
   Eye,
   EyeOff,
   FileText,
   Pencil,
+  Pin,
   Plus,
   Send,
   Trash2,
   type LucideIcon,
 } from "lucide-react";
 import {
+  ActionBtn,
   AdminBtn,
   AdminH2,
   AdminHint,
   AdminInput,
+  AdminLabel,
+  AdminSelect,
   AdminTable,
   AdminTd,
   AdminTh,
+  FilterButton,
   PillActive,
+  PillWarning,
+  SearchInput,
 } from "@/components/admin/admin-ui";
 import {
   AdminCheck,
@@ -30,43 +38,65 @@ import {
   AdminModalActions,
   AdminSegmented,
 } from "@/components/admin/admin-form";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
+import { formatDateDMY } from "@/lib/format";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 
-/** Small icon+label action chip — action columns felt too bare as plain text links. */
-function ActionBtn({
+/** Pill used for the Pinned/Notify columns — makes the current state and the
+ * click action unambiguous (plain icon-only buttons read as decoration, not
+ * controls). */
+function StatusPillButton({
   icon: Icon,
-  label,
+  active,
+  activeLabel,
+  inactiveLabel,
+  activeTitle,
+  inactiveTitle,
   onClick,
-  tone = "default",
+  disabled,
+  tone = "warn",
 }: {
   icon: LucideIcon;
-  label: string;
-  onClick: () => void;
-  tone?: "default" | "danger" | "warn" | "success";
+  active: boolean;
+  activeLabel: string;
+  inactiveLabel: string;
+  activeTitle: string;
+  inactiveTitle: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  tone?: "warn" | "info";
 }) {
-  const toneClass = {
-    default: "border-[var(--line-admin)] text-[var(--ink-mid)] hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
-    danger: "border-[var(--danger-tint)] text-[var(--danger)] hover:bg-[var(--danger-tint)]",
-    warn: "border-[var(--gold-tint)] text-[var(--warn)] hover:bg-[var(--gold-tint)]",
-    success: "border-[var(--success-tint)] text-[var(--success)] hover:bg-[var(--success-tint)]",
+  const activeClass = {
+    warn: "border-[var(--gold-tint)] bg-[var(--gold-tint)] text-[var(--warn)]",
+    info: "border-[var(--info-tint)] bg-[var(--info-tint)] text-[var(--info)]",
   }[tone];
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      title={label}
-      aria-label={label}
+      title={active ? activeTitle : inactiveTitle}
+      aria-label={active ? activeTitle : inactiveTitle}
       className={cn(
-        "flex cursor-pointer items-center gap-1.5 rounded-lg border bg-white px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap transition-colors",
-        toneClass,
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold transition-colors",
+        active
+          ? activeClass
+          : "border-dashed border-[var(--line-admin)] text-[var(--faint)] hover:border-[var(--line-strong)] hover:text-[var(--ink-mid)]",
+        disabled ? "cursor-default" : "cursor-pointer",
       )}
     >
       <Icon className="size-3.5" strokeWidth={2.3} />
-      {label}
+      {active ? activeLabel : inactiveLabel}
     </button>
   );
 }
@@ -120,6 +150,12 @@ const emptyDraft: Draft = {
   sendNotification: true,
 };
 
+const STATUS_FILTER_OPTIONS = [
+  { value: "all", label: "All posts" },
+  { value: "published", label: "Published" },
+  { value: "draft", label: "Draft" },
+];
+
 /** ✓ / — cell used for the Cover and PDF columns. */
 function HasCell({ on, href, label }: { on: boolean; href?: string | null; label: string }) {
   if (!on) return <span className="text-[var(--faint)]">—</span>;
@@ -145,6 +181,24 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
   const [preview, setPreview] = useState<NewsRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const filteredRows = useMemo(() => {
+    const term = q.trim().toLowerCase();
+
+    return rows.filter((r) => {
+      if (statusFilter === "published" && !r.isPublished) return false;
+      if (statusFilter === "draft" && r.isPublished) return false;
+
+      if (!term) return true;
+      return (
+        r.titleEn.toLowerCase().includes(term) ||
+        (r.titleGu || "").toLowerCase().includes(term)
+      );
+    });
+  }, [rows, q, statusFilter]);
 
   function openNew() {
     setError(null);
@@ -208,6 +262,12 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 imageUrl: draft.imageUrl || null,
                 isPinned: draft.isPinned,
                 isPublished: draft.isPublished,
+                publishedAtISO: draft.publishDate
+                  ? new Date(draft.publishDate).toISOString()
+                  : r.publishedAtISO,
+                publishedAt: draft.publishDate
+                  ? formatDateDMY(draft.publishDate)
+                  : r.publishedAt,
               }
             : r,
         ),
@@ -245,12 +305,13 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
           isPinned: draft.isPinned,
           isPublished: draft.isPublished,
           notificationSent: draft.sendNotification,
-          publishedAt: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+          publishedAt: formatDateDMY(draft.publishDate || new Date().toISOString()),
         },
         ...prev,
       ]);
     }
     setDraft(null);
+    toast.success(draft.id ? "Post updated" : "Post created");
   }
 
   async function remove(id: string) {
@@ -261,33 +322,109 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
     });
     if (!ok) return;
     const res = await api.del(`/api/news/${id}`);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) {
+      toast.error(res.error || "Could not delete");
+      return;
+    }
     setRows((prev) => prev.filter((r) => r.id !== id));
+    toast.success("Post deleted");
   }
 
   /** Optimistic row-level flag flip, rolled back if the API rejects it. */
-  async function toggleFlag(row: NewsRow, field: "isPinned" | "isPublished") {
+  async function toggleFlag(
+    row: NewsRow,
+    field: "isPinned" | "isPublished",
+    messages: { on: string; off: string },
+  ) {
     const next = !row[field];
     setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, [field]: next } : r)));
     const res = await api.put(`/api/news/${row.id}`, { [field]: next });
     if (!res.ok) {
       setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, [field]: !next } : r)));
-      setError(res.error);
+      toast.error(res.error || "Could not update");
+      return;
     }
+    toast.success(next ? messages.on : messages.off);
   }
 
-  const togglePinned = (row: NewsRow) => toggleFlag(row, "isPinned");
-  const togglePublished = (row: NewsRow) => toggleFlag(row, "isPublished");
+  const togglePinned = (row: NewsRow) =>
+    toggleFlag(row, "isPinned", { on: "Pinned to top", off: "Unpinned" });
+  const togglePublished = (row: NewsRow) =>
+    toggleFlag(row, "isPublished", { on: "Published", off: "Unpublished" });
+
+  /** One-way — a push notification can't be un-sent, so this never toggles back off. */
+  async function notifyNow(row: NewsRow) {
+    if (row.notificationSent) return;
+    setRows((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, notificationSent: true } : r)),
+    );
+    const res = await api.put(`/api/news/${row.id}`, { sendNotification: true });
+    if (!res.ok) {
+      setRows((prev) =>
+        prev.map((r) => (r.id === row.id ? { ...r, notificationSent: false } : r)),
+      );
+      toast.error(res.error || "Could not send notification");
+      return;
+    }
+    toast.success("Notification sent");
+  }
 
   return (
     <>
-      <AdminH2>News</AdminH2>
-      <AdminBtn className="mb-4 inline-flex" onClick={openNew}>
-        <Plus className="size-4" />
-        New post
-      </AdminBtn>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <AdminH2 className="mb-0 shrink-0">News</AdminH2>
 
-      {error && !draft && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
+        <div className="flex w-full items-center gap-3 md:w-auto">
+          <SearchInput
+            value={q}
+            onChange={setQ}
+            placeholder="Search news…"
+            className="min-w-0 flex-1 md:w-[260px] md:flex-none"
+          />
+          <FilterButton
+            className="md:hidden"
+            active={statusFilter !== "all"}
+            onClick={() => setFiltersOpen(true)}
+          />
+          <div className="hidden items-center gap-3 md:flex">
+            <AdminSelect
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as "all" | "published" | "draft")}
+              options={STATUS_FILTER_OPTIONS}
+              className="w-[150px] shrink-0"
+              ariaLabel="Filter by status"
+            />
+            <AdminBtn className="shrink-0" onClick={openNew}>
+              <Plus className="size-4" />
+              New post
+            </AdminBtn>
+          </div>
+        </div>
+        <AdminBtn className="w-full justify-center md:hidden" onClick={openNew}>
+          <Plus className="size-4" />
+          New post
+        </AdminBtn>
+      </div>
+
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="md:hidden">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            <div>
+              <AdminLabel>Status</AdminLabel>
+              <AdminSelect
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as "all" | "published" | "draft")}
+                options={STATUS_FILTER_OPTIONS}
+                className="w-full"
+                ariaLabel="Filter by status"
+              />
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AdminTable>
         <thead>
@@ -303,7 +440,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((n) => (
+          {filteredRows.map((n) => (
             <tr key={n.id}>
               <AdminTd className="font-semibold text-[var(--ink)]">
                 {n.titleGu || n.titleEn}
@@ -313,7 +450,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 {n.isPublished ? (
                   <PillActive>Published</PillActive>
                 ) : (
-                  <span className="text-xs font-bold text-[var(--warn)]">Draft</span>
+                  <PillWarning>Draft</PillWarning>
                 )}
               </AdminTd>
               <AdminTd>
@@ -336,25 +473,29 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 />
               </AdminTd>
               <AdminTd>
-                <button
-                  type="button"
+                <StatusPillButton
+                  icon={Pin}
+                  active={n.isPinned}
+                  activeLabel="Pinned"
+                  inactiveLabel="Pin"
+                  activeTitle="Click to unpin"
+                  inactiveTitle="Click to pin to top"
                   onClick={() => togglePinned(n)}
-                  className={cn(
-                    "cursor-pointer text-[12px] font-bold transition-colors",
-                    n.isPinned ? "text-[var(--brand)]" : "text-[var(--faint)] hover:text-[var(--ink)]"
-                  )}
-                  aria-label={n.isPinned ? "Unpin post" : "Pin post"}
-                  title={n.isPinned ? "Unpin" : "Pin to top"}
-                >
-                  {n.isPinned ? "Pinned" : "Unpinned"}
-                </button>
+                  tone="warn"
+                />
               </AdminTd>
               <AdminTd>
-                {n.notificationSent ? (
-                  <PillActive>✓ sent</PillActive>
-                ) : (
-                  <span className="text-[var(--faint)]">—</span>
-                )}
+                <StatusPillButton
+                  icon={Bell}
+                  active={n.notificationSent}
+                  activeLabel="Sent"
+                  inactiveLabel="Notify"
+                  activeTitle="Notification already sent"
+                  inactiveTitle="Send notification now"
+                  onClick={() => notifyNow(n)}
+                  disabled={n.notificationSent}
+                  tone="info"
+                />
               </AdminTd>
               <AdminTd className="text-right">
                 <span className="flex flex-wrap justify-end gap-1.5">
@@ -379,8 +520,10 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         </tbody>
       </AdminTable>
 
-      {rows.length === 0 && (
-        <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">No news posts yet.</p>
+      {filteredRows.length === 0 && (
+        <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
+          {rows.length === 0 ? "No news posts yet." : "No matching posts."}
+        </p>
       )}
 
       <AdminHint>
@@ -556,7 +699,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 {preview.isPublished ? (
                   <PillActive>Published</PillActive>
                 ) : (
-                  <span className="text-xs font-bold text-[var(--warn)]">Draft</span>
+                  <PillWarning>Draft</PillWarning>
                 )}
               </div>
               <h3 className="mt-2 font-[family-name:var(--font-noto-serif-gujarati)] text-lg font-bold text-[var(--ink)]">

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChevronRight, Newspaper } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { useLang } from "@/providers/lang-provider";
-import { formatDate, pickText } from "@/lib/format";
+import { formatDateDMY, pickText } from "@/lib/format";
 
 export type NewsRow = {
   id: string;
@@ -69,7 +69,7 @@ export function NewsListClient({ rows }: { rows: NewsRow[] }) {
                   <div className="text-[14.5px] font-bold leading-snug text-[var(--ink)]">
                     {pickText(n.titleGu, n.titleEn, lang)}
                   </div>
-                  <div className="mt-0.5 text-[11.5px] font-medium text-[var(--faint)]">{formatDate(n.dateISO, lang)}</div>
+                  <div className="mt-0.5 text-[11.5px] font-medium text-[var(--faint)]">{formatDateDMY(n.dateISO)}</div>
                 </div>
                 <ChevronRight className="h-5 w-5 flex-none text-[var(--line-strong)]" strokeWidth={2.2} />
               </Link>

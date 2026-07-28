@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { fail, fromZod, ok } from "@/lib/api";
 import { getActiveCommunityId, getWritableCommunityId } from "@/lib/tenant";
+import { notifyNewsPost } from "@/lib/notifications";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -20,7 +21,7 @@ export async function PUT(req: Request, { params }: Params) {
     const communityId = await getWritableCommunityId();
     const existing = await prisma.news.findFirst({
       where: { id, communityId },
-      select: { id: true },
+      select: { id: true, notificationSent: true },
     });
     if (!existing) return fail("News not found", 404);
     const body = z
@@ -34,14 +35,24 @@ export async function PUT(req: Request, { params }: Params) {
         documentName: z.string().optional(),
         isPinned: z.boolean().optional(),
         isPublished: z.boolean().optional(),
+        sendNotification: z.boolean().optional(),
         publishedAt: z.string().optional(),
       })
       .parse(await req.json());
-    const { publishedAt, ...rest } = body;
+    const { publishedAt, sendNotification, ...rest } = body;
+    // Only fires once — already-sent posts can't be re-notified from here.
+    const shouldNotify = !!sendNotification && !existing.notificationSent;
     const item = await prisma.news.update({
       where: { id },
-      data: { ...rest, ...(publishedAt ? { publishedAt: new Date(publishedAt) } : {}) },
+      data: {
+        ...rest,
+        ...(publishedAt ? { publishedAt: new Date(publishedAt) } : {}),
+        ...(shouldNotify ? { notificationSent: true } : {}),
+      },
     });
+    if (shouldNotify) {
+      await notifyNewsPost(item, communityId);
+    }
     return ok(item);
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);

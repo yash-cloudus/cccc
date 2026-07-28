@@ -218,6 +218,13 @@ export async function getGalleryAlbums(
   });
 }
 
+export async function getGalleryAlbum(communityId: string, id: string) {
+  return prisma.galleryAlbum.findFirst({
+    where: { id, communityId },
+    include: { images: { orderBy: { sortOrder: "asc" } } },
+  });
+}
+
 export async function getAds(communityId: string, activeOnly = false) {
   return prisma.advertisement.findMany({
     where: { communityId, ...(activeOnly ? { status: "ACTIVE" } : {}) },

@@ -1,18 +1,29 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import {
+  CheckCircle2,
+  Eye,
+  Pencil,
+  Plus,
+  RotateCw,
+  Trash2,
+  XCircle,
+  PauseCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
+  ActionBtn,
   AdminBtn,
   AdminH2,
   AdminHint,
   AdminInput,
+  AdminLabel,
   AdminSelect,
   AdminTable,
   AdminTd,
   AdminTh,
-  FilterChip,
+  FilterButton,
   LinkAction,
   SearchInput,
 } from "@/components/admin/admin-ui";
@@ -25,6 +36,12 @@ import {
   AdminModalActions,
   AdminSegmented,
 } from "@/components/admin/admin-form";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
@@ -87,8 +104,8 @@ const STATUS_META: Record<AdStatus, { label: string; className: string }> = {
   DRAFT: { label: "Draft", className: "bg-[#EEF1F6] text-[#4A5B72]" },
 };
 
-const STATUS_CHIPS: { value: "all" | AdStatus; label: string }[] = [
-  { value: "all", label: "All" },
+const STATUS_FILTER_OPTIONS: { value: "all" | AdStatus; label: string }[] = [
+  { value: "all", label: "All statuses" },
   { value: "PENDING", label: "Pending" },
   { value: "ACTIVE", label: "Active" },
   { value: "EXPIRED", label: "Expired" },
@@ -97,8 +114,8 @@ const STATUS_CHIPS: { value: "all" | AdStatus; label: string }[] = [
   { value: "DRAFT", label: "Draft" },
 ];
 
-const SOURCE_CHIPS: { value: "all" | "user" | "admin"; label: string }[] = [
-  { value: "all", label: "All" },
+const SOURCE_FILTER_OPTIONS: { value: "all" | "user" | "admin"; label: string }[] = [
+  { value: "all", label: "All sources" },
   { value: "user", label: "User app" },
   { value: "admin", label: "Admin" },
 ];
@@ -323,8 +340,8 @@ export function AdsClient({
 }) {
   const [rows, setRows] = useState<AdRow[]>(initialRows);
   const [tab, setTab] = useState<"all" | "premium" | "general">("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [typeFilter, setTypeFilter] = useState("all");
   const [catFilter, setCatFilter] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -364,7 +381,6 @@ export function AdsClient({
 
     return rows.filter((r) => {
       if (tab !== "all" && r.type !== tab) return false;
-      if (typeFilter !== "all" && r.type !== typeFilter) return false;
       if (catFilter !== "all" && (r.category ?? "") !== catFilter) return false;
       if (status !== "all" && r.status !== status) return false;
       if (source !== "all" && r.source !== source) return false;
@@ -381,7 +397,7 @@ export function AdsClient({
       }
       return true;
     });
-  }, [rows, tab, q, typeFilter, catFilter, from, to, status, source]);
+  }, [rows, tab, q, catFilter, from, to, status, source]);
 
   async function setStatusOf(id: string, next: AdStatus) {
     const prev = rows;
@@ -641,98 +657,134 @@ export function AdsClient({
         paid banner requests.
       </AdminHint>
 
-      {/* type tabs — compact, not full width */}
-      <div className="mb-4 inline-flex gap-1 rounded-xl bg-[var(--surface-admin)] p-1">
-        {(["all", "premium", "general"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              "cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold capitalize",
-              tab === t ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--ink-dim)]",
-            )}
-          >
-            {t} ({counts[t]})
-          </button>
-        ))}
-      </div>
+      {/* Type tabs (left) · date range (middle, desktop-only) · search + filters (right) — one row */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex w-full shrink-0 gap-1 overflow-x-auto rounded-xl bg-[var(--surface-admin)] p-1 md:w-auto">
+          {(["all", "premium", "general"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={cn(
+                "cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold whitespace-nowrap capitalize",
+                tab === t ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--ink-dim)]",
+              )}
+            >
+              {t} ({counts[t]})
+            </button>
+          ))}
+        </div>
 
-      {/* Search + All types + All categories side by side (selects not full width) */}
-      <div className="mb-3 flex flex-wrap items-center gap-2.5">
-        <SearchInput
-          value={q}
-          onChange={setQ}
-          placeholder="Search business, owner or mobile…"
-          className="min-w-[220px] max-w-[320px] flex-1"
-        />
-        <AdminSelect
-          value={typeFilter}
-          onChange={setTypeFilter}
-          ariaLabel="Filter by type"
-          className="w-auto min-w-[140px] shrink-0"
-          options={[
-            { value: "all", label: "All types" },
-            { value: "premium", label: "Premium" },
-            { value: "general", label: "General" },
-          ]}
-        />
-        <AdminSelect
-          value={catFilter}
-          onChange={setCatFilter}
-          ariaLabel="Filter by category"
-          className="w-auto min-w-[160px] shrink-0"
-          options={[
-            { value: "all", label: "All categories" },
-            ...filterCatOptions,
-          ]}
-        />
-      </div>
+        <div className="hidden flex-wrap items-center gap-2 text-[12px] font-bold text-[var(--muted)] md:flex">
+          <span>From</span>
+          <AdminInput type="date" value={from} onChange={setFrom} className="w-[148px]" />
+          <span>To</span>
+          <AdminInput type="date" value={to} onChange={setTo} className="w-[148px]" />
+          {(from || to) && (
+            <LinkAction
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+            >
+              clear dates
+            </LinkAction>
+          )}
+        </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2.5 text-[12px] font-bold text-[var(--muted)]">
-        <span>From</span>
-        <AdminInput type="date" value={from} onChange={setFrom} className="w-[168px]" />
-        <span>To</span>
-        <AdminInput type="date" value={to} onChange={setTo} className="w-[168px]" />
-        {(from || to) && (
-          <LinkAction
-            onClick={() => {
-              setFrom("");
-              setTo("");
-            }}
-          >
-            clear dates
-          </LinkAction>
-        )}
-      </div>
-
-      <div className="mb-2.5 flex flex-wrap items-center gap-2">
-        <span className="text-[11.5px] font-bold tracking-wide text-[var(--faint)] uppercase">
-          Status
-        </span>
-        {STATUS_CHIPS.map((c) => (
-          <FilterChip
-            key={c.value}
-            label={c.label}
-            active={status === c.value}
-            onClick={() => setStatus(c.value)}
+        <div className="flex w-full items-center gap-2.5 md:w-auto">
+          <SearchInput
+            value={q}
+            onChange={setQ}
+            placeholder="Search business, owner or mobile…"
+            className="min-w-0 flex-1 md:w-[210px] md:flex-none"
           />
-        ))}
+          <FilterButton
+            className="md:hidden"
+            active={Boolean(from || to || catFilter !== "all" || status !== "all" || source !== "all")}
+            onClick={() => setFiltersOpen(true)}
+          />
+          <div className="hidden items-center gap-2.5 md:flex">
+            <AdminSelect
+              value={catFilter}
+              onChange={setCatFilter}
+              ariaLabel="Filter by category"
+              className="w-[150px] shrink-0"
+              options={[
+                { value: "all", label: "All categories" },
+                ...filterCatOptions,
+              ]}
+            />
+            <AdminSelect
+              value={status}
+              onChange={(v) => setStatus(v as "all" | AdStatus)}
+              ariaLabel="Filter by status"
+              className="w-[140px] shrink-0"
+              options={STATUS_FILTER_OPTIONS}
+            />
+            <AdminSelect
+              value={source}
+              onChange={(v) => setSource(v as "all" | "user" | "admin")}
+              ariaLabel="Filter by created by"
+              className="w-[140px] shrink-0"
+              options={SOURCE_FILTER_OPTIONS}
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="text-[11.5px] font-bold tracking-wide text-[var(--faint)] uppercase">
-          Created by
-        </span>
-        {SOURCE_CHIPS.map((c) => (
-          <FilterChip
-            key={c.value}
-            label={c.label}
-            active={source === c.value}
-            onClick={() => setSource(c.value)}
-          />
-        ))}
-      </div>
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="md:hidden">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            <div>
+              <AdminLabel>Date range</AdminLabel>
+              <div className="flex items-center gap-2">
+                <AdminInput type="date" value={from} onChange={setFrom} className="min-w-0 flex-1" />
+                <span className="text-[12px] font-bold text-[var(--muted)]">to</span>
+                <AdminInput type="date" value={to} onChange={setTo} className="min-w-0 flex-1" />
+              </div>
+              {(from || to) && (
+                <LinkAction
+                  className="mt-1.5"
+                  onClick={() => {
+                    setFrom("");
+                    setTo("");
+                  }}
+                >
+                  clear dates
+                </LinkAction>
+              )}
+            </div>
+            <AdminSelect
+              value={catFilter}
+              onChange={setCatFilter}
+              ariaLabel="Filter by category"
+              className="w-full"
+              options={[
+                { value: "all", label: "All categories" },
+                ...filterCatOptions,
+              ]}
+            />
+            <AdminSelect
+              value={status}
+              onChange={(v) => setStatus(v as "all" | AdStatus)}
+              ariaLabel="Filter by status"
+              className="w-full"
+              options={STATUS_FILTER_OPTIONS}
+            />
+            <AdminSelect
+              value={source}
+              onChange={(v) => setSource(v as "all" | "user" | "admin")}
+              ariaLabel="Filter by created by"
+              className="w-full"
+              options={SOURCE_FILTER_OPTIONS}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AdminTable>
         <thead>
@@ -788,58 +840,59 @@ export function AdsClient({
               <AdminTd>{a.clicks.toLocaleString()}</AdminTd>
               <AdminTd className="capitalize">{a.source === "user" ? "User app" : "Admin"}</AdminTd>
               <AdminTd className="text-right">
-                <span className="flex flex-wrap justify-end gap-2">
-                  <LinkAction
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  <ActionBtn
+                    icon={Eye}
+                    label="View"
                     onClick={() => {
                       setError(null);
                       setModal({ kind: "view", ad: a });
                     }}
-                  >
-                    View
-                  </LinkAction>
-                  <LinkAction
+                  />
+                  <ActionBtn
+                    icon={Pencil}
+                    label="Edit"
                     onClick={() => {
                       setError(null);
                       setModal({ kind: "edit", ad: a, form: editFormFrom(a) });
                     }}
-                  >
-                    Edit
-                  </LinkAction>
+                  />
                   {a.type === "premium" && (a.status === "ACTIVE" || a.status === "EXPIRED") && (
-                    <LinkAction
-                      className="text-[#1E7A44]"
+                    <ActionBtn
+                      icon={RotateCw}
+                      label="Renew"
+                      tone="success"
                       onClick={() => {
                         setError(null);
                         setModal({ kind: "renew", ad: a, dur: "1y" });
                       }}
-                    >
-                      Renew
-                    </LinkAction>
+                    />
                   )}
                   {a.status !== "ACTIVE" && (
-                    <LinkAction
-                      className="text-[#1E7A44]"
+                    <ActionBtn
+                      icon={CheckCircle2}
+                      label="Activate"
+                      tone="success"
                       onClick={() => setStatusOf(a.id, "ACTIVE")}
-                    >
-                      Activate
-                    </LinkAction>
+                    />
                   )}
                   {a.status === "ACTIVE" && (
-                    <LinkAction
-                      className="text-[#B0801E]"
+                    <ActionBtn
+                      icon={PauseCircle}
+                      label="Deactivate"
+                      tone="warn"
                       onClick={() => setStatusOf(a.id, "DEACTIVATED")}
-                    >
-                      Deactivate
-                    </LinkAction>
+                    />
                   )}
                   {a.status === "PENDING" && (
-                    <LinkAction danger onClick={() => setStatusOf(a.id, "REJECTED")}>
-                      Reject
-                    </LinkAction>
+                    <ActionBtn
+                      icon={XCircle}
+                      label="Reject"
+                      tone="danger"
+                      onClick={() => setStatusOf(a.id, "REJECTED")}
+                    />
                   )}
-                  <LinkAction danger onClick={() => remove(a.id)}>
-                    Delete
-                  </LinkAction>
+                  <ActionBtn icon={Trash2} label="Delete" tone="danger" onClick={() => remove(a.id)} />
                 </span>
               </AdminTd>
             </tr>
