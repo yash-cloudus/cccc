@@ -19,6 +19,7 @@ import {
   SearchInput,
 } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { OccupationSubDrawer } from "@/components/admin/occupation-sub-drawer";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
@@ -28,37 +29,23 @@ export type DropdownRow = {
   nameEn: string;
   nameGu: string;
   isActive: boolean;
-  /** Records already referencing this option — shown so admins know the blast radius. */
   inUse: number;
   needsReview?: boolean;
 };
 
-type CategoryId =
-  | "surname"
-  | "degree"
-  | "occupation"
-  | "relationship"
-  | "blood"
-  | "buscat"
-  | "standard";
+type CategoryId = "surname" | "occupation" | "relationship" | "blood";
 
 type Category = {
   id: CategoryId;
-  /** Pill label — bilingual, matches Admin.dc.html dropCats. */
   chip: string;
-  /** Singular noun used in the "+ Add …" button and modal title. */
   noun: string;
-  /** Which endpoint backs this category. */
-  api: "surname-groups" | "business-categories" | "dropdowns" | null;
-  /** Only DropdownOption rows carry a real isActive column. */
+  api: "surname-groups" | "dropdowns" | null;
   hasStatus: boolean;
-  /** Blood groups are a fixed medical enum — never editable. */
   readOnlyNote?: string;
 };
 
 const CATEGORIES: Category[] = [
   { id: "surname", chip: "Surname · અટક", noun: "Surname", api: "surname-groups", hasStatus: false },
-  { id: "degree", chip: "Degree · ડિગ્રી", noun: "Degree", api: "dropdowns", hasStatus: true },
   { id: "occupation", chip: "Occupation · વ્યવસાય", noun: "Occupation", api: "dropdowns", hasStatus: true },
   { id: "relationship", chip: "Relationship · સંબંધ", noun: "Relationship", api: "dropdowns", hasStatus: true },
   {
@@ -70,8 +57,6 @@ const CATEGORIES: Category[] = [
     readOnlyNote:
       "Blood groups are a fixed medical list shared by every community — they cannot be added, renamed or removed, because member records reference them directly.",
   },
-  { id: "buscat", chip: "Business category", noun: "Business category", api: "business-categories", hasStatus: false },
-  { id: "standard", chip: "Education Level (Standard) · ધોરણ", noun: "Education Level", api: "dropdowns", hasStatus: true },
 ];
 
 type EditState = { id: string | null; nameEn: string; nameGu: string } | null;
@@ -84,6 +69,7 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
   const [edit, setEdit] = useState<EditState>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [subDrawer, setSubDrawer] = useState<DropdownRow | null>(null);
 
   const cat = CATEGORIES.find((c) => c.id === catId)!;
   const visible = useMemo(() => {
@@ -114,7 +100,10 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
 
     const url = `/api/admin/${cat.api}`;
     const base = { nameEn: edit.nameEn.trim(), nameGu: edit.nameGu.trim() };
-    const payload = cat.api === "dropdowns" ? { ...base, type: catId } : base;
+    const payload =
+      cat.api === "dropdowns"
+        ? { ...base, type: catId, parentId: null as string | null }
+        : base;
 
     const res = edit.id
       ? await api.patch<DropdownRow>(url, { id: edit.id, ...payload })
@@ -153,7 +142,9 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
       description:
         row.inUse > 0
           ? `This option is used by ${row.inUse} record(s). Deleting it won't change those records, but it will no longer appear in the app's dropdowns.`
-          : undefined,
+          : catId === "occupation"
+            ? "All sub-categories under this occupation will also be removed."
+            : undefined,
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -182,8 +173,8 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
 
       <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
         Each option is saved in English + ગુજરાતી. Disabled options stay on old records but no
-        longer appear in the app’s dropdowns. Member/registration forms show these as dropdowns
-        with an inline “+ Add new”.
+        longer appear in the app’s dropdowns. Occupation sub-categories (business type, education
+        level, streams) are managed via the side drawer on each occupation row.
       </AdminHint>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -261,7 +252,12 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
               </AdminTd>
               <AdminTd className="text-right">
                 {cat.api ? (
-                  <span className="flex justify-end gap-2.5">
+                  <span className="flex flex-wrap justify-end gap-2.5">
+                    {catId === "occupation" && (
+                      <LinkAction onClick={() => setSubDrawer(row)}>
+                        Sub-categories
+                      </LinkAction>
+                    )}
                     <LinkAction onClick={() => openEdit(row)}>edit</LinkAction>
                     <LinkAction danger onClick={() => remove(row)}>
                       delete
@@ -284,6 +280,12 @@ export function DropdownsClient({ initialRows }: { initialRows: Record<string, D
           )}
         </tbody>
       </AdminTable>
+
+      <OccupationSubDrawer
+        open={subDrawer !== null}
+        root={subDrawer}
+        onClose={() => setSubDrawer(null)}
+      />
 
       <Dialog open={edit !== null} onOpenChange={(o) => !o && setEdit(null)}>
         <DialogContent className="max-w-[360px] rounded-2xl sm:max-w-[360px]">

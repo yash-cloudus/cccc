@@ -262,8 +262,26 @@ export async function getInfoSections(communityId: string, activeOnly = false) {
 export async function getDropdownOptions(communityId: string, type?: string) {
   return prisma.dropdownOption.findMany({
     where: { communityId, ...(type ? { type } : {}) },
-    orderBy: [{ type: "asc" }, { sortOrder: "asc" }],
+    orderBy: [{ type: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }],
   });
+}
+
+/** Full occupation tree for cascading member forms. */
+export async function getOccupationTree(communityId: string) {
+  const rows = await prisma.dropdownOption.findMany({
+    where: { communityId, type: "occupation" },
+    orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
+    select: {
+      id: true,
+      nameEn: true,
+      nameGu: true,
+      isActive: true,
+      sortOrder: true,
+      parentId: true,
+    },
+  });
+  const { buildOccupationTree } = await import("@/lib/occupation-defaults");
+  return buildOccupationTree(rows);
 }
 
 export async function getSurnameGroups(communityId: string) {

@@ -76,6 +76,7 @@ export const ADMIN_NAV: {
   { key: "queue", href: "/admin/queue", label: "Registration queue", badge: "queue" },
   { key: "families", href: "/admin/families", label: "Families & Members" },
   { key: "drop", href: "/admin/dropdowns", label: "Dropdown lists" },
+  { key: "buscat", href: "/admin/business-categories", label: "Business categories" },
   { key: "gallery", href: "/admin/gallery", label: "Event Gallery" },
   { key: "news", href: "/admin/news", label: "News" },
   { key: "ads", href: "/admin/ads", label: "Advertisements", badge: "ads" },

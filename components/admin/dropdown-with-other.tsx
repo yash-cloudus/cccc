@@ -86,17 +86,21 @@ export async function commitOtherValue(
   value: string,
   otherValue: string,
   known: DropdownChoice[],
+  opts?: { parentId?: string | null; nameGu?: string },
 ): Promise<string> {
   if (value !== OTHER) return value;
 
   const text = otherValue.trim();
   if (!text) return "";
 
-  // Already in the masters (someone added it meanwhile, or case differs) —
-  // reuse it rather than creating a duplicate row.
   const existing = known.find((o) => o.label.toLowerCase() === text.toLowerCase());
   if (existing) return existing.value;
 
-  await api.post("/api/admin/dropdowns", { type, nameEn: text, nameGu: text });
+  await api.post("/api/admin/dropdowns", {
+    type,
+    nameEn: text,
+    nameGu: opts?.nameGu?.trim() || text,
+    parentId: opts?.parentId ?? null,
+  });
   return text;
 }

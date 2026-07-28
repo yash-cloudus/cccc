@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaClient, BloodGroupType, CommunityType, CommunityStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { DEFAULT_RELATIONS } from "@/lib/constants";
+import { seedOccupationDefaults } from "@/lib/occupation-defaults";
 
 const prisma = new PrismaClient();
 
@@ -243,22 +244,18 @@ async function seedCommunityData(
     villages[v.nameEn] = g.id;
   }
 
-  // Dropdown masters
-  const dropdowns: [string, string, string][] = [
-    ["degree", "B.COM", "\u0AAC\u0AC0.\u0A95\u0ACB\u0AAE"],
-    ["degree", "B.A.", "\u0AAC\u0AC0.\u0A8F."],
-    ["degree", "C.A.", "\u0AB8\u0AC0.\u0A8F."],
-    ["occupation", "Trade", "\u0AB5\u0AC7\u0AAA\u0ABE\u0AB0"],
-    ["occupation", "Job", "\u0AA8\u0ACB\u0A95\u0AB0\u0AC0"],
-    ["occupation", "Farming", "\u0A96\u0AC7\u0AA4\u0AC0"],
-    ["occupation", "Student", "\u0AB5\u0ABF\u0AA6\u0ACD\u0AAF\u0ABE\u0AB0\u0ACD\u0AA5\u0AC0"],
-    ["occupation", "Homemaker", "\u0A97\u0AC3\u0AB9\u0ABF\u0AA3\u0AC0"],
-    ...DEFAULT_RELATIONS.map((r): [string, string, string] => ["relationship", r.nameEn, r.nameGu]),
-  ];
-  for (const [type, nameEn, nameGu] of dropdowns) {
-    const existing = await prisma.dropdownOption.findFirst({ where: { communityId, type, nameEn } });
-    if (!existing) await prisma.dropdownOption.create({ data: { communityId, type, nameEn, nameGu } });
+  // Dropdown masters — relationship + nested occupation tree
+  for (const r of DEFAULT_RELATIONS) {
+    const existing = await prisma.dropdownOption.findFirst({
+      where: { communityId, type: "relationship", nameEn: r.nameEn },
+    });
+    if (!existing) {
+      await prisma.dropdownOption.create({
+        data: { communityId, type: "relationship", nameEn: r.nameEn, nameGu: r.nameGu },
+      });
+    }
   }
+  await seedOccupationDefaults(prisma, communityId);
 
   // Business categories
   const catDefs: [string, string, string][] = [
@@ -302,8 +299,8 @@ async function seedCommunityData(
       fullNameGu: "\u0A86\u0AB2\u0ACD\u0AAA\u0AC7\u0AB6\u0AAD\u0ABE\u0A88 \u0A95\u0AA8\u0AC1\u0AAD\u0ABE\u0A88",
       relation: "Head",
       bloodGroup: "B_POS",
-      occupation: "Trade",
-      education: "B.COM",
+      occupation: "Vepar (Business)",
+      education: null,
       isHead: true,
       showPhone: true,
       currentlyAt: "Surat",
@@ -330,7 +327,7 @@ async function seedCommunityData(
         consentAccepted: true,
         familyMembers: {
           create: [
-            { fullNameEn: "Alpeshbhai Kanubhai Savaliya", relation: "Head", mobile: opts.ownerMobile, bloodGroup: "B_POS", occupation: "Trade", education: "B.COM", currentlyAt: "Surat", isHead: true },
+            { fullNameEn: "Alpeshbhai Kanubhai Savaliya", relation: "Head", mobile: opts.ownerMobile, bloodGroup: "B_POS", occupation: "Vepar (Business)", occupationOther: "Textiles", currentlyAt: "Surat", isHead: true },
             { fullNameEn: "Nitaben Alpeshbhai Savaliya", relation: "Wife", bloodGroup: "A_POS", occupation: "Homemaker", currentlyAt: "Surat" },
             { fullNameEn: "Harsh Alpeshbhai Savaliya", relation: "Son", bloodGroup: "B_POS", occupation: "Student", education: "Std 10", currentlyAt: "Surat" },
           ],

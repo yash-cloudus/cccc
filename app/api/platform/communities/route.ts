@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { assertPlatform } from "@/lib/tenant";
 import { isValidSlug, normalizeSlug, groupingLabel } from "@/lib/platform";
 import { DEFAULT_RELATIONS } from "@/lib/constants";
+import { seedOccupationDefaults } from "@/lib/occupation-defaults";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -146,6 +147,8 @@ export async function POST(req: Request) {
           nameGu: r.nameGu,
         })),
       });
+
+      await seedOccupationDefaults(tx, community.id);
 
       return { community, username };
     });

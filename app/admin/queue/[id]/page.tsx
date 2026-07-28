@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getActiveCommunity } from "@/lib/tenant";
-import { getFamily, getSurnameGroups } from "@/lib/tenant-data";
+import { getFamily, getOccupationTree, getSurnameGroups } from "@/lib/tenant-data";
+import { cascadingFromStored } from "@/lib/cascading-occupation";
 import { ReviewClient, type EditFamily } from "./review-client";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +23,12 @@ export default async function ReviewRegistrationPage({
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  const family = await getFamily(community.id, id);
+  const [family, surnameGroups, occupationTree] = await Promise.all([
+    getFamily(community.id, id),
+    getSurnameGroups(community.id),
+    getOccupationTree(community.id),
+  ]);
   if (!family) notFound();
-
-  const surnameGroups = await getSurnameGroups(community.id);
 
   const data: EditFamily = {
     id: family.id,
@@ -50,9 +53,13 @@ export default async function ReviewRegistrationPage({
       mobile: m.mobile || "",
       dateOfBirth: ymd(m.dateOfBirth),
       bloodGroup: m.bloodGroup || "",
-      occupation: m.occupation || "",
-      education: m.education || "",
       isHead: m.isHead,
+      ...cascadingFromStored(occupationTree, {
+        occupation: m.occupation,
+        occupationOther: m.occupationOther,
+        education: m.education,
+        course: m.course,
+      }),
     })),
   };
 
@@ -60,8 +67,9 @@ export default async function ReviewRegistrationPage({
     <ReviewClient
       family={data}
       surnameGroups={surnameGroups.map((s) => ({ id: s.id, nameEn: s.nameEn, nameGu: s.nameGu }))}
+      occupationTree={occupationTree}
       backHref={fromFamilies ? "/admin/families" : "/admin/queue"}
-      backLabel={fromFamilies ? "‹ Back to Families & Members" : "‹ Back to queue"}
+      backLabel={fromFamilies ? "‹ Back to families" : "‹ Back to queue"}
     />
   );
 }

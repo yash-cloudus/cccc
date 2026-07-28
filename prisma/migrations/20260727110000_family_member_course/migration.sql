@@ -1,0 +1,1 @@
+ALTER TABLE `FamilyMember` ADD COLUMN `course` VARCHAR(191) NULL;

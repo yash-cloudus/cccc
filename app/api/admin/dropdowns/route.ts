@@ -6,10 +6,21 @@ import { requireAdmin, handleApiError } from "@/lib/admin-guard";
 export async function GET(req: Request) {
   try {
     const { communityId } = await requireAdmin();
-    const type = new URL(req.url).searchParams.get("type") || undefined;
+    const url = new URL(req.url);
+    const type = url.searchParams.get("type") || undefined;
+    const parentIdParam = url.searchParams.get("parentId");
+    const parentId =
+      parentIdParam === "null" || parentIdParam === ""
+        ? null
+        : parentIdParam ?? undefined;
+
     const items = await prisma.dropdownOption.findMany({
-      where: { communityId, ...(type ? { type } : {}) },
-      orderBy: [{ type: "asc" }, { sortOrder: "asc" }, { nameEn: "asc" }],
+      where: {
+        communityId,
+        ...(type ? { type } : {}),
+        ...(parentIdParam !== null ? { parentId } : {}),
+      },
+      orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
     });
     return ok(items);
   } catch (e) {
@@ -21,6 +32,7 @@ const createSchema = z.object({
   type: z.string().min(1),
   nameEn: z.string().min(1),
   nameGu: z.string().min(1),
+  parentId: z.string().nullable().optional(),
   needsReview: z.boolean().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
@@ -30,10 +42,18 @@ export async function POST(req: Request) {
   try {
     const { communityId } = await requireAdmin();
     const body = createSchema.parse(await req.json());
+    if (body.parentId) {
+      const parent = await prisma.dropdownOption.findFirst({
+        where: { id: body.parentId, communityId },
+        select: { id: true },
+      });
+      if (!parent) return fail("Parent option not found", 404);
+    }
     const item = await prisma.dropdownOption.create({
       data: {
         communityId,
         type: body.type.trim(),
+        parentId: body.parentId ?? null,
         nameEn: body.nameEn.trim(),
         nameGu: body.nameGu.trim(),
         needsReview: body.needsReview ?? false,

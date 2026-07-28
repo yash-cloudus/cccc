@@ -17,7 +17,9 @@ const memberSchema = z.object({
   dateOfBirth: z.string().optional().nullable(),
   bloodGroup: z.enum(BLOOD).optional().nullable(),
   occupation: z.string().optional().nullable(),
+  occupationOther: z.string().optional().nullable(),
   education: z.string().optional().nullable(),
+  course: z.string().optional().nullable(),
   isHead: z.boolean().optional(),
 });
 
@@ -106,7 +108,9 @@ export async function PUT(req: Request, { params }: Params) {
             dateOfBirth: m.dateOfBirth ? new Date(m.dateOfBirth) : null,
             bloodGroup: m.bloodGroup ?? null,
             occupation: m.occupation ?? null,
+            occupationOther: m.occupationOther ?? null,
             education: m.education ?? null,
+            course: m.course ?? null,
             isHead: m.isHead ?? false,
           };
           if (m.id && existing.familyMembers.some((e) => e.id === m.id)) {

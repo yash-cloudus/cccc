@@ -28,7 +28,14 @@ import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
-import { DropdownWithOther, commitOtherValue } from "@/components/admin/dropdown-with-other";
+import { DropdownWithOther } from "@/components/admin/dropdown-with-other";
+import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
+import {
+  type CascadingOccupationValues,
+  blankCascadingOccupation,
+  resolveCascadingOccupationForSave,
+} from "@/lib/cascading-occupation";
+import type { OccupationTreeNode } from "@/lib/occupation-defaults";
 
 export type FamilyStatus = "PENDING" | "APPROVED" | "REJECTED";
 
@@ -107,15 +114,8 @@ export type MemberDraft = {
   mobile: string;
   dateOfBirth: string;
   bloodGroup: string;
-  occupation: string;
-  /** Free text shown when `occupation === OTHER`. */
-  occupationCustom: string;
-  /** "વ્યવસાય / ધંધો" — the specific job/trade, always free text. */
-  occupationOther: string;
-  education: string;
-  educationCustom: string;
   hasWhatsApp: boolean;
-};
+} & CascadingOccupationValues;
 
 function blankMemberDraft(): MemberDraft {
   return {
@@ -125,12 +125,8 @@ function blankMemberDraft(): MemberDraft {
     mobile: "",
     dateOfBirth: "",
     bloodGroup: "",
-    occupation: "",
-    occupationCustom: "",
-    occupationOther: "",
-    education: "",
-    educationCustom: "",
     hasWhatsApp: true,
+    ...blankCascadingOccupation(),
   };
 }
 
@@ -159,17 +155,12 @@ export function FamiliesClient({
   initialRows,
   surnameGroups: initialGroups,
   relations = [],
-  occupations: initialOccupations = [],
-  educations: initialEducations = [],
+  occupationTree,
 }: {
   initialRows: FamilyRow[];
   surnameGroups: SurnameOption[];
-  /** Relation options from Dropdown lists → Relationship. */
   relations?: string[];
-  /** Occupation options from Dropdown lists → Occupation. */
-  occupations?: string[];
-  /** Degree options from Dropdown lists → Degree. */
-  educations?: string[];
+  occupationTree: OccupationTreeNode[];
 }) {
   const router = useRouter();
   const { fromEn, guInput } = useTranslitSync();
@@ -183,20 +174,9 @@ export function FamiliesClient({
 
   // Kept in state so an option created via "Other" shows up in the list
   // immediately, without waiting for a page refresh.
-  const [occupations, setOccupations] = useState<string[]>(initialOccupations);
-  const [educations, setEducations] = useState<string[]>(initialEducations);
+  const [occupationTreeState, setOccupationTreeState] = useState(occupationTree);
 
-  useEffect(() => setOccupations(initialOccupations), [initialOccupations]);
-  useEffect(() => setEducations(initialEducations), [initialEducations]);
-
-  const occupationChoices = useMemo(
-    () => occupations.map((o) => ({ value: o, label: o })),
-    [occupations],
-  );
-  const educationChoices = useMemo(
-    () => educations.map((e) => ({ value: e, label: e })),
-    [educations],
-  );
+  useEffect(() => setOccupationTreeState(occupationTree), [occupationTree]);
 
   const [membersOf, setMembersOf] = useState<FamilyRow | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -269,34 +249,9 @@ export function FamiliesClient({
 
     const keptMembers = form.members.filter((m) => m.fullNameEn.trim() || m.fullNameGu.trim());
 
-    // Persist any "Other" text into Dropdown lists first, so the saved member
-    // stores the same value the masters list now offers.
     const resolved = await Promise.all(
-      keptMembers.map(async (m) => ({
-        occupation: await commitOtherValue(
-          "occupation",
-          m.occupation,
-          m.occupationCustom,
-          occupationChoices,
-        ),
-        education: await commitOtherValue(
-          "degree",
-          m.education,
-          m.educationCustom,
-          educationChoices,
-        ),
-      })),
+      keptMembers.map((m) => resolveCascadingOccupationForSave(occupationTreeState, m)),
     );
-
-    // Reflect newly-created options in the local lists right away.
-    const newOccupations = resolved
-      .map((r) => r.occupation)
-      .filter((v) => v && !occupations.includes(v));
-    const newEducations = resolved
-      .map((r) => r.education)
-      .filter((v) => v && !educations.includes(v));
-    if (newOccupations.length) setOccupations((prev) => [...prev, ...newOccupations]);
-    if (newEducations.length) setEducations((prev) => [...prev, ...newEducations]);
 
     const payload = {
       headNameEn: form.headNameEn.trim(),
@@ -316,8 +271,9 @@ export function FamiliesClient({
         dateOfBirth: m.dateOfBirth || undefined,
         bloodGroup: m.bloodGroup || undefined,
         occupation: resolved[i].occupation || undefined,
-        occupationOther: m.occupationOther.trim() || undefined,
+        occupationOther: resolved[i].occupationOther || undefined,
         education: resolved[i].education || undefined,
+        course: resolved[i].course || undefined,
         currentlyAt: form.city.trim() || undefined,
         hasWhatsApp: m.hasWhatsApp,
       })),
@@ -757,35 +713,10 @@ export function FamiliesClient({
             </AdminFormRow>
 
             {/* વ્યવસાય — same pattern as the member registration form. */}
-            <DropdownWithOther
-              label="Occupation · વ્યવસાય"
-              value={m.occupation}
-              otherValue={m.occupationCustom}
-              options={occupationChoices}
-              otherPlaceholder="e.g. Trade, Job, Farming…"
-              onChange={(v) => updateMemberDraft(i, { occupation: v })}
-              onOtherChange={(v) => updateMemberDraft(i, { occupationCustom: v })}
-            />
-
-            <AdminField
-              label="Work / business · વ્યવસાય / ધંધો"
-              hint="The specific job or trade."
-            >
-              <AdminInput
-                value={m.occupationOther}
-                placeholder="દા.ત. સોફ્ટવેર એન્જિનિયર, શિક્ષક, ડૉક્ટર…"
-                onChange={(v) => updateMemberDraft(i, { occupationOther: v })}
-              />
-            </AdminField>
-
-            <DropdownWithOther
-              label="Education · અભ્યાસ"
-              value={m.education}
-              otherValue={m.educationCustom}
-              options={educationChoices}
-              otherPlaceholder="e.g. B.COM, B.A., Diploma…"
-              onChange={(v) => updateMemberDraft(i, { education: v })}
-              onOtherChange={(v) => updateMemberDraft(i, { educationCustom: v })}
+            <CascadingOccupationFields
+              tree={occupationTreeState}
+              values={m}
+              onChange={(patch) => updateMemberDraft(i, patch)}
             />
 
             <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-[var(--ink-mid)]">

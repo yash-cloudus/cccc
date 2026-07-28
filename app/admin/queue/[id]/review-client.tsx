@@ -26,6 +26,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { BLOOD_GROUPS, REJECT_REASONS } from "@/lib/constants";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
+import {
+  type CascadingOccupationValues,
+  blankCascadingOccupation,
+  resolveCascadingOccupationForSave,
+} from "@/lib/cascading-occupation";
+import type { OccupationTreeNode } from "@/lib/occupation-defaults";
 
 export type EditMember = {
   id: string;
@@ -36,10 +43,8 @@ export type EditMember = {
   mobile: string;
   dateOfBirth: string;
   bloodGroup: string;
-  occupation: string;
-  education: string;
   isHead: boolean;
-};
+} & CascadingOccupationValues;
 
 export type EditFamily = {
   id: string;
@@ -63,13 +68,13 @@ type SurnameOption = { id: string; nameEn: string; nameGu: string };
 export function ReviewClient({
   family: initial,
   surnameGroups,
+  occupationTree,
   backHref = "/admin/queue",
   backLabel = "‹ Back to queue",
 }: {
   family: EditFamily;
   surnameGroups: SurnameOption[];
-  /** Where "back" and the post-approve/reject redirect go — the queue by
-   * default, or Families & Members when opened from there. */
+  occupationTree: OccupationTreeNode[];
   backHref?: string;
   backLabel?: string;
 }) {
@@ -108,14 +113,16 @@ export function ReviewClient({
           mobile: "",
           dateOfBirth: "",
           bloodGroup: "",
-          occupation: "",
-          education: "",
           isHead: false,
+          ...blankCascadingOccupation(),
         },
       ],
     }));
 
-  function buildPayload() {
+  async function buildPayload() {
+    const resolvedMembers = await Promise.all(
+      f.members.map((m) => resolveCascadingOccupationForSave(occupationTree, m)),
+    );
     return {
       headNameEn: f.headNameEn,
       headNameGu: f.headNameGu || null,
@@ -127,7 +134,7 @@ export function ReviewClient({
       businessGu: f.businessGu || null,
       nativeElderNameGu: f.nativeElderNameGu || null,
       nativeElderPhone: f.nativeElderPhone || null,
-      members: f.members.map((m) => ({
+      members: f.members.map((m, i) => ({
         ...(m.isNew ? {} : { id: m.id }),
         fullNameEn: m.fullNameEn,
         fullNameGu: m.fullNameGu || null,
@@ -135,8 +142,10 @@ export function ReviewClient({
         mobile: m.mobile || null,
         dateOfBirth: m.dateOfBirth || null,
         bloodGroup: m.bloodGroup || null,
-        occupation: m.occupation || null,
-        education: m.education || null,
+        occupation: resolvedMembers[i].occupation || null,
+        occupationOther: resolvedMembers[i].occupationOther || null,
+        education: resolvedMembers[i].education || null,
+        course: resolvedMembers[i].course || null,
         isHead: m.isHead,
       })),
     };
@@ -146,7 +155,7 @@ export function ReviewClient({
     setBusy("save");
     setError(null);
     setNotice(null);
-    const res = await api.put(`/api/families/${f.id}`, buildPayload());
+    const res = await api.put(`/api/families/${f.id}`, await buildPayload());
     setBusy(null);
     if (!res.ok) {
       setError(res.error);
@@ -159,7 +168,7 @@ export function ReviewClient({
   async function approve() {
     setBusy("approve");
     setError(null);
-    const saved = await api.put(`/api/families/${f.id}`, buildPayload());
+    const saved = await api.put(`/api/families/${f.id}`, await buildPayload());
     if (!saved.ok) {
       setBusy(null);
       setError(saved.error);
@@ -341,13 +350,19 @@ export function ReviewClient({
                     ]}
                   />
                 </div>
-                <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Occupation</div>
-                  <AdminCellInput value={m.occupation} onChange={(v) => setMember(m.id, "occupation", v)} />
-                </div>
-                <div>
-                  <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Education</div>
-                  <AdminCellInput value={m.education} onChange={(v) => setMember(m.id, "education", v)} />
+                <div className="col-span-1 sm:col-span-2">
+                  <CascadingOccupationFields
+                    tree={occupationTree}
+                    values={m}
+                    onChange={(patch) =>
+                      setF((prev) => ({
+                        ...prev,
+                        members: prev.members.map((x) =>
+                          x.id === m.id ? { ...x, ...patch } : x,
+                        ),
+                      }))
+                    }
+                  />
                 </div>
               </div>
             </div>

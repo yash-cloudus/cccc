@@ -309,6 +309,7 @@ model FamilyMember {
   occupation      String?
   occupationOther String?
   education       String?
+  course          String?
   currentlyAt     String?
   hasWhatsApp     Boolean         @default(true)
   showPhone       Boolean         @default(true)
@@ -370,19 +371,22 @@ model SurnameCoordinator {
 }
 
 model DropdownOption {
-  id          String    @id @default(cuid())
+  id          String           @id @default(cuid())
   communityId String
   type        String
+  parentId    String?
   nameEn      String
   nameGu      String
-  needsReview Boolean   @default(false)
-  sortOrder   Int       @default(0)
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  needsReview Boolean          @default(false)
+  sortOrder   Int              @default(0)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  community   Community        @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  parent      DropdownOption?  @relation("DropdownTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children    DropdownOption[] @relation("DropdownTree")
 
-  @@index([communityId, type])
+  @@index([communityId, type, parentId])
 }
 
 model VillageArea {
