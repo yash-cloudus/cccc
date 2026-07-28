@@ -3,10 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, ChevronLeft, X } from "lucide-react";
 import { PRIMARY_COLORS, SECONDARY_COLORS, ROOT_DOMAIN } from "@/lib/constants";
+import { HostLabel } from "@/components/host-label";
 import {
-  communityAdminHostLabel,
   communityAdminUrl,
-  communitySiteHostLabel,
   communityUrl,
   defaultAdminUsername,
   generateNamePhonePassword,
@@ -811,10 +810,10 @@ export default function PlatformPage() {
                                 {a.nameGu || a.nameEn}
                               </div>
                               <div className="mt-px text-xs font-semibold text-[var(--platform-muted)]">
-                                {communitySiteHostLabel(a.slug)}
+                                <HostLabel slug={a.slug} />
                               </div>
                               <div className="mt-0.5 truncate text-[10.5px] font-semibold text-[#B4B8C4]">
-                                {communityAdminHostLabel(a.slug)}
+                                <HostLabel slug={a.slug} admin />
                               </div>
                             </div>
                           </div>
@@ -1127,8 +1126,8 @@ export default function PlatformPage() {
                   </div>
                 </div>
                 <div className="mb-[22px] space-y-1.5 rounded-[11px] border border-[#D2D6FB] bg-[var(--platform-tint)] px-3.5 py-2.5 text-[13px] font-bold text-[#3A45B0]">
-                  <div>🌐 Website: {communitySiteHostLabel(sub)}</div>
-                  <div>🛠 Admin: {communityAdminHostLabel(sub)}</div>
+                  <div>🌐 Website: <HostLabel slug={sub} /></div>
+                  <div>🛠 Admin: <HostLabel slug={sub} admin /></div>
                   {editing && <span className="font-semibold text-[#6B7080]">(subdomain can’t be changed)</span>}
                 </div>
 

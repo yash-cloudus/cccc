@@ -83,15 +83,18 @@ export function plural(n: number, one: string, many = `${one}s`): string {
  * On a single-host origin (dev tunnel, LAN IP) there is no wildcard DNS, so
  * printing `{slug}.localhost` shows an address that cannot be opened from
  * another machine. There the label follows the origin in the address bar.
+ *
+ * `host` is passed in rather than read off `window` here: reading it during
+ * render makes the server and the browser emit different text and breaks
+ * hydration. Client callers use <HostLabel>, which swaps after mount.
  */
-function singleHostLabel(path: string): string | null {
-  if (typeof window === "undefined") return null;
-  if (isCanonicalHost(window.location.host)) return null;
-  return `${window.location.host}${path}`;
+function singleHostLabel(host: string | null | undefined, path: string): string | null {
+  if (!host || isCanonicalHost(host)) return null;
+  return `${host}${path}`;
 }
 
-export function communitySiteHostLabel(slug: string): string {
-  const live = singleHostLabel(`/?c=${slug}`);
+export function communitySiteHostLabel(slug: string, host?: string | null): string {
+  const live = singleHostLabel(host, `/?c=${slug}`);
   if (live) return live;
   if (ROOT_DOMAIN === "localhost" || ROOT_DOMAIN.endsWith(".localhost")) {
     return `${slug}.localhost`;
@@ -100,8 +103,8 @@ export function communitySiteHostLabel(slug: string): string {
 }
 
 /** Display-only admin host (no scheme), e.g. admin.saurashtra_patel.community.in */
-export function communityAdminHostLabel(slug: string): string {
-  const live = singleHostLabel(`/admin?c=${slug}`);
+export function communityAdminHostLabel(slug: string, host?: string | null): string {
+  const live = singleHostLabel(host, `/admin?c=${slug}`);
   if (live) return live;
   if (ROOT_DOMAIN === "localhost" || ROOT_DOMAIN.endsWith(".localhost")) {
     return `admin.${slug}.localhost`;

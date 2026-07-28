@@ -9,7 +9,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 import { mainAdminUrl, communityAdminUrl } from "@/lib/host";
-import { communitySiteHostLabel } from "@/lib/platform";
+import { HostLabel } from "@/components/host-label";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -110,7 +110,7 @@ export default function LoginPage() {
             {brandName || t("samaj")}
           </div>
           <div className="mt-1 text-[12px] font-semibold text-[var(--faint-soft)]">
-            {communitySiteHostLabel(community.slug)}
+            <HostLabel slug={community.slug} />
           </div>
           <div className="mt-1.5 text-[13px] font-semibold text-[var(--faint)]">{t("memberLogin")}</div>
         </div>

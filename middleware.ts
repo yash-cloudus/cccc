@@ -93,10 +93,18 @@ export async function middleware(req: NextRequest) {
    * carries ?c=<slug> instead. Redirecting to admin.{slug}.<host> there only
    * produces ERR_CONNECTION_REFUSED.
    */
+  const next = () => finish(NextResponse.next({ request: { headers: requestHeaders } }));
+
+  /**
+   * A cross-panel hop that lands on the URL we are already serving is not a
+   * hop — it is a redirect loop. On a single-host origin /login?c=<slug> IS
+   * the member login, so serve it instead of bouncing to itself.
+   */
   const sameOrigin = (path: string, slug?: string | null) => {
     const url = req.nextUrl.clone();
     url.pathname = path;
     if (slug) url.searchParams.set("c", slug);
+    if (url.href === req.nextUrl.href) return next();
     return finish(NextResponse.redirect(url));
   };
   const toSite = (slug: string, path: string) =>
@@ -109,8 +117,6 @@ export async function middleware(req: NextRequest) {
       : finish(NextResponse.redirect(communityAdminUrl(slug, path)));
   const toMain = (path: string) =>
     parsed.singleHost ? sameOrigin(path) : finish(NextResponse.redirect(mainAdminUrl(path)));
-
-  const next = () => finish(NextResponse.next({ request: { headers: requestHeaders } }));
 
   const rewrite = (path: string) => {
     const url = req.nextUrl.clone();

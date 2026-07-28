@@ -60,7 +60,12 @@ export async function getActiveCommunity(): Promise<Community | null> {
 
   const hdrs = await headers();
   const hostKind = hdrs.get("x-host-kind") || parseHost(effectiveHost(hdrs)).kind;
-  if (hostKind === "main") return null;
+  // On a single-host origin the panel is guessed from the path, so /login looks
+  // like "main" even when it is a member login. Middleware only sets
+  // x-community-slug from an explicit ?c= / active-community cookie there (never
+  // on the real apex), so that header outranks the guess.
+  const mwSlug = hdrs.get("x-community-slug");
+  if (hostKind === "main" && !mwSlug) return null;
 
   const slug = await resolveSlugFromRequest();
   if (slug) {
