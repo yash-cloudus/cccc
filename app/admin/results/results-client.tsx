@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, Plus } from "lucide-react";
 import {
   AdminBtn,
@@ -16,10 +16,12 @@ import {
   AdminTh,
   PillActive,
   PillExpired,
+  SearchInput,
   StatusPill,
 } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api } from "@/lib/http";
+import { EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 
 export type DriveInfo = {
@@ -44,6 +46,9 @@ export type EntryRow = {
   status: "PENDING" | "APPROVED" | "REJECTED" | "RESUBMIT";
   marksheetUrl: string | null;
 };
+
+/** Every standard a drive can have a box for, shown even with zero students. */
+const LEVELS = EDUCATION_LEVELS.map((l) => l.nameEn);
 
 const lower = (s: EntryRow["status"]) =>
   (s === "APPROVED" ? "approved" : s === "REJECTED" ? "rejected" : "pending") as
@@ -130,31 +135,69 @@ export function ResultsClient({
 
   const pending = entries.filter((e) => e.status === "PENDING").length;
 
-  /* ── Drill-down: standards overview → one standard → merit list ── */
-  const [view, setView] = useState<"overview" | "standard" | "merit">("overview");
-  const [activeStd, setActiveStd] = useState<string | null>(null);
+  /* ── Toolbar filters ── */
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [levelFilter, setLevelFilter] = useState("all");
+
+  const q = query.trim().toLowerCase();
+  const filtered = useMemo(
+    () =>
+      entries.filter((e) => {
+        if (statusFilter !== "all" && e.status !== statusFilter) return false;
+        if (q && ![e.studentName, e.schoolName].some((v) => v?.toLowerCase().includes(q))) {
+          return false;
+        }
+        return true;
+      }),
+    [entries, statusFilter, q],
+  );
+
+  /**
+   * Drill-down lives in the URL (?std= / ?view=) rather than in state, so
+   * "Open →" is a real navigation the browser Back button can undo.
+   */
+  const params = useSearchParams();
+  const activeStd = params.get("std");
+  const viewParam = params.get("view");
+  const view: "overview" | "standard" | "merit" | "final" =
+    viewParam === "final" ? "final" : viewParam === "merit" ? "merit" : activeStd ? "standard" : "overview";
+
+  const go = useCallback(
+    (next: Record<string, string | null>) => {
+      const sp = new URLSearchParams(params.toString());
+      for (const [k, v] of Object.entries(next)) {
+        if (v === null) sp.delete(k);
+        else sp.set(k, v);
+      }
+      router.push(`/admin/results?${sp.toString()}`);
+    },
+    [params, router],
+  );
 
   const standards = useMemo(() => {
-    const map = new Map<
-      string,
-      { standard: string; total: number; approved: number; pending: number; rejected: number }
-    >();
-    for (const e of entries) {
-      const row =
-        map.get(e.standard) ??
-        { standard: e.standard, total: 0, approved: 0, pending: 0, rejected: 0 };
+    const map = new Map<string, { total: number; approved: number; pending: number; rejected: number }>();
+    for (const e of filtered) {
+      const row = map.get(e.standard) ?? { total: 0, approved: 0, pending: 0, rejected: 0 };
       row.total += 1;
       if (e.status === "APPROVED") row.approved += 1;
       else if (e.status === "REJECTED") row.rejected += 1;
       else row.pending += 1;
       map.set(e.standard, row);
     }
-    return [...map.values()].sort((a, b) => a.standard.localeCompare(b.standard, undefined, { numeric: true }));
-  }, [entries]);
+    // Standards nobody seeded (free-typed on an entry) still get a box, after the known levels.
+    const extra = [...map.keys()].filter((s) => !LEVELS.includes(s)).sort();
+    return [...LEVELS, ...extra]
+      .filter((s) => levelFilter === "all" || s === levelFilter)
+      .map((standard) => ({
+        standard,
+        ...(map.get(standard) ?? { total: 0, approved: 0, pending: 0, rejected: 0 }),
+      }));
+  }, [filtered, levelFilter]);
 
   const stdEntries = useMemo(
-    () => (activeStd ? entries.filter((e) => e.standard === activeStd) : entries),
-    [entries, activeStd],
+    () => (activeStd ? filtered.filter((e) => e.standard === activeStd) : filtered),
+    [filtered, activeStd],
   );
 
   const stdSummary = useMemo(() => {
@@ -168,25 +211,38 @@ export function ResultsClient({
     };
   }, [stdEntries]);
 
-  /** Merit list = approved entries of the active standard, ranked by percentage. */
-  const merit = useMemo(
-    () =>
-      stdEntries
-        .filter((e) => e.status === "APPROVED" && e.percentage != null)
+  /** Ranked approved entries of one standard — used by both merit views. */
+  const meritOf = useCallback(
+    (std: string) =>
+      entries
+        .filter((e) => e.standard === std && e.status === "APPROVED" && e.percentage != null)
         .sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0))
         .map((e, i) => ({ ...e, rank: i + 1 })),
-    [stdEntries],
+    [entries],
   );
 
-  function openStandard(std: string) {
-    setActiveStd(std);
-    setView("standard");
-  }
+  /** Standards that actually have a merit list, for the final report. */
+  const finalStandards = useMemo(
+    () => standards.map((s) => s.standard).filter((s) => meritOf(s).length > 0),
+    [standards, meritOf],
+  );
 
-  function backToOverview() {
-    setActiveStd(null);
-    setView("overview");
-  }
+  const merit = activeStd ? meritOf(activeStd) : [];
+
+  const openStandard = (std: string) => go({ std, view: null });
+  const backToOverview = () => go({ std: null, view: null });
+
+  /** One option per drive; the year alone unless that year has several drives. */
+  const driveOptions = useMemo(() => {
+    const perYear = new Map<number, number>();
+    for (const d of drives) perYear.set(d.year, (perYear.get(d.year) ?? 0) + 1);
+    return [...drives]
+      .sort((a, b) => b.year - a.year)
+      .map((d) => ({
+        value: d.id,
+        label: (perYear.get(d.year) ?? 0) > 1 ? `${d.year} — ${d.titleEn}` : String(d.year),
+      }));
+  }, [drives]);
 
   return (
     <>
@@ -200,23 +256,48 @@ export function ResultsClient({
             </>
           ) : null}
         </AdminH2>
-        <AdminBtn onClick={() => { setNewOpen(true); setError(null); }}>
-          <Plus className="size-4" />
-          New drive
-        </AdminBtn>
+        <span className="flex gap-2">
+          <AdminBtn variant="ghost" onClick={() => { setNewOpen(true); setError(null); }}>
+            <Plus className="size-4" />
+            New drive
+          </AdminBtn>
+          <AdminBtn onClick={() => go({ view: "final", std: null })}>🏆 Final result</AdminBtn>
+        </span>
       </div>
 
-      {drives.length > 1 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-[11.5px] font-bold text-[var(--faint)]">Drive:</span>
+      {currentDrive && view === "overview" && (
+        <div className="mb-5 flex flex-wrap items-center gap-2.5">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Search student / school…"
+            className="min-w-[240px] flex-1"
+          />
           <AdminSelect
-            value={currentDrive?.id ?? ""}
+            value={currentDrive.id}
             onChange={(v) => router.push(`/admin/results?drive=${v}`)}
             className="w-auto"
-            options={drives.map((d) => ({
-              value: d.id,
-              label: `${d.titleEn} (${d.year})`,
-            }))}
+            options={driveOptions}
+          />
+          <AdminSelect
+            value={statusFilter}
+            onChange={setStatusFilter}
+            className="w-auto"
+            options={[
+              { value: "all", label: "All status" },
+              { value: "PENDING", label: "Pending" },
+              { value: "APPROVED", label: "Approved" },
+              { value: "REJECTED", label: "Rejected" },
+            ]}
+          />
+          <AdminSelect
+            value={levelFilter}
+            onChange={setLevelFilter}
+            className="w-auto"
+            options={[
+              { value: "all", label: "All education levels" },
+              ...LEVELS.map((l) => ({ value: l, label: l })),
+            ]}
           />
         </div>
       )}
@@ -229,7 +310,7 @@ export function ResultsClient({
         </p>
       ) : (
         <>
-          <div className="mb-5 flex flex-wrap gap-2">
+          <div className={view === "overview" ? "mb-5 flex flex-wrap gap-2" : "hidden"}>
             <AdminBtn variant="ghost" onClick={() => toggleDrive("isOpen")}>
               {currentDrive.isOpen ? "Close drive" : "Reopen drive"}
             </AdminBtn>
@@ -296,11 +377,67 @@ export function ResultsClient({
             </>
           )}
 
+          {/* ── Final result: every standard's merit list in one report ── */}
+          {view === "final" && (
+            <>
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+                <AdminBtn variant="ghost" onClick={backToOverview}>
+                  ‹ Back to dashboard
+                </AdminBtn>
+                <AdminBtn onClick={() => window.print()}>🖨 Print final result</AdminBtn>
+              </div>
+
+              <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-6">
+                <h3 className="text-center text-[18px] font-extrabold text-[var(--ink)]">
+                  Result Merit Report — {currentDrive.titleGu || currentDrive.titleEn}
+                </h3>
+                <p className="mb-4 text-center text-[12.5px] text-[var(--faint)]">
+                  Academic Year: {currentDrive.year}
+                </p>
+                {finalStandards.length === 0 ? (
+                  <p className="py-6 text-center text-[13px] text-[var(--faint)]">
+                    No approved results yet.
+                  </p>
+                ) : (
+                  finalStandards.map((std) => (
+                    <section key={std} className="mb-5">
+                      <h4 className="mb-1 rounded-[10px] bg-[#FBFAF7] px-3.5 py-2 text-[14px] font-extrabold text-[var(--ink)]">
+                        {std}
+                      </h4>
+                      <AdminTable bordered={false}>
+                        <thead>
+                          <tr>
+                            <AdminTh>Rank</AdminTh>
+                            <AdminTh>Student name</AdminTh>
+                            <AdminTh>Percentage</AdminTh>
+                            <AdminTh>School / College</AdminTh>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {meritOf(std).map((m) => (
+                            <tr key={m.id}>
+                              <AdminTd className="font-extrabold text-[var(--brand)]">{m.rank}</AdminTd>
+                              <AdminTd className="font-semibold text-[var(--ink)]">
+                                {m.studentName}
+                              </AdminTd>
+                              <AdminTd>{m.percentage?.toFixed(2)}%</AdminTd>
+                              <AdminTd>{m.schoolName || "—"}</AdminTd>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </AdminTable>
+                    </section>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+
           {/* ── Level 3: merit list ── */}
           {view === "merit" && (
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-                <AdminBtn variant="ghost" onClick={() => setView("standard")}>
+                <AdminBtn variant="ghost" onClick={() => go({ view: null })}>
                   ‹ Back to {activeStd}
                 </AdminBtn>
                 <AdminBtn onClick={() => window.print()}>🖨 Print / Download PDF</AdminBtn>
@@ -350,9 +487,9 @@ export function ResultsClient({
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <AdminBtn variant="ghost" onClick={backToOverview}>
-                  ‹ Back to standards
+                  ‹ Back to dashboard
                 </AdminBtn>
-                <AdminBtn variant="ghost" onClick={() => setView("merit")}>
+                <AdminBtn variant="ghost" onClick={() => go({ view: "merit" })}>
                   🏅 View merit list
                 </AdminBtn>
               </div>

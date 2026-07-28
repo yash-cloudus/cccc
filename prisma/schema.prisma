@@ -180,6 +180,9 @@ model User {
   isEmailVerified    Boolean             @default(false)
   rememberToken      String?
   fcmToken           String?             @db.Text
+  /// Sidebar menus this admin may reach, as a JSON array of ADMIN_MENUS keys.
+  /// Null = the role template decides. Only meaningful for community admins.
+  menusJson          String?             @db.Text
   lastLoginAt        DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt

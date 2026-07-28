@@ -80,6 +80,33 @@ export async function getActiveCommunity(): Promise<Community | null> {
   return null;
 }
 
+/**
+ * The household of a signed-in member.
+ *
+ * `Profile.familyId` is only filled in when an admin creates the account from a
+ * member record. Ordinary members sign in with an OTP, which matches the User
+ * by mobile alone and never touches the profile — so the household has to be
+ * found the way the data actually links it: FamilyMember.mobile == User.mobile.
+ */
+export async function getMyFamilyId(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { mobile: true, communityId: true, profile: { select: { familyId: true } } },
+  });
+  if (!user) return null;
+  if (user.profile?.familyId) return user.profile.familyId;
+  if (!user.mobile) return null;
+
+  const member = await prisma.familyMember.findFirst({
+    where: {
+      mobile: user.mobile,
+      ...(user.communityId ? { family: { communityId: user.communityId } } : {}),
+    },
+    select: { familyId: true },
+  });
+  return member?.familyId ?? null;
+}
+
 export async function getActiveCommunityId(): Promise<string | null> {
   const c = await getActiveCommunity();
   return c?.id ?? null;

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { getActiveCommunity } from "@/lib/tenant";
-import { getPublishedResults } from "@/lib/tenant-data";
-import { ResultsClient, type ResultRow } from "./results-client";
+import { prisma } from "@/lib/prisma";
+import { getActiveCommunity, getMyFamilyId, getSessionPayload } from "@/lib/tenant";
+import { ResultsClient, type ChildOption, type MyEntry, type TopperRow } from "./results-client";
 
 export const dynamic = "force-dynamic";
 
@@ -9,20 +9,85 @@ export default async function ResultsPage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  const { drive, entries } = await getPublishedResults(community.id);
-  const rows: ResultRow[] = entries.map((e) => ({
+  const session = await getSessionPayload();
+
+  // The newest drive — not only published ones, because uploading opens well
+  // before the admin publishes the toppers list.
+  const drive = await prisma.resultDrive.findFirst({
+    where: { communityId: community.id },
+    orderBy: { year: "desc" },
+  });
+
+  if (!drive) {
+    return <ResultsClient drive={null} childOptions={[]} myEntries={[]} toppers={[]} signedIn={false} />;
+  }
+
+  const familyId = session?.sub ? await getMyFamilyId(session.sub) : null;
+
+  const [familyMembers, myEntries, topperEntries] = await Promise.all([
+    familyId
+      ? prisma.familyMember.findMany({
+          where: { familyId, isDeceased: false },
+          select: { id: true, fullNameEn: true, fullNameGu: true, education: true },
+          orderBy: { fullNameEn: "asc" },
+        })
+      : [],
+    session?.sub
+      ? prisma.resultEntry.findMany({
+          where: { driveId: drive.id, userId: session.sub },
+          orderBy: { createdAt: "desc" },
+        })
+      : [],
+    // Toppers stay hidden until the admin publishes the drive.
+    drive.isPublished
+      ? prisma.resultEntry.findMany({
+          where: { driveId: drive.id, status: "APPROVED", isEligible: true },
+          orderBy: [{ percentage: "desc" }, { createdAt: "asc" }],
+          include: {
+            user: { select: { profile: { select: { family: { select: { city: true } } } } } },
+          },
+        })
+      : [],
+  ]);
+
+  const childOptions: ChildOption[] = familyMembers.map((m) => ({
+    id: m.id,
+    name: m.fullNameGu || m.fullNameEn,
+    standard: m.education,
+  }));
+
+  const mine: MyEntry[] = myEntries.map((e) => ({
     id: e.id,
     studentName: e.studentName,
     standard: e.standard,
-    schoolName: e.schoolName,
     percentage: e.percentage,
-    isEligible: e.isEligible,
+    status: e.status,
+    rejectReason: e.rejectReason,
+    marksheetUrl: e.marksheetUrl,
+  }));
+
+  const toppers: TopperRow[] = topperEntries.map((e) => ({
+    id: e.id,
+    studentName: e.studentName,
+    standard: e.standard,
+    percentage: e.percentage,
+    city: e.user?.profile?.family?.city ?? null,
   }));
 
   return (
     <ResultsClient
-      drive={drive ? { titleEn: drive.titleEn, titleGu: drive.titleGu, year: drive.year } : null}
-      rows={rows}
+      drive={{
+        id: drive.id,
+        titleEn: drive.titleEn,
+        titleGu: drive.titleGu,
+        year: drive.year,
+        isOpen: drive.isOpen,
+        isPublished: drive.isPublished,
+      }}
+      childOptions={childOptions}
+      myEntries={mine}
+      toppers={toppers}
+      signedIn={Boolean(session?.sub)}
     />
   );
 }

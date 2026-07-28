@@ -2,29 +2,35 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { fail, fromZod, ok } from "@/lib/api";
 import { requireSession } from "@/lib/auth/session";
+import { getMyFamilyId } from "@/lib/tenant";
 
 /** Current member's own profile + family (session-scoped). */
 export async function GET() {
   try {
     const session = await requireSession();
-    const [profile, user] = await Promise.all([
-      prisma.profile.findUnique({
-        where: { userId: session.sub },
-        include: {
-          family: {
-            include: {
-              surnameGroup: true,
-              familyMembers: {
-                where: { isVisible: true },
-                orderBy: { createdAt: "asc" },
-              },
-            },
-          },
-        },
-      }),
+    const [profile, user, familyId] = await Promise.all([
+      prisma.profile.findUnique({ where: { userId: session.sub } }),
       prisma.user.findUnique({ where: { id: session.sub }, select: { mobile: true } }),
+      getMyFamilyId(session.sub),
     ]);
-    return ok({ profile, mobile: user?.mobile ?? null, userId: session.sub });
+
+    // Loaded separately from the profile: an OTP member's profile has no
+    // familyId, so the household is resolved by mobile instead.
+    const family = familyId
+      ? await prisma.family.findUnique({
+          where: { id: familyId },
+          include: {
+            surnameGroup: true,
+            familyMembers: { where: { isVisible: true }, orderBy: { createdAt: "asc" } },
+          },
+        })
+      : null;
+
+    return ok({
+      profile: profile ? { ...profile, familyId, family } : null,
+      mobile: user?.mobile ?? null,
+      userId: session.sub,
+    });
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);
     return fail("Failed to load profile", 500);

@@ -29,7 +29,8 @@ const STREAMS: OccupationSeedNode[] = DEFAULT_STREAMS.map((s) => ({ ...s }));
 
 const DIPLOMA_FIELDS: OccupationSeedNode[] = DEFAULT_DIPLOMA_FIELDS.map((s) => ({ ...s }));
 
-const EDUCATION_LEVELS: OccupationSeedNode[] = [
+/** Education levels a student can be in — also the Result drive's standards. */
+export const EDUCATION_LEVELS: OccupationSeedNode[] = [
   { nameEn: "Balmandir", nameGu: "બાલમંદિર", sortOrder: 1 },
   { nameEn: "Junior", nameGu: "જુનિયર", sortOrder: 2 },
   { nameEn: "Senior", nameGu: "સિનિયર", sortOrder: 3 },

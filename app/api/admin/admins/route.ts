@@ -48,6 +48,11 @@ const createSchema = z.object({
     .union([z.literal(""), z.string().regex(/^[6-9]\d{9}$/, "Valid 10-digit mobile required")])
     .optional(),
   roles: z.array(z.enum(ASSIGNABLE as [string, ...string[]])).min(1),
+  /** FamilyMember the admin is being created from — supplies name / mobile / family. */
+  memberId: z.string().optional(),
+  menus: z.array(z.string()).optional(),
+  showPhone: z.boolean().optional(),
+  hasWhatsApp: z.boolean().optional(),
 });
 
 async function roleIdsByName(names: string[]) {
@@ -62,7 +67,17 @@ export async function POST(req: Request) {
     const { communityId } = await requireAdmin(["OWNER"]);
     const body = createSchema.parse(await req.json());
     const passwordHash = await bcrypt.hash(body.password, 10);
-    const mobile = body.mobile?.trim() || `9${Date.now().toString().slice(-9)}`;
+
+    // Linking the profile to the picked member's family is what makes Family /
+    // Surname show up on the admin row; without it the admin has no household.
+    const member = body.memberId
+      ? await prisma.familyMember.findFirst({
+          where: { id: body.memberId, family: { communityId } },
+          select: { fullNameEn: true, fullNameGu: true, mobile: true, familyId: true },
+        })
+      : null;
+
+    const mobile = body.mobile?.trim() || member?.mobile || `9${Date.now().toString().slice(-9)}`;
 
     const user = await prisma.user.create({
       data: {
@@ -71,7 +86,16 @@ export async function POST(req: Request) {
         mobile,
         passwordHash,
         status: "APPROVED",
-        profile: { create: { fullNameEn: body.fullNameEn.trim(), fullNameGu: body.fullNameGu?.trim() } },
+        menusJson: body.menus ? JSON.stringify(body.menus) : null,
+        profile: {
+          create: {
+            fullNameEn: body.fullNameEn.trim() || member?.fullNameEn || "Admin",
+            fullNameGu: body.fullNameGu?.trim() || member?.fullNameGu || null,
+            ...(member ? { familyId: member.familyId } : {}),
+            ...(body.showPhone !== undefined ? { showPhone: body.showPhone } : {}),
+            ...(body.hasWhatsApp !== undefined ? { hasWhatsApp: body.hasWhatsApp } : {}),
+          },
+        },
         roles: {
           create: (await roleIdsByName([...body.roles, "MEMBER"])).map((roleId) => ({ roleId })),
         },
@@ -109,6 +133,8 @@ const updateSchema = z.object({
   password: z.string().min(4).max(128).optional(),
   /** Shortcut: reset password to this value (default admin). */
   resetPassword: z.boolean().optional(),
+  menus: z.array(z.string()).optional(),
+  showPhone: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -168,12 +194,21 @@ export async function PATCH(req: Request) {
       passwordHash?: string;
       username?: string;
       mobile?: string;
+      menusJson?: string;
     } = {};
     if (body.status) data.status = body.status;
     if (body.username) data.username = body.username.trim().toLowerCase();
     if (body.mobile) data.mobile = body.mobile;
+    if (body.menus) data.menusJson = JSON.stringify(body.menus);
     if (newPassword) data.passwordHash = await bcrypt.hash(newPassword, 10);
     if (Object.keys(data).length) await prisma.user.update({ where: { id: target.id }, data });
+
+    if (body.showPhone !== undefined && target.profile) {
+      await prisma.profile.update({
+        where: { userId: target.id },
+        data: { showPhone: body.showPhone },
+      });
+    }
 
     if (body.fullNameEn !== undefined || body.fullNameGu !== undefined) {
       if (target.profile) {

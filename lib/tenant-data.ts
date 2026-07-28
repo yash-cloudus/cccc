@@ -330,7 +330,11 @@ export async function getCommunityAdmins(communityId: string) {
       communityId,
       roles: { some: { role: { name: { in: [...COMMUNITY_ADMIN_ROLES] } } } },
     },
-    include: { profile: true, roles: { include: { role: true } } },
+    include: {
+      // family supplies the Family / Surname rows in the admin details sheet.
+      profile: { include: { family: true } },
+      roles: { include: { role: true } },
+    },
     orderBy: { createdAt: "asc" },
   });
 }
