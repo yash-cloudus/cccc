@@ -23,9 +23,6 @@ export default async function GalleryPage() {
     isVisible: a.isVisible,
     photos: a._count.images,
     images: a.images.map((i) => ({ imageUrl: i.imageUrl, caption: i.caption })),
-    date: a.startDate
-      ? new Date(a.startDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })
-      : "—",
   }));
 
   return <GalleryClient initialRows={rows} />;

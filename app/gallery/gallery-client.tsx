@@ -1,10 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ImageIcon } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { useLang } from "@/providers/lang-provider";
-import { formatDate, pickText } from "@/lib/format";
+import {
+  accentGradient,
+  accentVarStyle,
+  ALBUM_HOVER_SHADOW,
+  formatDateRangeDMY,
+  pickText,
+} from "@/lib/format";
 
 export type AlbumRow = {
   id: string;
@@ -14,10 +21,9 @@ export type AlbumRow = {
   photoCount: number;
   cover: string | null;
   accent: string | null;
-  dateISO: string | null;
+  startDateISO: string | null;
+  endDateISO: string | null;
 };
-
-const DEFAULT_BG = "linear-gradient(150deg,#8E2230,#B24C3B)";
 
 export function GalleryClient({ rows }: { rows: AlbumRow[] }) {
   const { t, lang } = useLang();
@@ -55,15 +61,17 @@ export function GalleryClient({ rows }: { rows: AlbumRow[] }) {
               const photos = `${a.photoCount} ${
                 lang === "gu" ? "ફોટો" : a.photoCount === 1 ? "photo" : "photos"
               }`;
-              const date = formatDate(a.dateISO, lang);
+              const date = formatDateRangeDMY(a.startDateISO, a.endDateISO);
               return (
-                <div
+                <Link
                   key={a.id}
-                  className="samaj-card mb-3 w-full overflow-hidden text-left md:mb-0"
+                  href={`/gallery/${a.id}`}
+                  style={accentVarStyle(a.accent)}
+                  className={`samaj-card mb-3 block w-full overflow-hidden text-left md:mb-0 ${ALBUM_HOVER_SHADOW}`}
                 >
                   <div
                     className="flex h-[130px] items-center justify-center overflow-hidden text-white/85"
-                    style={{ background: a.accent || DEFAULT_BG }}
+                    style={{ background: accentGradient(a.accent) }}
                   >
                     {a.cover ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -84,7 +92,7 @@ export function GalleryClient({ rows }: { rows: AlbumRow[] }) {
                       {date ? ` · ${date}` : ""}
                     </div>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

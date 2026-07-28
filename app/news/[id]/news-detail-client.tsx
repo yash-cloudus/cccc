@@ -4,7 +4,7 @@ import { ExternalLink, FileText } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
-import { formatDate, pickText } from "@/lib/format";
+import { formatDateDMY, pickText } from "@/lib/format";
 
 export type NewsDetail = {
   id: string;
@@ -28,7 +28,7 @@ export function NewsDetailClient({ item }: { item: NewsDetail }) {
 
   return (
     <AppScreen showNav={false}>
-      <BackHeader title={t("news")} subtitle={formatDate(item.dateISO, lang)} />
+      <BackHeader title={t("news")} subtitle={formatDateDMY(item.dateISO)} />
       <div className="px-4 py-4 pb-8">
         {item.isPinned && (
           <span className="mb-3 inline-flex items-center gap-1 rounded-lg bg-[var(--gold-tint)] px-2 py-1 text-[10.5px] font-extrabold text-[var(--warn)]">
