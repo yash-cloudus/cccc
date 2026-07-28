@@ -21,6 +21,16 @@ import {
   labelOf,
 } from "@/lib/occupation-defaults";
 
+function courseFieldLabel(eduNode: OccupationTreeNode) {
+  if (isStreamLevel(eduNode.nameEn)) return "Stream · પ્રવાહ";
+  if (isDiplomaLevel(eduNode.nameEn)) return "Diploma field · ડિપ્લોમા ક્ષેત્ર";
+  return "Program / course · કોર્સ";
+}
+
+function specializationLabel(courseNode: OccupationTreeNode) {
+  return `Under ${courseNode.nameEn} · વિશેષતા`;
+}
+
 export function CascadingOccupationFields({
   tree,
   values,
@@ -41,11 +51,20 @@ export function CascadingOccupationFields({
       ? findOccupationNode(rootNode.children, values.education)
       : undefined;
 
+  const courseNode =
+    eduNode && values.course && values.course !== OTHER
+      ? findOccupationNode(eduNode.children, values.course)
+      : undefined;
+
   const showVeparNokri =
     rootNode && (isVeparOccupation(rootNode.nameEn) || isNokriOccupation(rootNode.nameEn));
   const showStudent = rootNode && isStudentOccupation(rootNode.nameEn);
-  const showStream = eduNode && isStreamLevel(eduNode.nameEn);
-  const showDiplomaField = eduNode && isDiplomaLevel(eduNode.nameEn);
+
+  const eduChildren = childChoices(eduNode);
+  const courseChildren = childChoices(courseNode);
+  const hasEduChildren = eduChildren.length > 0;
+  const hasCourseChildren = courseChildren.length > 0;
+  const showStreamChips = eduNode && isStreamLevel(eduNode.nameEn) && hasEduChildren;
 
   const subLabel = rootNode
     ? isVeparOccupation(rootNode.nameEn)
@@ -73,6 +92,8 @@ export function CascadingOccupationFields({
             educationCustom: "",
             course: "",
             courseCustom: "",
+            specialization: "",
+            specializationCustom: "",
           })
         }
         onOtherChange={(v) => onChange({ occupationCustom: v })}
@@ -101,31 +122,50 @@ export function CascadingOccupationFields({
             options={childChoices(rootNode)}
             otherPlaceholder="e.g. Std 10, College…"
             onChange={(v) =>
-              onChange({ education: v, educationCustom: "", course: "", courseCustom: "" })
+              onChange({
+                education: v,
+                educationCustom: "",
+                course: "",
+                courseCustom: "",
+                specialization: "",
+                specializationCustom: "",
+              })
             }
             onOtherChange={(v) => onChange({ educationCustom: v })}
           />
 
-          {showStream && (
+          {showStreamChips && (
             <div>
               <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">
                 Stream · પ્રવાહ *
               </div>
               <div className="mb-3 flex flex-wrap gap-2">
-                {childChoices(eduNode!).map((o) => (
+                {eduChildren.map((o) => (
                   <FilterChip
                     key={o.value}
                     label={o.label}
                     active={values.course === o.value}
                     onClick={() =>
-                      onChange({ course: o.value, courseCustom: "" })
+                      onChange({
+                        course: o.value,
+                        courseCustom: "",
+                        specialization: "",
+                        specializationCustom: "",
+                      })
                     }
                   />
                 ))}
                 <FilterChip
                   label="Other · અન્ય"
                   active={values.course === OTHER}
-                  onClick={() => onChange({ course: OTHER, courseCustom: "" })}
+                  onClick={() =>
+                    onChange({
+                      course: OTHER,
+                      courseCustom: "",
+                      specialization: "",
+                      specializationCustom: "",
+                    })
+                  }
                 />
               </div>
               {values.course === OTHER && (
@@ -141,15 +181,37 @@ export function CascadingOccupationFields({
             </div>
           )}
 
-          {showDiplomaField && (
+          {/* College / Diploma / any level with children — same cascade as masters Nested */}
+          {eduNode && hasEduChildren && !showStreamChips && (
             <DropdownWithOther
-              label="Diploma field · ડિપ્લોમા ક્ષેત્ર"
+              label={courseFieldLabel(eduNode)}
               value={values.course}
               otherValue={values.courseCustom}
-              options={childChoices(eduNode!)}
-              otherPlaceholder="e.g. IT, EC, Mechanical…"
-              onChange={(v) => onChange({ course: v, courseCustom: "" })}
+              options={eduChildren}
+              otherPlaceholder="e.g. B.Tech, B.Com, IT…"
+              onChange={(v) =>
+                onChange({
+                  course: v,
+                  courseCustom: "",
+                  specialization: "",
+                  specializationCustom: "",
+                })
+              }
               onOtherChange={(v) => onChange({ courseCustom: v })}
+            />
+          )}
+
+          {courseNode && hasCourseChildren && (
+            <DropdownWithOther
+              label={specializationLabel(courseNode)}
+              value={values.specialization}
+              otherValue={values.specializationCustom}
+              options={courseChildren}
+              otherPlaceholder="e.g. IT, Mechanical…"
+              onChange={(v) =>
+                onChange({ specialization: v, specializationCustom: "" })
+              }
+              onOtherChange={(v) => onChange({ specializationCustom: v })}
             />
           )}
         </>

@@ -4,9 +4,7 @@ import {
   type OccupationTreeNode,
   choiceLabel,
   findOccupationNode,
-  isDiplomaLevel,
   isNokriOccupation,
-  isStreamLevel,
   isStudentOccupation,
   isVeparOccupation,
   labelOf,
@@ -21,6 +19,9 @@ export type CascadingOccupationValues = {
   educationCustom: string;
   course: string;
   courseCustom: string;
+  /** Third level under Student (e.g. College → B.Tech → IT). Stored as leaf in `course` when set. */
+  specialization: string;
+  specializationCustom: string;
 };
 
 export const blankCascadingOccupation = (): CascadingOccupationValues => ({
@@ -32,6 +33,8 @@ export const blankCascadingOccupation = (): CascadingOccupationValues => ({
   educationCustom: "",
   course: "",
   courseCustom: "",
+  specialization: "",
+  specializationCustom: "",
 });
 
 export function occupationChoices(tree: OccupationTreeNode[]): DropdownChoice[] {
@@ -45,6 +48,32 @@ export function childChoices(node: OccupationTreeNode | undefined): DropdownChoi
   return node.children
     .filter((n) => n.isActive)
     .map((n) => ({ value: labelOf(n), label: choiceLabel(n) }));
+}
+
+/** Find a node by label anywhere under `nodes` (any depth). */
+function findDeep(
+  nodes: OccupationTreeNode[],
+  needle: string,
+): OccupationTreeNode | undefined {
+  const direct = findOccupationNode(nodes, needle);
+  if (direct) return direct;
+  for (const n of nodes) {
+    const hit = findDeep(n.children, needle);
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+function findParentOf(
+  roots: OccupationTreeNode[],
+  childId: string,
+): OccupationTreeNode | undefined {
+  for (const n of roots) {
+    if (n.children.some((c) => c.id === childId)) return n;
+    const deeper = findParentOf(n.children, childId);
+    if (deeper) return deeper;
+  }
+  return undefined;
 }
 
 /** Resolve stored member fields into cascading form state. */
@@ -86,14 +115,32 @@ export function cascadingFromStored(
       out.education = eduNode ? labelOf(eduNode) : OTHER;
       if (!eduNode) out.educationCustom = edu;
     }
-    const course = stored.course?.trim();
-    if (course) {
-      const eduNode = out.education
-        ? findOccupationNode(root.children, out.education === OTHER ? edu! : out.education)
-        : undefined;
-      const courseNode = eduNode ? findOccupationNode(eduNode.children, course) : undefined;
-      out.course = courseNode ? labelOf(courseNode) : OTHER;
-      if (!courseNode) out.courseCustom = course;
+
+    const courseStored = stored.course?.trim();
+    if (courseStored && out.education && out.education !== OTHER) {
+      const eduNode = findOccupationNode(root.children, out.education);
+      if (eduNode) {
+        // Prefer direct child (B.Tech under College)
+        const direct = findOccupationNode(eduNode.children, courseStored);
+        if (direct) {
+          out.course = labelOf(direct);
+        } else {
+          // Leaf deeper (IT under B.Tech) — reconstruct path
+          const leaf = findDeep(eduNode.children, courseStored);
+          if (leaf) {
+            const parent = findParentOf(eduNode.children, leaf.id);
+            if (parent && parent.id !== eduNode.id) {
+              out.course = labelOf(parent);
+              out.specialization = labelOf(leaf);
+            } else {
+              out.course = labelOf(leaf);
+            }
+          } else {
+            out.course = OTHER;
+            out.courseCustom = courseStored;
+          }
+        }
+      }
     }
     return out;
   }
@@ -151,16 +198,36 @@ export async function resolveCascadingOccupationForSave(
     let course: string | undefined;
     if (education) {
       const eduNode = findOccupationNode(root.children, education);
-      if (eduNode && (isStreamLevel(eduNode.nameEn) || isDiplomaLevel(eduNode.nameEn))) {
+      if (eduNode && eduNode.children.length > 0) {
         const courseChoices = childChoices(eduNode);
-        const resolvedCourse = await commitOtherValue(
+        const mid = await commitOtherValue(
           "occupation",
           values.course,
           values.courseCustom,
           courseChoices,
           { parentId: eduNode.id },
         );
-        course = resolvedCourse || undefined;
+        if (mid) {
+          const courseNode = findOccupationNode(eduNode.children, mid);
+          if (
+            courseNode &&
+            courseNode.children.length > 0 &&
+            (values.specialization || values.specializationCustom)
+          ) {
+            const specChoices = childChoices(courseNode);
+            const leaf = await commitOtherValue(
+              "occupation",
+              values.specialization,
+              values.specializationCustom,
+              specChoices,
+              { parentId: courseNode.id },
+            );
+            // Persist deepest selected leaf so directory / profile stay specific.
+            course = leaf || mid;
+          } else {
+            course = mid;
+          }
+        }
       }
     }
     return {

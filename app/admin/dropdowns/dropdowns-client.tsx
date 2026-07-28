@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { Fragment, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminBtn,
@@ -19,11 +19,12 @@ import {
   SearchInput,
 } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { OccupationSubDrawer } from "@/components/admin/occupation-sub-drawer";
+import { OccupationNestedPanel, OccupationSubDrawer } from "@/components/admin/occupation-sub-drawer";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
-import { isDiplomaLevel, isStreamLevel } from "@/lib/occupation-defaults";
+import { isStudentOccupation, isVeparOccupation } from "@/lib/occupation-defaults";
+import { cn } from "@/lib/utils";
 
 export type DropdownRow = {
   id: string;
@@ -32,6 +33,8 @@ export type DropdownRow = {
   isActive: boolean;
   inUse: number;
   needsReview?: boolean;
+  /** Direct nested children count (Student / Vepar). 0 = hide chevron & leave cell blank. */
+  childCount?: number;
 };
 
 type CategoryId =
@@ -102,8 +105,11 @@ export function DropdownsClient({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subDrawer, setSubDrawer] = useState<DropdownRow | null>(null);
+  /** Student / Vepar — expand row to show nested table inline. */
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const cat = CATEGORIES.find((c) => c.id === catId)!;
+  const usesExpandRows = catId === "student" || catId === "vepar";
   const visible = useMemo(() => {
     const list = rows[catId] ?? [];
     const needle = q.trim().toLowerCase();
@@ -117,7 +123,14 @@ export function DropdownsClient({
     const root = kind === "student" ? rootIds.student : rootIds.vepar;
     if (!root) return;
     const res = await api.get<
-      { id: string; nameEn: string; nameGu: string; isActive: boolean; parentId: string | null }[]
+      {
+        id: string;
+        nameEn: string;
+        nameGu: string;
+        isActive: boolean;
+        parentId: string | null;
+        _count?: { children: number };
+      }[]
     >(`/api/admin/dropdowns?type=occupation&parentId=${root.id}`);
     if (!res.ok) return;
     setRows((prev) => ({
@@ -128,6 +141,7 @@ export function DropdownsClient({
         nameGu: o.nameGu,
         isActive: o.isActive,
         inUse: 0,
+        childCount: o._count?.children ?? 0,
       })),
     }));
   }
@@ -216,7 +230,7 @@ export function DropdownsClient({
     patchRows((prev) =>
       edit.id
         ? prev.map((r) => (r.id === edit.id ? { ...r, ...saved } : r))
-        : [...prev, { ...saved, isActive: true, inUse: 0 }],
+        : [...prev, { ...saved, isActive: true, inUse: 0, childCount: 0 }],
     );
     setEdit(null);
     toast.success(`${cat.noun} ${edit.id ? "updated" : "added"}`);
@@ -252,16 +266,42 @@ export function DropdownsClient({
       toast.error(res.error || "Could not delete");
       return;
     }
+    if (expandedId === row.id) setExpandedId(null);
     patchRows((prev) => prev.filter((r) => r.id !== row.id));
     toast.success(`${cat.noun} deleted`);
   }
 
   const showNestedAction = (row: DropdownRow) => {
     if (catId === "occupation") return true;
-    if (catId === "student") return isStreamLevel(row.nameEn) || isDiplomaLevel(row.nameEn);
-    if (catId === "vepar") return true; // allow deeper nesting under business types
+    // Same tree as Occupation → Student / Vepar — every level can nest (College, Std 11, …).
+    if (catId === "student" || catId === "vepar") return true;
     return false;
   };
+
+  function openNested(row: DropdownRow) {
+    // Occupation → Student / Vepar roots open the connected tab (same data + same expand UI).
+    if (catId === "occupation") {
+      if (isStudentOccupation(row.nameEn, row.nameGu)) {
+        setCatId("student");
+        setExpandedId(null);
+        setQ("");
+        return;
+      }
+      if (isVeparOccupation(row.nameEn, row.nameGu)) {
+        setCatId("vepar");
+        setExpandedId(null);
+        setQ("");
+        return;
+      }
+      setSubDrawer(row);
+      return;
+    }
+    if (usesExpandRows) {
+      setExpandedId((prev) => (prev === row.id ? null : row.id));
+    }
+  }
+
+  const colCount = usesExpandRows ? 6 : 4;
 
   return (
     <>
@@ -277,10 +317,9 @@ export function DropdownsClient({
 
       <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
         Each option is saved in English + ગુજરાતી. Disabled options stay on old records but no
-        longer appear in the app’s dropdowns.{" "}
-        <b>Student</b> and <b>Vepar (Business)</b> tabs manage sub-categories linked to those
-        occupations (same data as the Occupation drawer). New communities get the default lists
-        automatically.
+        longer appear in the app’s dropdowns. <b>Student</b> and <b>Vepar</b> share the same
+        nested data as Occupation — expand any row to manage sub-options. From Occupation,
+        Sub-categories on Student / Vepar opens that tab.
       </AdminHint>
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -291,6 +330,7 @@ export function DropdownsClient({
             active={c.id === catId}
             onClick={() => {
               setCatId(c.id);
+              setExpandedId(null);
               setQ("");
             }}
           />
@@ -318,7 +358,7 @@ export function DropdownsClient({
               ? "Student · વિદ્યાર્થી"
               : "Vepar (Business) · વેપાર"}
           </b>
-          . Changes here appear in member forms and the Occupation sub-categories drawer.
+          . Nested options expand under the row in this table.
         </p>
       )}
 
@@ -329,67 +369,126 @@ export function DropdownsClient({
       <AdminTable>
         <thead>
           <tr>
+            {usesExpandRows && <AdminTh className="w-10" />}
             <AdminTh>English</AdminTh>
             <AdminTh>ગુજરાતી</AdminTh>
             <AdminTh>Status</AdminTh>
+            {usesExpandRows && <AdminTh>Subs</AdminTh>}
             <AdminTh className="text-right">Actions</AdminTh>
           </tr>
         </thead>
         <tbody>
-          {visible.map((row) => (
-            <tr key={row.id}>
-              <AdminTd>
-                <span className="font-semibold text-[var(--ink)]">{row.nameEn}</span>
-                {row.needsReview && <PillWarning>flagged</PillWarning>}
-                {row.inUse > 0 && (
-                  <span className="ml-1.5 text-[11px] text-[var(--faint)]">({row.inUse})</span>
-                )}
-              </AdminTd>
-              <AdminTd>{row.nameGu}</AdminTd>
-              <AdminTd>
-                {cat.hasStatus ? (
-                  <span className="flex items-center gap-2.5">
-                    <AdminToggle
-                      on={row.isActive}
-                      label={`${row.nameEn} enabled`}
-                      onChange={() => toggleActive(row)}
-                    />
-                    <span
-                      className={
-                        row.isActive
-                          ? "text-[12px] font-bold text-[var(--success)]"
-                          : "text-[12px] font-bold text-[var(--faint)]"
-                      }
-                    >
-                      {row.isActive ? "Enabled" : "Disabled"}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-[12px] font-bold text-[var(--success)]">Enabled</span>
-                )}
-              </AdminTd>
-              <AdminTd className="text-right">
-                {cat.api ? (
-                  <span className="flex flex-wrap justify-end gap-2.5">
-                    {showNestedAction(row) && (
-                      <LinkAction onClick={() => setSubDrawer(row)}>
-                        {catId === "occupation" ? "Sub-categories" : "Nested"}
-                      </LinkAction>
+          {visible.map((row) => {
+            const subs = row.childCount ?? 0;
+            const canExpand = usesExpandRows && showNestedAction(row);
+            const hasSubs = canExpand && subs > 0;
+            const isOpen = expandedId === row.id;
+            return (
+              <Fragment key={row.id}>
+                <tr className={cn(isOpen && "bg-[var(--surface-admin)]/60")}>
+                  {usesExpandRows && (
+                    <AdminTd className="w-10 pr-0">
+                      {hasSubs ? (
+                        <button
+                          type="button"
+                          aria-label={isOpen ? "Collapse" : "Expand"}
+                          onClick={() => openNested(row)}
+                          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-dim)] hover:bg-[var(--line-soft)]"
+                        >
+                          {isOpen ? (
+                            <ChevronDown className="size-4" />
+                          ) : (
+                            <ChevronRight className="size-4" />
+                          )}
+                        </button>
+                      ) : (
+                        <span className="inline-block size-7" />
+                      )}
+                    </AdminTd>
+                  )}
+                  <AdminTd>
+                    <span className="font-semibold text-[var(--ink)]">{row.nameEn}</span>
+                    {row.needsReview && <PillWarning>flagged</PillWarning>}
+                    {row.inUse > 0 && (
+                      <span className="ml-1.5 text-[11px] text-[var(--faint)]">({row.inUse})</span>
                     )}
-                    <LinkAction onClick={() => openEdit(row)}>edit</LinkAction>
-                    <LinkAction danger onClick={() => remove(row)}>
-                      delete
-                    </LinkAction>
-                  </span>
-                ) : (
-                  <span className="text-[12px] text-[var(--faint)]">read-only</span>
+                  </AdminTd>
+                  <AdminTd>{row.nameGu}</AdminTd>
+                  <AdminTd>
+                    {cat.hasStatus ? (
+                      <span className="flex items-center gap-2.5">
+                        <AdminToggle
+                          on={row.isActive}
+                          label={`${row.nameEn} enabled`}
+                          onChange={() => toggleActive(row)}
+                        />
+                        <span
+                          className={
+                            row.isActive
+                              ? "text-[12px] font-bold text-[var(--success)]"
+                              : "text-[12px] font-bold text-[var(--faint)]"
+                          }
+                        >
+                          {row.isActive ? "Enabled" : "Disabled"}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-[12px] font-bold text-[var(--success)]">Enabled</span>
+                    )}
+                  </AdminTd>
+                  {usesExpandRows && (
+                    <AdminTd>
+                      {subs > 0 ? (
+                        <span className="text-[13px] font-bold text-[var(--ink)]">{subs}</span>
+                      ) : null}
+                    </AdminTd>
+                  )}
+                  <AdminTd className="text-right">
+                    {cat.api ? (
+                      <span className="flex flex-wrap justify-end gap-2.5">
+                        {showNestedAction(row) && (
+                          <LinkAction onClick={() => openNested(row)}>
+                            {catId === "occupation"
+                              ? isStudentOccupation(row.nameEn, row.nameGu) ||
+                                isVeparOccupation(row.nameEn, row.nameGu)
+                                ? "Open tab"
+                                : "Sub-categories"
+                              : isOpen
+                                ? "Hide"
+                                : "Nested"}
+                          </LinkAction>
+                        )}
+                        <LinkAction onClick={() => openEdit(row)}>edit</LinkAction>
+                        <LinkAction danger onClick={() => remove(row)}>
+                          delete
+                        </LinkAction>
+                      </span>
+                    ) : (
+                      <span className="text-[12px] text-[var(--faint)]">read-only</span>
+                    )}
+                  </AdminTd>
+                </tr>
+                {canExpand && isOpen && (
+                  <tr className="bg-[var(--surface-admin)]/40">
+                    <AdminTd colSpan={colCount} className="border-b border-[var(--line-admin)] px-4 py-4">
+                      <div className="ml-2 sm:ml-6">
+                        <OccupationNestedPanel
+                          root={row}
+                          variant="table"
+                          onChanged={() => {
+                            if (cat.occupationChild) void refreshChildTab(cat.occupationChild);
+                          }}
+                        />
+                      </div>
+                    </AdminTd>
+                  </tr>
                 )}
-              </AdminTd>
-            </tr>
-          ))}
+              </Fragment>
+            );
+          })}
           {visible.length === 0 && (
             <tr>
-              <AdminTd colSpan={4} className="py-8 text-center text-[var(--faint)]">
+              <AdminTd colSpan={colCount} className="py-8 text-center text-[var(--faint)]">
                 {q.trim()
                   ? `No option matches “${q.trim()}”.`
                   : `No ${cat.noun.toLowerCase()} options yet.`}
@@ -404,10 +503,12 @@ export function DropdownsClient({
         root={subDrawer}
         onClose={() => {
           setSubDrawer(null);
-          if (cat.occupationChild) refreshChildTab(cat.occupationChild);
+          void refreshChildTab("student");
+          void refreshChildTab("vepar");
         }}
         onChanged={() => {
-          if (cat.occupationChild) refreshChildTab(cat.occupationChild);
+          void refreshChildTab("student");
+          void refreshChildTab("vepar");
         }}
       />
 

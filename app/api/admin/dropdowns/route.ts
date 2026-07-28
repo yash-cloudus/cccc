@@ -21,6 +21,7 @@ export async function GET(req: Request) {
         ...(parentIdParam !== null ? { parentId } : {}),
       },
       orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
+      include: { _count: { select: { children: true } } },
     });
     return ok(items);
   } catch (e) {

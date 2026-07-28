@@ -4,7 +4,7 @@ import { fail, fromZod, ok, created } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { assertPlatform } from "@/lib/tenant";
 import { isValidSlug, normalizeSlug, groupingLabel } from "@/lib/platform";
-import { DEFAULT_RELATIONS } from "@/lib/constants";
+import { seedRelationshipDefaults } from "@/lib/constants";
 import { seedOccupationDefaults } from "@/lib/occupation-defaults";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null {
@@ -139,14 +139,7 @@ export async function POST(req: Request) {
       // Household relations (Son, Wife, Father, ...) — without these the
       // Relation dropdown in Families & Members / Add family directly starts
       // out empty, since DropdownOption has no other seed source per community.
-      await tx.dropdownOption.createMany({
-        data: DEFAULT_RELATIONS.map((r) => ({
-          communityId: community.id,
-          type: "relationship",
-          nameEn: r.nameEn,
-          nameGu: r.nameGu,
-        })),
-      });
+      await seedRelationshipDefaults(tx, community.id);
 
       await seedOccupationDefaults(tx, community.id);
 

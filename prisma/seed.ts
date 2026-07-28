@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { PrismaClient, BloodGroupType, CommunityType, CommunityStatus } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { DEFAULT_RELATIONS } from "@/lib/constants";
+import { seedRelationshipDefaults } from "@/lib/constants";
 import { seedOccupationDefaults } from "@/lib/occupation-defaults";
 
 const prisma = new PrismaClient();
@@ -245,16 +245,7 @@ async function seedCommunityData(
   }
 
   // Dropdown masters — relationship + nested occupation tree
-  for (const r of DEFAULT_RELATIONS) {
-    const existing = await prisma.dropdownOption.findFirst({
-      where: { communityId, type: "relationship", nameEn: r.nameEn },
-    });
-    if (!existing) {
-      await prisma.dropdownOption.create({
-        data: { communityId, type: "relationship", nameEn: r.nameEn, nameGu: r.nameGu },
-      });
-    }
-  }
+  await seedRelationshipDefaults(prisma, communityId);
   await seedOccupationDefaults(prisma, communityId);
 
   // Business category for seed data = Vepar child "Jewellery"

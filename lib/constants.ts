@@ -1,3 +1,5 @@
+import type { Prisma } from "@prisma/client";
+
 export const BRAND = {
   nameEn: "Shree Saurashtra Patel Samaj",
   nameGu:
@@ -64,6 +66,29 @@ export const DEFAULT_RELATIONS: { nameEn: string; nameGu: string }[] = [
   { nameEn: "Son-in-law", nameGu: "જમાઈ" },
   { nameEn: "Other", nameGu: "અન્ય" },
 ];
+
+type RelationTx = Prisma.TransactionClient | typeof import("@/lib/prisma").prisma;
+
+/** Seed default relationship options for a community (idempotent by nameEn). */
+export async function seedRelationshipDefaults(tx: RelationTx, communityId: string) {
+  for (const [i, r] of DEFAULT_RELATIONS.entries()) {
+    const existing = await tx.dropdownOption.findFirst({
+      where: { communityId, type: "relationship", nameEn: r.nameEn },
+      select: { id: true },
+    });
+    if (existing) continue;
+    await tx.dropdownOption.create({
+      data: {
+        communityId,
+        type: "relationship",
+        nameEn: r.nameEn,
+        nameGu: r.nameGu,
+        sortOrder: i,
+        isActive: true,
+      },
+    });
+  }
+}
 
 export const ADMIN_NAV: {
   key: string;
