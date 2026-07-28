@@ -1,6 +1,13 @@
 import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
-import { getFamily, getOccupationTree, getSurnameGroups } from "@/lib/tenant-data";
+import {
+  getDropdownOptions,
+  getFamily,
+  getOccupationTree,
+  getSurnameGroups,
+  getVillageAreas,
+} from "@/lib/tenant-data";
 import { cascadingFromStored } from "@/lib/cascading-occupation";
 import { ReviewClient, type EditFamily } from "./review-client";
 
@@ -23,12 +30,28 @@ export default async function ReviewRegistrationPage({
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  const [family, surnameGroups, occupationTree] = await Promise.all([
-    getFamily(community.id, id),
-    getSurnameGroups(community.id),
-    getOccupationTree(community.id),
-  ]);
+  const [family, surnameGroups, occupationTree, villages, cities, relations] =
+    await Promise.all([
+      getFamily(community.id, id),
+      getSurnameGroups(community.id),
+      getOccupationTree(community.id),
+      getVillageAreas(community.id),
+      prisma.dropdownOption.findMany({
+        where: { communityId: community.id, type: "city", isActive: true, parentId: null },
+        orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
+      }),
+      getDropdownOptions(community.id, "relationship"),
+    ]);
   if (!family) notFound();
+
+  const lockedSurname =
+    community.type === "PARIVAR" && surnameGroups[0]
+      ? {
+          id: surnameGroups[0].id,
+          nameEn: surnameGroups[0].nameEn,
+          nameGu: surnameGroups[0].nameGu,
+        }
+      : null;
 
   const data: EditFamily = {
     id: family.id,
@@ -41,7 +64,12 @@ export default async function ReviewRegistrationPage({
     addressEn: family.addressEn || "",
     addressGu: family.addressGu || "",
     city: family.city || "",
+    nativePlace: family.nativePlace || "",
+    email: family.email || "",
+    villageAreaId: family.villageAreaId || "",
+    livesOutsideVillage: !family.villageAreaId && community.type === "GAM",
     businessGu: family.businessGu || "",
+    nativeElderNameEn: family.nativeElderNameEn || "",
     nativeElderNameGu: family.nativeElderNameGu || "",
     nativeElderPhone: family.nativeElderPhone || "",
     members: family.familyMembers.map((m) => ({
@@ -65,8 +93,19 @@ export default async function ReviewRegistrationPage({
 
   return (
     <ReviewClient
+      communityType={community.type}
+      lockedSurname={lockedSurname}
       family={data}
-      surnameGroups={surnameGroups.map((s) => ({ id: s.id, nameEn: s.nameEn, nameGu: s.nameGu }))}
+      surnameGroups={surnameGroups.map((s) => ({
+        id: s.id,
+        nameEn: s.nameEn,
+        nameGu: s.nameGu,
+      }))}
+      cities={cities.map((c) => ({ id: c.id, nameEn: c.nameEn, nameGu: c.nameGu }))}
+      villages={villages.map((v) => ({ id: v.id, nameEn: v.nameEn, nameGu: v.nameGu }))}
+      relations={relations
+        .filter((o) => o.isActive)
+        .map((o) => ({ nameEn: o.nameEn, nameGu: o.nameGu }))}
       occupationTree={occupationTree}
       backHref={fromFamilies ? "/admin/families" : "/admin/queue"}
       backLabel={fromFamilies ? "‹ Back to families" : "‹ Back to queue"}

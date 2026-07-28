@@ -39,6 +39,8 @@ export type DropdownRow = {
 
 type CategoryId =
   | "surname"
+  | "city"
+  | "village"
   | "occupation"
   | "student"
   | "vepar"
@@ -49,66 +51,120 @@ type Category = {
   id: CategoryId;
   chip: string;
   noun: string;
-  api: "surname-groups" | "dropdowns" | null;
+  api: "surname-groups" | "dropdowns" | "villages" | null;
   hasStatus: boolean;
-  /** Nested occupation tab — children of Student / Vepar roots. */
   occupationChild?: "student" | "vepar";
   readOnlyNote?: string;
+  /** DropdownOption.type when api is dropdowns */
+  optionType?: string;
 };
 
-const CATEGORIES: Category[] = [
-  { id: "surname", chip: "Surname · અટક", noun: "Surname", api: "surname-groups", hasStatus: false },
-  { id: "occupation", chip: "Occupation · વ્યવસાય", noun: "Occupation", api: "dropdowns", hasStatus: true },
-  {
-    id: "student",
-    chip: "Student · વિદ્યાર્થી",
-    noun: "Education level",
-    api: "dropdowns",
-    hasStatus: true,
-    occupationChild: "student",
-  },
-  {
-    id: "vepar",
-    chip: "Vepar (Business) · વેપાર",
-    noun: "Business type",
-    api: "dropdowns",
-    hasStatus: true,
-    occupationChild: "vepar",
-  },
-  { id: "relationship", chip: "Relationship · સંબંધ", noun: "Relationship", api: "dropdowns", hasStatus: true },
-  {
-    id: "blood",
-    chip: "Blood group · બ્લડ ગ્રુપ",
-    noun: "Blood group",
-    api: null,
-    hasStatus: false,
-    readOnlyNote:
-      "Blood groups are a fixed medical list shared by every community — they cannot be added, renamed or removed, because member records reference them directly.",
-  },
-];
+function categoriesForType(communityType: "PARIVAR" | "GAM"): Category[] {
+  const shared: Category[] = [
+    {
+      id: "occupation",
+      chip: "Occupation · વ્યવસાય",
+      noun: "Occupation",
+      api: "dropdowns",
+      hasStatus: true,
+      optionType: "occupation",
+    },
+    {
+      id: "student",
+      chip: "Student · વિદ્યાર્થી",
+      noun: "Education level",
+      api: "dropdowns",
+      hasStatus: true,
+      occupationChild: "student",
+      optionType: "occupation",
+    },
+    {
+      id: "vepar",
+      chip: "Vepar (Business) · વેપાર",
+      noun: "Business type",
+      api: "dropdowns",
+      hasStatus: true,
+      occupationChild: "vepar",
+      optionType: "occupation",
+    },
+    {
+      id: "relationship",
+      chip: "Relationship · સંબંધ",
+      noun: "Relationship",
+      api: "dropdowns",
+      hasStatus: true,
+      optionType: "relationship",
+    },
+    {
+      id: "blood",
+      chip: "Blood group · બ્લડ ગ્રુપ",
+      noun: "Blood group",
+      api: null,
+      hasStatus: false,
+      readOnlyNote:
+        "Blood groups are a fixed medical list shared by every community — they cannot be added, renamed or removed, because member records reference them directly.",
+    },
+  ];
+
+  if (communityType === "PARIVAR") {
+    return [
+      {
+        id: "city",
+        chip: "City · શહેર",
+        noun: "City",
+        api: "dropdowns",
+        hasStatus: true,
+        optionType: "city",
+      },
+      ...shared,
+    ];
+  }
+
+  return [
+    {
+      id: "surname",
+      chip: "Surname · અટક",
+      noun: "Surname",
+      api: "surname-groups",
+      hasStatus: false,
+    },
+    {
+      id: "village",
+      chip: "Village · ગામ",
+      noun: "Village",
+      api: "villages",
+      hasStatus: false,
+    },
+    ...shared,
+  ];
+}
 
 type EditState = { id: string | null; nameEn: string; nameGu: string } | null;
 
 export function DropdownsClient({
+  communityType,
+  lockedSurname,
   initialRows,
   roots,
 }: {
+  communityType: "PARIVAR" | "GAM";
+  lockedSurname: { nameEn: string; nameGu: string } | null;
   initialRows: Record<string, DropdownRow[]>;
   roots: { student: DropdownRow | null; vepar: DropdownRow | null };
 }) {
+  const categories = useMemo(() => categoriesForType(communityType), [communityType]);
   const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<Record<string, DropdownRow[]>>(initialRows);
   const [rootIds, setRootIds] = useState(roots);
-  const [catId, setCatId] = useState<CategoryId>("surname");
+  const [catId, setCatId] = useState<CategoryId>(categories[0]?.id ?? "occupation");
   const [q, setQ] = useState("");
   const [edit, setEdit] = useState<EditState>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [subDrawer, setSubDrawer] = useState<DropdownRow | null>(null);
-  /** Student / Vepar — expand row to show nested table inline. */
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const cat = CATEGORIES.find((c) => c.id === catId)!;
+  const cat = categories.find((c) => c.id === catId) ?? categories[0]!;
   const usesExpandRows = catId === "student" || catId === "vepar";
   const visible = useMemo(() => {
     const list = rows[catId] ?? [];
@@ -212,7 +268,7 @@ export function DropdownsClient({
         }
         payload = { ...base, type: "occupation", parentId: root.id };
       } else {
-        payload = { ...base, type: catId, parentId: null };
+        payload = { ...base, type: cat.optionType ?? catId, parentId: null };
       }
     }
 
@@ -317,13 +373,20 @@ export function DropdownsClient({
 
       <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
         Each option is saved in English + ગુજરાતી. Disabled options stay on old records but no
-        longer appear in the app’s dropdowns. <b>Student</b> and <b>Vepar</b> share the same
-        nested data as Occupation — expand any row to manage sub-options. From Occupation,
-        Sub-categories on Student / Vepar opens that tab.
+        longer appear in the app’s dropdowns. Masters adapt to{" "}
+        <b>{communityType === "PARIVAR" ? "Parivar" : "Gam"}</b> community type.
       </AdminHint>
 
+      {lockedSurname && (
+        <p className="mb-4 rounded-xl border border-[var(--brand)]/25 bg-[var(--brand-tint)] px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--brand)]">
+          Community surname (locked): {lockedSurname.nameEn}
+          {lockedSurname.nameGu ? ` · ${lockedSurname.nameGu}` : ""}. Families can only use this
+          surname.
+        </p>
+      )}
+
       <div className="mb-4 flex flex-wrap gap-2">
-        {CATEGORIES.map((c) => (
+        {categories.map((c) => (
           <FilterChip
             key={c.id}
             label={c.chip}

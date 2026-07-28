@@ -57,7 +57,12 @@ export type EditFamily = {
   addressEn: string;
   addressGu: string;
   city: string;
+  nativePlace: string;
+  email: string;
+  villageAreaId: string;
+  livesOutsideVillage: boolean;
   businessGu: string;
+  nativeElderNameEn: string;
   nativeElderNameGu: string;
   nativeElderPhone: string;
   members: EditMember[];
@@ -66,14 +71,24 @@ export type EditFamily = {
 type SurnameOption = { id: string; nameEn: string; nameGu: string };
 
 export function ReviewClient({
+  communityType = "PARIVAR",
+  lockedSurname = null,
   family: initial,
   surnameGroups,
+  cities = [],
+  villages = [],
+  relations = [],
   occupationTree,
   backHref = "/admin/queue",
   backLabel = "‹ Back to queue",
 }: {
+  communityType?: "PARIVAR" | "GAM";
+  lockedSurname?: SurnameOption | null;
   family: EditFamily;
   surnameGroups: SurnameOption[];
+  cities?: SurnameOption[];
+  villages?: SurnameOption[];
+  relations?: { nameEn: string; nameGu: string }[];
   occupationTree: OccupationTreeNode[];
   backHref?: string;
   backLabel?: string;
@@ -126,12 +141,26 @@ export function ReviewClient({
     return {
       headNameEn: f.headNameEn,
       headNameGu: f.headNameGu || null,
-      surnameEn: f.surnameEn,
-      surnameGu: f.surnameGu || null,
-      surnameGroupId: f.surnameGroupId,
+      surnameEn:
+        communityType === "PARIVAR" && lockedSurname
+          ? lockedSurname.nameEn
+          : f.surnameEn,
+      surnameGu:
+        communityType === "PARIVAR" && lockedSurname
+          ? lockedSurname.nameGu
+          : f.surnameGu || null,
+      surnameGroupId:
+        communityType === "PARIVAR" && lockedSurname
+          ? lockedSurname.id
+          : f.surnameGroupId,
+      addressEn: f.addressEn || null,
       addressGu: f.addressGu || null,
       city: f.city || null,
+      nativePlace: f.nativePlace || null,
+      email: f.email || null,
+      villageAreaId: f.livesOutsideVillage ? null : f.villageAreaId || null,
       businessGu: f.businessGu || null,
+      nativeElderNameEn: f.nativeElderNameEn || null,
       nativeElderNameGu: f.nativeElderNameGu || null,
       nativeElderPhone: f.nativeElderPhone || null,
       members: f.members.map((m, i) => ({
@@ -245,40 +274,99 @@ export function ReviewClient({
               guInput(v, (gu) => setField("headNameGu", gu), "head:gu");
             }}
           />
-          <AdminLabel>Surname group</AdminLabel>
-          <AdminSelect
-            value={f.surnameGroupId}
-            onChange={(v) => setField("surnameGroupId", v)}
-            className="w-full"
-            options={surnameGroups.map((s) => ({
-              value: s.id,
-              label: `${s.nameEn} · ${s.nameGu}`,
-            }))}
-          />
-          <AdminLabel>Surname (English)</AdminLabel>
-          <AdminInput
-            value={f.surnameEn}
-            onChange={(v) => {
-              setField("surnameEn", v);
-              fromEn(v, (gu) => setField("surnameGu", gu), "surname");
-            }}
-          />
-          <AdminLabel>Surname (ગુજરાતી)</AdminLabel>
-          <AdminInput
-            gujarati
-            value={f.surnameGu}
-            onChange={(v) => {
-              setField("surnameGu", v);
-              guInput(v, (gu) => setField("surnameGu", gu), "surname:gu");
-            }}
-          />
-          <AdminLabel>City</AdminLabel>
-          <AdminInput value={f.city} onChange={(v) => setField("city", v)} />
+          {communityType === "PARIVAR" ? (
+            <>
+              <AdminLabel>Surname (locked)</AdminLabel>
+              <p className="mb-3 rounded-xl border border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[13px] font-semibold text-[var(--ink)]">
+                {lockedSurname
+                  ? `${lockedSurname.nameEn}${lockedSurname.nameGu ? ` · ${lockedSurname.nameGu}` : ""}`
+                  : `${f.surnameEn}${f.surnameGu ? ` · ${f.surnameGu}` : ""}`}
+              </p>
+              <AdminLabel>City · શહેર</AdminLabel>
+              <AdminSelect
+                value={f.city}
+                onChange={(v) => setField("city", v)}
+                className="w-full"
+                options={[
+                  { value: "", label: "Select city…" },
+                  ...cities.map((c) => ({
+                    value: c.nameEn,
+                    label: `${c.nameEn}${c.nameGu ? ` · ${c.nameGu}` : ""}`,
+                  })),
+                ]}
+              />
+            </>
+          ) : (
+            <>
+              <AdminLabel>Surname group</AdminLabel>
+              <AdminSelect
+                value={f.surnameGroupId}
+                onChange={(v) => {
+                  const g = surnameGroups.find((s) => s.id === v);
+                  setField("surnameGroupId", v);
+                  if (g) {
+                    setField("surnameEn", g.nameEn);
+                    setField("surnameGu", g.nameGu);
+                  }
+                }}
+                className="w-full"
+                options={surnameGroups.map((s) => ({
+                  value: s.id,
+                  label: `${s.nameEn} · ${s.nameGu}`,
+                }))}
+              />
+              <AdminLabel>Surname (English)</AdminLabel>
+              <AdminInput
+                value={f.surnameEn}
+                onChange={(v) => {
+                  setField("surnameEn", v);
+                  fromEn(v, (gu) => setField("surnameGu", gu), "surname");
+                }}
+              />
+              <AdminLabel>Surname (ગુજરાતી)</AdminLabel>
+              <AdminInput
+                gujarati
+                value={f.surnameGu}
+                onChange={(v) => {
+                  setField("surnameGu", v);
+                  guInput(v, (gu) => setField("surnameGu", gu), "surname:gu");
+                }}
+              />
+              <AdminLabel>Village · ગામ</AdminLabel>
+              <AdminSelect
+                value={f.livesOutsideVillage ? "__outside__" : f.villageAreaId}
+                onChange={(v) => {
+                  if (v === "__outside__") {
+                    setField("livesOutsideVillage", true);
+                    setField("villageAreaId", "");
+                  } else {
+                    setField("livesOutsideVillage", false);
+                    setField("villageAreaId", v);
+                  }
+                }}
+                className="w-full"
+                options={[
+                  { value: "", label: "Select village…" },
+                  ...villages.map((v) => ({
+                    value: v.id,
+                    label: `${v.nameEn}${v.nameGu ? ` · ${v.nameGu}` : ""}`,
+                  })),
+                  { value: "__outside__", label: "Lives outside · બહાર" },
+                ]}
+              />
+              <AdminLabel>{f.livesOutsideVillage ? "City · શહેર *" : "City"}</AdminLabel>
+              <AdminInput value={f.city} onChange={(v) => setField("city", v)} />
+            </>
+          )}
+          <AdminLabel>Address (English)</AdminLabel>
+          <AdminInput value={f.addressEn} onChange={(v) => setField("addressEn", v)} />
           <AdminLabel>Address (ગુજરાતી)</AdminLabel>
           <AdminInput value={f.addressGu} onChange={(v) => setField("addressGu", v)} />
           <AdminLabel>Business (ગુજરાતી)</AdminLabel>
           <AdminInput value={f.businessGu} onChange={(v) => setField("businessGu", v)} />
-          <AdminLabel>Native elder name</AdminLabel>
+          <AdminLabel>Native elder name (English)</AdminLabel>
+          <AdminInput value={f.nativeElderNameEn} onChange={(v) => setField("nativeElderNameEn", v)} />
+          <AdminLabel>Native elder name (ગુજરાતી)</AdminLabel>
           <AdminInput value={f.nativeElderNameGu} onChange={(v) => setField("nativeElderNameGu", v)} />
           <AdminLabel>Native elder phone</AdminLabel>
           <AdminInput value={f.nativeElderPhone} onChange={(v) => setField("nativeElderPhone", v)} />
@@ -324,7 +412,25 @@ export function ReviewClient({
                 </div>
                 <div>
                   <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Relation</div>
-                  <AdminCellInput value={m.relation} onChange={(v) => setMember(m.id, "relation", v)} />
+                  {relations.length > 0 ? (
+                    <AdminSelect
+                      value={m.relation}
+                      onChange={(v) => setMember(m.id, "relation", v)}
+                      className="w-full"
+                      options={[
+                        { value: "", label: "—" },
+                        ...(m.isHead ? [{ value: "Head", label: "Head" }] : []),
+                        ...relations
+                          .filter((r) => r.nameEn.toLowerCase() !== "head")
+                          .map((r) => ({
+                            value: r.nameEn,
+                            label: `${r.nameEn}${r.nameGu && r.nameGu !== r.nameEn ? ` · ${r.nameGu}` : ""}`,
+                          })),
+                      ]}
+                    />
+                  ) : (
+                    <AdminCellInput value={m.relation} onChange={(v) => setMember(m.id, "relation", v)} />
+                  )}
                 </div>
                 <div>
                   <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Mobile (login)</div>

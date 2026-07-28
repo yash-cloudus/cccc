@@ -68,6 +68,9 @@ type Form = {
   adminPhone: string;
   adminUsername: string;
   adminPassword: string;
+  primarySurnameEn: string;
+  primarySurnameGu: string;
+  village: string;
   _subTouched?: boolean;
   _userTouched?: boolean;
 };
@@ -86,6 +89,9 @@ const blankForm = (): Form => ({
   adminPhone: "",
   adminUsername: "",
   adminPassword: "admin",
+  primarySurnameEn: "",
+  primarySurnameGu: "",
+  village: "",
 });
 
 export default function PlatformPage() {
@@ -398,7 +404,14 @@ export default function PlatformPage() {
           adminUsername: username,
           adminPassword: password,
           status: f.status,
+          primarySurnameEn: f.primarySurnameEn.trim(),
+          primarySurnameGu: f.primarySurnameGu.trim(),
+          village: f.village.trim(),
         };
+
+        if (f.type === "parivar" && !f.primarySurnameEn.trim()) {
+          return setError("Primary surname is required for Parivar communities.");
+        }
 
         const res = await fetch("/api/platform/communities", {
           method: "POST",
@@ -1053,6 +1066,52 @@ export default function PlatformPage() {
                     </button>
                   ))}
                 </div>
+
+                {!editing && f.type === "parivar" && (
+                  <>
+                    <Section label="LOCKED SURNAME (PARIVAR)" />
+                    <div className="mb-[18px] grid grid-cols-2 gap-3.5 max-sm:grid-cols-1">
+                      <Field label="Primary surname (English) *">
+                        <input
+                          className="mafld"
+                          value={f.primarySurnameEn}
+                          placeholder="e.g. Patel"
+                          onChange={(e) => setField("primarySurnameEn", e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Primary surname (ગુજરાતી)">
+                        <input
+                          className="mafld"
+                          value={f.primarySurnameGu}
+                          placeholder="e.g. પટેલ"
+                          onChange={(e) => setField("primarySurnameGu", e.target.value)}
+                        />
+                      </Field>
+                    </div>
+                    <p className="mb-[18px] text-[12px] font-semibold text-[var(--platform-muted)]">
+                      Families can only use this surname. City masters are seeded automatically.
+                    </p>
+                  </>
+                )}
+
+                {!editing && f.type === "gam" && (
+                  <>
+                    <Section label="MAIN VILLAGE (GAM)" />
+                    <div className="mb-[18px]">
+                      <Field label="Primary village name">
+                        <input
+                          className="mafld"
+                          value={f.village}
+                          placeholder="e.g. Mota Zinzuda"
+                          onChange={(e) => setField("village", e.target.value)}
+                        />
+                      </Field>
+                      <p className="mt-1.5 text-[12px] font-semibold text-[var(--platform-muted)]">
+                        Seeded as the first Village area. Surnames can be added later in Dropdown lists.
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 <Section label="BRAND COLORS" />
                 <div className="mb-[18px] grid grid-cols-2 gap-3.5">

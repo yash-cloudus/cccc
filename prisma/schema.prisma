@@ -267,6 +267,8 @@ model Family {
   addressEn         String             @db.Text
   addressGu         String?            @db.Text
   city              String?
+  nativePlace       String?
+  email             String?
   villageAreaId     String?
   latitude          Float?
   longitude         Float?

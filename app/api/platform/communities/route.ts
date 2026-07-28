@@ -4,8 +4,7 @@ import { fail, fromZod, ok, created } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { assertPlatform } from "@/lib/tenant";
 import { isValidSlug, normalizeSlug, groupingLabel } from "@/lib/platform";
-import { seedRelationshipDefaults } from "@/lib/constants";
-import { seedOccupationDefaults } from "@/lib/occupation-defaults";
+import { seedCommunityDefaults } from "@/lib/community-defaults";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -22,8 +21,6 @@ export async function GET() {
     const communities = await prisma.community.findMany({
       orderBy: { createdAt: "asc" },
       include: {
-        // surnameGroups / villageAreas are the grouping units the card counts:
-        // a Parivar app groups families by surname, a Gam app by village.
         _count: {
           select: { families: true, users: true, surnameGroups: true, villageAreas: true },
         },
@@ -59,21 +56,34 @@ export async function GET() {
   }
 }
 
-const createSchema = z.object({
-  nameEn: z.string().min(2).max(120),
-  nameGu: z.string().max(120).optional().default(""),
-  logoText: z.string().max(3).optional().default(""),
-  logoUrl: z.string().max(500).nullable().optional(),
-  type: z.enum(["PARIVAR", "GAM"]).default("PARIVAR"),
-  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#A62A38"),
-  secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#E8A33D"),
-  slug: z.string().min(2).max(40),
-  adminName: z.string().max(120).optional().default(""),
-  adminPhone: z.string().regex(/^[6-9]\d{9}$/, "Owner mobile required (10 digits, starts with 6–9)"),
-  adminUsername: z.string().min(3).max(64),
-  adminPassword: z.string().min(4).max(128).default("admin"),
-  status: z.enum(["DRAFT", "LIVE", "SUSPENDED"]).default("LIVE"),
-});
+const createSchema = z
+  .object({
+    nameEn: z.string().min(2).max(120),
+    nameGu: z.string().max(120).optional().default(""),
+    logoText: z.string().max(3).optional().default(""),
+    logoUrl: z.string().max(500).nullable().optional(),
+    type: z.enum(["PARIVAR", "GAM"]).default("PARIVAR"),
+    primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#A62A38"),
+    secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#E8A33D"),
+    slug: z.string().min(2).max(40),
+    adminName: z.string().max(120).optional().default(""),
+    adminPhone: z.string().regex(/^[6-9]\d{9}$/, "Owner mobile required (10 digits, starts with 6–9)"),
+    adminUsername: z.string().min(3).max(64),
+    adminPassword: z.string().min(4).max(128).default("admin"),
+    status: z.enum(["DRAFT", "LIVE", "SUSPENDED"]).default("LIVE"),
+    primarySurnameEn: z.string().max(80).optional().default(""),
+    primarySurnameGu: z.string().max(80).optional().default(""),
+    village: z.string().max(120).optional().default(""),
+  })
+  .superRefine((v, ctx) => {
+    if (v.type === "PARIVAR" && !v.primarySurnameEn.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Primary surname is required for Parivar communities",
+        path: ["primarySurnameEn"],
+      });
+    }
+  });
 
 export async function POST(req: Request) {
   try {
@@ -106,6 +116,7 @@ export async function POST(req: Request) {
           primaryColor: body.primaryColor,
           secondaryColor: body.secondaryColor,
           groupingLabel: groupingLabel(body.type),
+          village: body.village.trim() || null,
         },
       });
 
@@ -133,20 +144,20 @@ export async function POST(req: Request) {
           data: { userId: admin.id, fullNameEn: body.adminName, isHead: true },
         });
       }
-      // Default ad price setting.
-      await tx.setting.create({ data: { communityId: community.id, key: "ad_banner_price", value: "2000" } });
+      await tx.setting.create({
+        data: { communityId: community.id, key: "ad_banner_price", value: "2000" },
+      });
 
-      // Household relations (Son, Wife, Father, ...) — without these the
-      // Relation dropdown in Families & Members / Add family directly starts
-      // out empty, since DropdownOption has no other seed source per community.
-      await seedRelationshipDefaults(tx, community.id);
-
-      await seedOccupationDefaults(tx, community.id);
+      await seedCommunityDefaults(tx, community.id, {
+        type: body.type,
+        primarySurnameEn: body.primarySurnameEn,
+        primarySurnameGu: body.primarySurnameGu,
+        communityVillage: body.village || community.nameEn,
+      });
 
       return { community, username };
     });
 
-    // Password is returned ONCE so the Main Admin can hand it off (not stored in plaintext).
     return created({
       community: result.community,
       credentials: { username: result.username, password },

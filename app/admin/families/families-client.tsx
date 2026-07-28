@@ -134,6 +134,9 @@ function blankForm() {
   return {
     headNameEn: "",
     headNameGu: "",
+    headDateOfBirth: "",
+    headBloodGroup: "",
+    headHasWhatsApp: true,
     surnameEn: "",
     surnameGu: "",
     surnameGroupId: "",
@@ -141,6 +144,12 @@ function blankForm() {
     city: "",
     nativePlace: "",
     email: "",
+    villageAreaId: "",
+    livesOutsideVillage: false,
+    nativeElderNameEn: "",
+    nativeElderPhone: "",
+    headMobile: "",
+    ...blankCascadingOccupation(),
     members: [] as MemberDraft[],
   };
 }
@@ -152,14 +161,22 @@ function matchGroup(groups: SurnameOption[], surnameEn: string) {
 }
 
 export function FamiliesClient({
+  communityType = "PARIVAR",
+  lockedSurname = null,
   initialRows,
   surnameGroups: initialGroups,
+  cities = [],
+  villages = [],
   relations = [],
   occupationTree,
 }: {
+  communityType?: "PARIVAR" | "GAM";
+  lockedSurname?: SurnameOption | null;
   initialRows: FamilyRow[];
   surnameGroups: SurnameOption[];
-  relations?: string[];
+  cities?: SurnameOption[];
+  villages?: SurnameOption[];
+  relations?: { nameEn: string; nameGu: string }[] | string[];
   occupationTree: OccupationTreeNode[];
 }) {
   const router = useRouter();
@@ -168,12 +185,27 @@ export function FamiliesClient({
   const [groups, setGroups] = useState<SurnameOption[]>(initialGroups);
   const [query, setQuery] = useState("");
 
+  const relationOptions = useMemo(() => {
+    return relations.map((r) =>
+      typeof r === "string" ? { nameEn: r, nameGu: r } : r,
+    );
+  }, [relations]);
+
   const [addOpen, setAddOpen] = useState(false);
-  const [form, setForm] = useState(() => blankForm());
+  const [form, setForm] = useState(() => {
+    const base = blankForm();
+    if (lockedSurname) {
+      return {
+        ...base,
+        surnameGroupId: lockedSurname.id,
+        surnameEn: lockedSurname.nameEn,
+        surnameGu: lockedSurname.nameGu,
+      };
+    }
+    return base;
+  });
   const [addBusy, setAddBusy] = useState(false);
 
-  // Kept in state so an option created via "Other" shows up in the list
-  // immediately, without waiting for a page refresh.
   const [occupationTreeState, setOccupationTreeState] = useState(occupationTree);
 
   useEffect(() => setOccupationTreeState(occupationTree), [occupationTree]);
@@ -240,8 +272,35 @@ export function FamiliesClient({
   }
 
   async function createFamily() {
-    if (!form.headNameEn.trim() || !form.surnameEn.trim()) {
-      setError("Head name and surname are required");
+    if (!form.headNameEn.trim()) {
+      setError("Head name is required");
+      return;
+    }
+    if (communityType === "PARIVAR") {
+      if (!form.city.trim()) {
+        setError("City is required");
+        return;
+      }
+    } else {
+      if (!form.surnameEn.trim() && !form.surnameGroupId) {
+        setError("Surname is required");
+        return;
+      }
+      if (form.livesOutsideVillage && !form.city.trim()) {
+        setError("City is required when living outside the village");
+        return;
+      }
+      if (!form.livesOutsideVillage && !form.villageAreaId) {
+        setError("Village is required");
+        return;
+      }
+    }
+    if (!form.addressEn.trim()) {
+      setError("Address is required");
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(form.headMobile.replace(/\D/g, ""))) {
+      setError("Head mobile is required (10 digits, starts with 6–9)");
       return;
     }
     setAddBusy(true);
@@ -252,31 +311,66 @@ export function FamiliesClient({
     const resolved = await Promise.all(
       keptMembers.map((m) => resolveCascadingOccupationForSave(occupationTreeState, m)),
     );
+    const resolvedHead = await resolveCascadingOccupationForSave(occupationTreeState, form);
+
+    const surnameEn =
+      communityType === "PARIVAR" && lockedSurname
+        ? lockedSurname.nameEn
+        : form.surnameEn.trim();
+    const surnameGu =
+      communityType === "PARIVAR" && lockedSurname
+        ? lockedSurname.nameGu
+        : form.surnameGu.trim();
 
     const payload = {
       headNameEn: form.headNameEn.trim(),
       headNameGu: form.headNameGu.trim() || undefined,
-      surnameEn: form.surnameEn.trim(),
-      surnameGu: form.surnameGu.trim() || undefined,
-      surnameGroupId: form.surnameGroupId || matchedGroup?.id || undefined,
+      surnameEn: surnameEn || undefined,
+      surnameGu: surnameGu || undefined,
+      surnameGroupId:
+        (communityType === "PARIVAR" && lockedSurname
+          ? lockedSurname.id
+          : form.surnameGroupId || matchedGroup?.id) || undefined,
       addressEn: form.addressEn.trim() || undefined,
       city: form.city.trim() || undefined,
-      nativeElderNameEn: form.nativePlace.trim() || undefined,
+      nativePlace: form.nativePlace.trim() || undefined,
       email: form.email.trim() || undefined,
-      members: keptMembers.map((m, i) => ({
-        fullNameEn: m.fullNameEn.trim() || m.fullNameGu.trim(),
-        fullNameGu: m.fullNameGu.trim() || undefined,
-        relation: m.relation || undefined,
-        mobile: m.mobile || undefined,
-        dateOfBirth: m.dateOfBirth || undefined,
-        bloodGroup: m.bloodGroup || undefined,
-        occupation: resolved[i].occupation || undefined,
-        occupationOther: resolved[i].occupationOther || undefined,
-        education: resolved[i].education || undefined,
-        course: resolved[i].course || undefined,
-        currentlyAt: form.city.trim() || undefined,
-        hasWhatsApp: m.hasWhatsApp,
-      })),
+      villageAreaId: form.livesOutsideVillage ? null : form.villageAreaId || null,
+      livesOutsideVillage: form.livesOutsideVillage,
+      nativeElderNameEn: form.nativeElderNameEn.trim() || undefined,
+      nativeElderPhone: form.nativeElderPhone.trim() || undefined,
+      members: [
+        {
+          fullNameEn: form.headNameEn.trim(),
+          fullNameGu: form.headNameGu.trim() || undefined,
+          relation: "Head",
+          mobile: form.headMobile.replace(/\D/g, ""),
+          dateOfBirth: form.headDateOfBirth || undefined,
+          bloodGroup: form.headBloodGroup || undefined,
+          occupation: resolvedHead.occupation || undefined,
+          occupationOther: resolvedHead.occupationOther || undefined,
+          education: resolvedHead.education || undefined,
+          course: resolvedHead.course || undefined,
+          isHead: true,
+          currentlyAt: form.city.trim() || undefined,
+          hasWhatsApp: form.headHasWhatsApp,
+        },
+        ...keptMembers.map((m, i) => ({
+          fullNameEn: m.fullNameEn.trim() || m.fullNameGu.trim(),
+          fullNameGu: m.fullNameGu.trim() || undefined,
+          relation: m.relation || undefined,
+          mobile: m.mobile || undefined,
+          dateOfBirth: m.dateOfBirth || undefined,
+          bloodGroup: m.bloodGroup || undefined,
+          occupation: resolved[i].occupation || undefined,
+          occupationOther: resolved[i].occupationOther || undefined,
+          education: resolved[i].education || undefined,
+          course: resolved[i].course || undefined,
+          currentlyAt: form.city.trim() || undefined,
+          hasWhatsApp: m.hasWhatsApp,
+          isHead: false,
+        })),
+      ],
     };
 
     const res = await api.post<CreatedFamily>(`/api/admin/families`, payload);
@@ -294,10 +388,7 @@ export function FamiliesClient({
       surnameEn: created.surnameEn,
       surnameGu: created.surnameGu || "",
       city: created.city || "—",
-      // "+ Add family directly" bypasses the registration queue, so the row is
-      // approved on arrival. The quick-add form collects no mobile — it is set
-      // later via Members, so the column shows "—" until then.
-      mobile: "",
+      mobile: form.headMobile.replace(/\D/g, ""),
       status: "APPROVED",
       members: created.members || 1,
     };
@@ -313,7 +404,18 @@ export function FamiliesClient({
     }
 
     setAddOpen(false);
-    setForm(blankForm());
+    setForm(() => {
+      const base = blankForm();
+      if (lockedSurname) {
+        return {
+          ...base,
+          surnameGroupId: lockedSurname.id,
+          surnameEn: lockedSurname.nameEn,
+          surnameGu: lockedSurname.nameGu,
+        };
+      }
+      return base;
+    });
     setError(null);
     router.refresh();
   }
@@ -426,7 +528,17 @@ export function FamiliesClient({
         <AdminBtn
           onClick={() => {
             setError(null);
-            setForm(blankForm());
+            const base = blankForm();
+            setForm(
+              lockedSurname
+                ? {
+                    ...base,
+                    surnameGroupId: lockedSurname.id,
+                    surnameEn: lockedSurname.nameEn,
+                    surnameGu: lockedSurname.nameGu,
+                  }
+                : base,
+            );
             setAddOpen(true);
           }}
         >
@@ -539,65 +651,56 @@ export function FamiliesClient({
       >
         <AdminFormSection title="Family details" />
 
-        <AdminFormRow>
-          <AdminField label="Head name (ગુજરાતી)">
-            <AdminInput
-              gujarati
-              value={form.headNameGu}
-              onChange={(v) => {
-                setForm((prev) => ({ ...prev, headNameGu: v }));
-                guInput(v, (gu) => setForm((prev) => ({ ...prev, surnameGu: gu })), "surname:gu");
-              }}
-            />
-          </AdminField>
-          <AdminField label="Head name (English)" required>
-            <AdminInput
-              value={form.headNameEn}
-              onChange={(v) => {
-                setForm((prev) => ({ ...prev, headNameEn: v }));
-                fromEn(v, (gu) => setForm((prev) => ({ ...prev, headNameGu: gu })), "head");
-              }}
-            />
-          </AdminField>
-        </AdminFormRow>
-
-        <AdminField label="Surname group">
-          <AdminSelect
-            value={form.surnameGroupId || matchedGroup?.id || ""}
-            onChange={onPickGroup}
-            className="w-full"
-            options={[
-              {
-                value: "",
-                label: groups.length === 0
-                  ? "Will create from surname below…"
-                  : "Select group — or type new surname below",
-              },
-              ...groups.map((s) => ({ value: s.id, label: `${s.nameEn} · ${s.nameGu}` })),
-            ]}
-          />
-        </AdminField>
-
-        {willCreateGroup && (
-          <p className="mb-2 text-[11.5px] font-semibold text-[var(--leaf)]">
-            New surname group will be created: {form.surnameEn.trim()}
-            {form.surnameGu.trim() ? ` · ${form.surnameGu.trim()}` : ""}
+        {communityType === "PARIVAR" ? (
+          <p className="mb-3 rounded-xl border border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[13px] font-semibold text-[var(--ink-dim)]">
+            Surname (locked):{" "}
+            <span className="text-[var(--ink)]">
+              {lockedSurname
+                ? `${lockedSurname.nameEn}${lockedSurname.nameGu ? ` · ${lockedSurname.nameGu}` : ""}`
+                : form.surnameEn || "—"}
+            </span>
           </p>
-        )}
-        {matchedGroup && (
-          <p className="mb-2 text-[11.5px] text-[var(--ink-dim)]">
-            Matched existing group: {matchedGroup.nameEn} · {matchedGroup.nameGu}
-          </p>
-        )}
+        ) : (
+          <>
+            <AdminField label="Surname group">
+              <AdminSelect
+                value={form.surnameGroupId || matchedGroup?.id || ""}
+                onChange={onPickGroup}
+                className="w-full"
+                options={[
+                  {
+                    value: "",
+                    label: groups.length === 0
+                      ? "Will create from surname below…"
+                      : "Select group — or type new surname below",
+                  },
+                  ...groups.map((s) => ({ value: s.id, label: `${s.nameEn} · ${s.nameGu}` })),
+                ]}
+              />
+            </AdminField>
 
-        <AdminFormRow>
-          <AdminField label="Surname (English)" required>
-            <AdminInput value={form.surnameEn} onChange={applySurnameEn} />
-          </AdminField>
-          <AdminField label="Surname (ગુજરાતી)">
-            <AdminInput gujarati value={form.surnameGu} onChange={applySurnameGu} />
-          </AdminField>
-        </AdminFormRow>
+            {willCreateGroup && (
+              <p className="mb-2 text-[11.5px] font-semibold text-[var(--leaf)]">
+                New surname group will be created: {form.surnameEn.trim()}
+                {form.surnameGu.trim() ? ` · ${form.surnameGu.trim()}` : ""}
+              </p>
+            )}
+            {matchedGroup && (
+              <p className="mb-2 text-[11.5px] text-[var(--ink-dim)]">
+                Matched existing group: {matchedGroup.nameEn} · {matchedGroup.nameGu}
+              </p>
+            )}
+
+            <AdminFormRow>
+              <AdminField label="Surname (English)" required>
+                <AdminInput value={form.surnameEn} onChange={applySurnameEn} />
+              </AdminField>
+              <AdminField label="Surname (ગુજરાતી)">
+                <AdminInput gujarati value={form.surnameGu} onChange={applySurnameGu} />
+              </AdminField>
+            </AdminFormRow>
+          </>
+        )}
 
         <AdminField label="Address">
           <Textarea
@@ -608,27 +711,163 @@ export function FamiliesClient({
           />
         </AdminField>
 
-        <AdminFormRow>
-          <AdminField label="City">
-            <AdminInput value={form.city} onChange={(v) => setForm({ ...form, city: v })} />
+        {communityType === "PARIVAR" ? (
+          <AdminField label="City · શહેર" required>
+            <AdminSelect
+              value={form.city}
+              onChange={(v) => setForm({ ...form, city: v })}
+              className="w-full"
+              options={[
+                { value: "", label: "Select city…" },
+                ...cities.map((c) => ({
+                  value: c.nameEn,
+                  label: `${c.nameEn}${c.nameGu ? ` · ${c.nameGu}` : ""}`,
+                })),
+              ]}
+            />
           </AdminField>
-          <AdminField label="Native place (મૂળ ગામ)">
+        ) : (
+          <>
+            <AdminField label="Village · ગામ">
+              <AdminSelect
+                value={form.livesOutsideVillage ? "__outside__" : form.villageAreaId}
+                onChange={(v) => {
+                  if (v === "__outside__") {
+                    setForm({ ...form, livesOutsideVillage: true, villageAreaId: "" });
+                  } else {
+                    setForm({ ...form, livesOutsideVillage: false, villageAreaId: v });
+                  }
+                }}
+                className="w-full"
+                options={[
+                  { value: "", label: "Select village…" },
+                  ...villages.map((v) => ({
+                    value: v.id,
+                    label: `${v.nameEn}${v.nameGu ? ` · ${v.nameGu}` : ""}`,
+                  })),
+                  { value: "__outside__", label: "Lives outside · બહાર" },
+                ]}
+              />
+            </AdminField>
+            <AdminField
+              label={form.livesOutsideVillage ? "City · શહેર" : "City"}
+              required={form.livesOutsideVillage}
+            >
+              <AdminInput value={form.city} onChange={(v) => setForm({ ...form, city: v })} />
+            </AdminField>
+          </>
+        )}
+
+        <AdminFormRow>
+          <AdminField label="Native elder name">
             <AdminInput
-              value={form.nativePlace}
-              onChange={(v) => setForm({ ...form, nativePlace: v })}
+              value={form.nativeElderNameEn}
+              onChange={(v) => setForm({ ...form, nativeElderNameEn: v })}
+            />
+          </AdminField>
+          <AdminField label="Native elder phone">
+            <AdminInput
+              value={form.nativeElderPhone}
+              onChange={(v) =>
+                setForm({
+                  ...form,
+                  nativeElderPhone: v.replace(/\D/g, "").slice(0, 10),
+                })
+              }
             />
           </AdminField>
         </AdminFormRow>
 
-        <AdminField label="Family email">
-          <AdminInput value={form.email} onChange={(v) => setForm({ ...form, email: v })} />
-        </AdminField>
-
         <AdminFormSection title="Members" className="mt-5" />
         <p className="mb-3 text-[11.5px] text-[var(--faint)]">
-          The head is added automatically. Add the rest of the household here — you can also do it
-          later from the Members editor.
+          First person is the family head. Add other household members below — or later from
+          Members.
         </p>
+
+        <div className="mb-3 rounded-2xl border border-[var(--gold-border)] bg-[var(--surface-admin)] p-3.5">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[12.5px] font-extrabold text-[var(--ink)]">Member 1 · Head</span>
+            <span className="rounded-lg bg-[var(--brand-tint)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--brand)]">
+              Family head
+            </span>
+          </div>
+
+          <AdminFormRow>
+            <AdminField label="Name (ગુજરાતી)">
+              <AdminInput
+                gujarati
+                value={form.headNameGu}
+                onChange={(v) => {
+                  setForm((prev) => ({ ...prev, headNameGu: v }));
+                  guInput(v, (gu) => setForm((prev) => ({ ...prev, headNameGu: gu })), "head:gu");
+                }}
+              />
+            </AdminField>
+            <AdminField label="Name (English)" required>
+              <AdminInput
+                value={form.headNameEn}
+                onChange={(v) => {
+                  setForm((prev) => ({ ...prev, headNameEn: v }));
+                  fromEn(v, (gu) => setForm((prev) => ({ ...prev, headNameGu: gu })), "head");
+                }}
+              />
+            </AdminField>
+          </AdminFormRow>
+
+          <AdminFormRow>
+            <AdminField label="Mobile number" required>
+              <AdminInput
+                value={form.headMobile}
+                onChange={(v) =>
+                  setForm({ ...form, headMobile: v.replace(/\D/g, "").slice(0, 10) })
+                }
+                placeholder="10-digit mobile"
+              />
+            </AdminField>
+            <AdminField label="Relation (સંબંધ)">
+              <AdminSelect
+                value="Head"
+                onChange={() => undefined}
+                className="w-full"
+                options={[{ value: "Head", label: "Head · વડા" }]}
+              />
+            </AdminField>
+          </AdminFormRow>
+
+          <AdminFormRow>
+            <AdminField label="Birth date">
+              <AdminInput
+                type="date"
+                value={form.headDateOfBirth}
+                onChange={(v) => setForm({ ...form, headDateOfBirth: v })}
+              />
+            </AdminField>
+            <AdminField label="Blood group">
+              <AdminSelect
+                value={form.headBloodGroup}
+                onChange={(v) => setForm({ ...form, headBloodGroup: v })}
+                className="w-full"
+                options={[{ value: "", label: "—" }, ...BLOOD_GROUPS]}
+              />
+            </AdminField>
+          </AdminFormRow>
+
+          <CascadingOccupationFields
+            tree={occupationTreeState}
+            values={form}
+            onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
+          />
+
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-[var(--ink-mid)]">
+            <input
+              type="checkbox"
+              checked={form.headHasWhatsApp}
+              onChange={(e) => setForm({ ...form, headHasWhatsApp: e.target.checked })}
+              className="size-4 accent-[var(--wa)]"
+            />
+            આ નંબર પર WhatsApp છે
+          </label>
+        </div>
 
         {form.members.map((m, i) => (
           <div
@@ -680,7 +919,10 @@ export function FamiliesClient({
                   className="w-full"
                   options={[
                     { value: "", label: "—" },
-                    ...relations.map((r) => ({ value: r, label: r })),
+                    ...relationOptions.map((r) => ({
+                      value: r.nameEn,
+                      label: `${r.nameEn}${r.nameGu && r.nameGu !== r.nameEn ? ` · ${r.nameGu}` : ""}`,
+                    })),
                   ]}
                 />
               </AdminField>
