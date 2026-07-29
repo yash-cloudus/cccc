@@ -469,7 +469,7 @@ export function AdminSelect({
       >
         <SelectPrimitive.Value
           placeholder="—"
-          className="flex-1 truncate text-left"
+          className={cn("flex-1 truncate text-left", selected && "font-semibold")}
         >
           {selected?.label ?? "—"}
         </SelectPrimitive.Value>
@@ -516,7 +516,7 @@ export function AdminSelect({
                     "transition-colors",
                     "hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
                     "data-[highlighted]:bg-[var(--brand-tint)] data-[highlighted]:text-[var(--brand)]",
-                    "data-[selected]:font-semibold data-[selected]:text-[var(--brand)]",
+                    "data-[selected]:bg-[var(--brand-tint)] data-[selected]:font-semibold data-[selected]:text-[var(--brand)]",
                   )}
                 >
                   <SelectPrimitive.ItemText className="flex-1 truncate">

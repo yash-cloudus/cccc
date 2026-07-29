@@ -14,6 +14,7 @@ import {
   AdminTh,
   LinkAction,
 } from "@/components/admin/admin-ui";
+import { AdminFilePicker } from "@/components/admin/admin-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -47,11 +48,58 @@ type CMember = {
   isActive: boolean;
 };
 
+export type BasicInfo = {
+  nameEn: string;
+  nameGu: string;
+  estd: string;
+  village: string;
+  addressEn: string;
+  addressGu: string;
+  taluka: string;
+  district: string;
+  state: string;
+  country: string;
+  pincode: string;
+  contactPhone: string;
+  whatsapp: string;
+  email: string;
+  website: string;
+  mapUrl: string;
+};
+
+type Tab = "basic" | "committee" | "sections";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "basic", label: "Community info" },
+  { key: "committee", label: "મુખ્ય સમિતિ · Committee" },
+  { key: "sections", label: "Sections" },
+];
+
+/** The "Basic information" grid, in the order the prototype lists them. */
+const BASIC_FIELDS: { key: keyof BasicInfo; label: string; gujarati?: boolean }[] = [
+  { key: "nameGu", label: "Community name (ગુજરાતી)", gujarati: true },
+  { key: "nameEn", label: "Community name (English)" },
+  { key: "estd", label: "Established year" },
+  { key: "village", label: "Village name", gujarati: true },
+  { key: "addressEn", label: "Address", gujarati: true },
+  { key: "taluka", label: "Taluka", gujarati: true },
+  { key: "district", label: "District", gujarati: true },
+  { key: "state", label: "State", gujarati: true },
+  { key: "country", label: "Country", gujarati: true },
+  { key: "pincode", label: "Pin code" },
+  { key: "contactPhone", label: "Contact number" },
+  { key: "whatsapp", label: "WhatsApp number" },
+  { key: "email", label: "Email address" },
+  { key: "website", label: "Website" },
+  { key: "mapUrl", label: "Google Map location (URL)" },
+];
+
 export function InfoClient({
   showDirectoryPhones: initialGlobal,
   upiId: initialUpi,
   logoUrl: initialLogo,
   bannerUrl: initialBanner,
+  basic: initialBasic,
   committees: initialCommittees,
   infoSections: initialInfo,
   villages: initialVillages,
@@ -60,6 +108,7 @@ export function InfoClient({
   upiId: string;
   logoUrl: string;
   bannerUrl: string;
+  basic: BasicInfo;
   committees: Committee[];
   infoSections: InfoSection[];
   villages: Village[];
@@ -69,6 +118,13 @@ export function InfoClient({
   const [logoUrl, setLogoUrl] = useState(initialLogo);
   const [bannerUrl, setBannerUrl] = useState(initialBanner);
   const [brandBusy, setBrandBusy] = useState(false);
+  const [tab, setTab] = useState<Tab>("basic");
+  const [basic, setBasic] = useState<BasicInfo>(initialBasic);
+  const [basicBusy, setBasicBusy] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  const setField = (key: keyof BasicInfo, value: string) =>
+    setBasic((b) => ({ ...b, [key]: value }));
 
   async function saveBranding() {
     setBrandBusy(true);
@@ -78,7 +134,30 @@ export function InfoClient({
       bannerUrl: bannerUrl.trim(),
     });
     setBrandBusy(false);
-    if (!res.ok) setError(res.error);
+    if (!res.ok) return setError(res.error);
+    flash("Banner & logo saved");
+  }
+
+  /** Brief confirmation under the header, like the prototype's toast. */
+  function flash(message: string) {
+    setSaved(message);
+    setTimeout(() => setSaved(null), 2600);
+  }
+
+  async function saveBasic() {
+    if (!basic.nameEn.trim() && !basic.nameGu.trim()) {
+      return setError("Community name is required");
+    }
+    setBasicBusy(true);
+    setError(null);
+    const res = await api.patch("/api/admin/settings", {
+      ...basic,
+      // The API requires a non-empty English name; fall back to the Gujarati one.
+      nameEn: basic.nameEn.trim() || basic.nameGu.trim(),
+    });
+    setBasicBusy(false);
+    if (!res.ok) return setError(res.error);
+    flash("Community info saved");
   }
 
   /** Swap a section with its neighbour and persist both sortOrders. */
@@ -243,65 +322,104 @@ export function InfoClient({
         sync to the app on save.
       </AdminHint>
 
-      <section className="mb-6 rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4">
+      <div className="mb-5 flex flex-wrap gap-2">
+        {TABS.map((x) => (
+          <button
+            key={x.key}
+            type="button"
+            onClick={() => setTab(x.key)}
+            className={cn(
+              "cursor-pointer rounded-xl border px-4 py-2 text-[13px] font-bold transition-colors",
+              tab === x.key
+                ? "border-[var(--brand)] bg-[var(--brand)] text-white"
+                : "border-[var(--line-admin)] bg-[var(--surface-admin)] text-[var(--ink-dim)]",
+            )}
+          >
+            {x.label}
+          </button>
+        ))}
+      </div>
+
+      {saved && (
+        <p className="mb-4 rounded-xl border border-[var(--success-tint)] bg-[var(--success-tint)] px-3.5 py-2.5 text-[12.5px] font-bold text-[var(--success)]">
+          ✓ {saved}
+        </p>
+      )}
+
+      <section
+        className={cn(
+          "mb-6 rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4",
+          tab === "basic" ? "" : "hidden",
+        )}
+      >
         <AdminH3>Cover banner &amp; logo</AdminH3>
 
-        <div className="relative mb-3 h-[132px] overflow-hidden rounded-xl bg-[var(--surface-admin)]">
-          {bannerUrl ? (
+        <div className="relative mb-3 h-[132px] overflow-hidden rounded-xl bg-[var(--brand)]">
+          {bannerUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={bannerUrl} alt="" className="size-full object-cover" />
-          ) : (
-            <span className="flex size-full items-center justify-center text-[12.5px] font-semibold text-[var(--faint)]">
-              No cover banner
-            </span>
           )}
-          <span className="absolute bottom-3 left-3 flex size-14 items-center justify-center overflow-hidden rounded-[14px] border-2 border-white bg-[var(--brand)] text-[15px] font-extrabold text-white shadow">
+          <span className="absolute bottom-3 left-3">
+            <AdminFilePicker
+              value={bannerUrl}
+              folder="community"
+              label="Upload banner"
+              preview={false}
+              onChange={setBannerUrl}
+            />
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="flex size-14 flex-none items-center justify-center overflow-hidden rounded-[14px] border-2 border-[var(--gold-border)] bg-[var(--brand)] text-[17px] font-extrabold text-white">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt="" className="size-full object-cover" />
             ) : (
-              "—"
+              (basic.nameGu || basic.nameEn || "?").trim().charAt(0)
             )}
           </span>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <AdminLabel>Cover banner URL</AdminLabel>
-            <AdminInput
-              value={bannerUrl}
-              onChange={setBannerUrl}
-              placeholder="https://…/banner.jpg"
-            />
-          </div>
-          <div>
-            <AdminLabel>Logo URL</AdminLabel>
-            <AdminInput value={logoUrl} onChange={setLogoUrl} placeholder="https://…/logo.png" />
-          </div>
-        </div>
-
-        <div className="mt-3 flex flex-wrap gap-2.5">
+          <AdminFilePicker
+            value={logoUrl}
+            folder="community"
+            label="Upload logo"
+            preview={false}
+            onChange={setLogoUrl}
+          />
           <AdminBtn onClick={saveBranding} disabled={brandBusy}>
             {brandBusy ? <Loader2 className="size-4 animate-spin" /> : "Save banner & logo"}
           </AdminBtn>
-          {(bannerUrl || logoUrl) && (
-            <AdminBtn
-              variant="ghost"
-              onClick={() => {
-                setBannerUrl("");
-                setLogoUrl("");
-              }}
-            >
-              Remove
-            </AdminBtn>
-          )}
         </div>
+      </section>
+
+      <section
+        className={cn(
+          "mb-6 rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4",
+          tab === "basic" ? "" : "hidden",
+        )}
+      >
+        <AdminH3>Basic information</AdminH3>
+        <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
+          {BASIC_FIELDS.map((f) => (
+            <div key={f.key}>
+              <AdminLabel>{f.label}</AdminLabel>
+              <AdminInput
+                gujarati={f.gujarati}
+                value={basic[f.key]}
+                onChange={(v) => setField(f.key, v)}
+              />
+            </div>
+          ))}
+        </div>
+        <AdminBtn className="mt-4" onClick={saveBasic} disabled={basicBusy}>
+          {basicBusy ? <Loader2 className="size-4 animate-spin" /> : "Save community info"}
+        </AdminBtn>
       </section>
 
       {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div>
+      <div className="grid grid-cols-1 gap-6">
+        <div className={tab === "committee" ? "" : "hidden"}>
           <AdminH3>Committees</AdminH3>
           <AdminTable>
             <thead>
@@ -344,7 +462,7 @@ export function InfoClient({
           <AdminHint>Manage = add members, assign position/role + contact visibility.</AdminHint>
         </div>
 
-        <div>
+        <div className={tab === "sections" ? "" : "hidden"}>
           <AdminH3>Info pages</AdminH3>
           <AdminTable>
             <tbody>
@@ -413,7 +531,12 @@ export function InfoClient({
         </div>
       </div>
 
-      <div className="mt-[26px] rounded-[14px] border border-[var(--line-field)] bg-[var(--field)] p-4">
+      <div
+        className={cn(
+          "mt-[26px] rounded-[14px] border border-[var(--line-field)] bg-[var(--field)] p-4",
+          tab === "basic" ? "" : "hidden",
+        )}
+      >
         <AdminH3 className="mb-1">Donations — UPI ID</AdminH3>
         <AdminHint className="mb-3">
           Members on the Donate screen will open a UPI payment to this ID. Leave blank to only record donation pledges.
@@ -438,7 +561,12 @@ export function InfoClient({
         )}
       </div>
 
-      <div className="mt-[26px] flex flex-wrap items-center justify-between gap-3">
+      <div
+        className={cn(
+          "mt-[26px] flex flex-wrap items-center justify-between gap-3",
+          tab === "basic" ? "" : "hidden",
+        )}
+      >
         <AdminH3 className="mb-0">Directory privacy by village (ગામ પ્રમાણે નંબર)</AdminH3>
         <label className="flex items-center gap-2 text-[11.5px] font-bold text-[var(--ink-mid)]">
           <span>Global: show phones in directory</span>

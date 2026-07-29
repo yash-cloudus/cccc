@@ -10,6 +10,7 @@ import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 import { mainAdminUrl, communityAdminUrl } from "@/lib/host";
 import { HostLabel } from "@/components/host-label";
+import { LangToggle } from "@/components/ui/lang-toggle";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -172,6 +173,7 @@ export default function LoginPage() {
               Main Admin
             </a>
           </div>
+          <LangToggle className="mx-auto mt-5 w-fit" />
         </div>
       </div>
     </AppShell>

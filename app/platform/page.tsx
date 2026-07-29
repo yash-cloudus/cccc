@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, ChevronLeft, X } from "lucide-react";
+import { Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, X } from "lucide-react";
 import { PRIMARY_COLORS, SECONDARY_COLORS, ROOT_DOMAIN } from "@/lib/constants";
 import { HostLabel } from "@/components/host-label";
 import {
@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { TooltipProvider, WithTooltip } from "@/components/ui/tooltip";
+import { SidebarCollapseToggle } from "@/components/ui/sidebar-collapse-toggle";
 
 type ApiCommunity = {
   id: string;
@@ -691,22 +692,7 @@ export default function PlatformPage() {
             </div>
           </nav>
 
-          <WithTooltip label={collapsed ? "Open sidebar" : "Close sidebar"} side="right">
-            <button
-              type="button"
-              onClick={toggleCollapsed}
-              aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
-              className="absolute top-10 -right-3 z-30 flex size-6 cursor-pointer items-center justify-center rounded-md border border-[#fff] bg-[var(--platform)] text-[#ffff] shadow-[0_1px_3px_rgba(0,0,0,.35)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 hover:bg-[#ffff] hover:text-[var(--platform)]"
-            >
-              <ChevronLeft
-                className={cn(
-                  "size-3.5 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                  collapsed && "rotate-180",
-                )}
-                strokeWidth={2.4}
-              />
-            </button>
-          </WithTooltip>
+          <SidebarCollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} theme="dark" />
         </aside>
 
         <div className="min-w-0 flex-1 overflow-y-auto bg-[#F7F7F9] pb-20 md:pb-0 [scrollbar-width:thin]">

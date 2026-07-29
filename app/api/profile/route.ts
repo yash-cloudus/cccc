@@ -15,20 +15,30 @@ export async function GET() {
 
     // Loaded separately: an OTP member has no Profile row, so both the person
     // and the household are resolved by mobile instead.
-    const family = record?.familyId
-      ? await prisma.family.findUnique({
-          where: { id: record.familyId },
-          include: {
-            surnameGroup: true,
-            familyMembers: { where: { isVisible: true }, orderBy: { createdAt: "asc" } },
-          },
-        })
-      : null;
+    const [family, pendingUpdateRequest] = await Promise.all([
+      record?.familyId
+        ? prisma.family.findUnique({
+            where: { id: record.familyId },
+            include: {
+              surnameGroup: true,
+              familyMembers: { where: { isVisible: true }, orderBy: { createdAt: "asc" } },
+            },
+          })
+        : null,
+      record?.source === "familyMember"
+        ? prisma.profileUpdateRequest.findFirst({
+            where: { memberId: record.id, status: "PENDING" },
+            orderBy: { submittedAt: "desc" },
+            select: { id: true, submittedAt: true },
+          })
+        : null,
+    ]);
 
     return ok({
       profile: record ? { ...record, family } : null,
       mobile: user?.mobile ?? null,
       userId: session.sub,
+      pendingUpdateRequest,
     });
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);
@@ -39,9 +49,16 @@ export async function GET() {
 const schema = z.object({
   showPhone: z.boolean().optional(),
   showBusiness: z.boolean().optional(),
+  fullNameEn: z.string().min(2).max(120).optional(),
+  fullNameGu: z.string().max(120).optional(),
   occupation: z.string().max(120).optional(),
-  currentlyAt: z.string().max(120).optional(),
+  occupationOther: z.string().max(120).optional(),
   education: z.string().max(120).optional(),
+  course: z.string().max(120).optional(),
+  currentlyAt: z.string().max(120).optional(),
+  bloodGroup: z
+    .enum(["A_POS", "A_NEG", "B_POS", "B_NEG", "O_POS", "O_NEG", "AB_POS", "AB_NEG"])
+    .optional(),
 });
 
 /** Member updates their own privacy flags / basic details. */

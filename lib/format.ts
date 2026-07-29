@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { Lang } from "@/lib/i18n/dictionary";
+import { DEFAULT_RELATIONS } from "@/lib/constants";
 
 /** Format an ISO date string for display, localized to the active language. */
 export function formatDate(iso: string | null | undefined, lang: Lang): string {
@@ -127,6 +128,14 @@ export function bloodToEnum(label: string | null | undefined): BloodEnum | undef
   if (!label) return undefined;
   const entry = Object.entries(BLOOD_LABELS).find(([, v]) => v === label);
   return (entry?.[0] as BloodEnum) ?? undefined;
+}
+
+/** Map a stored relation (e.g. "Head") to its bilingual label from DEFAULT_RELATIONS. */
+export function relationLabel(relation: string | null | undefined, lang: Lang): string {
+  if (!relation) return "";
+  const found = DEFAULT_RELATIONS.find((r) => r.nameEn.toLowerCase() === relation.toLowerCase());
+  if (!found) return relation;
+  return lang === "gu" ? found.nameGu : found.nameEn;
 }
 
 /** Format a 10-digit mobile for display (e.g. "98765 43210"). */

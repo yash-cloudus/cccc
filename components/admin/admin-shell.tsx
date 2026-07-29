@@ -16,12 +16,12 @@ import {
   Settings,
   Shield,
   LogOut,
-  ChevronLeft,
   Ellipsis,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_NAV } from "@/lib/constants";
 import { TooltipProvider, WithTooltip } from "@/components/ui/tooltip";
+import { SidebarCollapseToggle } from "@/components/ui/sidebar-collapse-toggle";
 import { cn } from "@/lib/utils";
 
 const NAV_ICONS: Record<string, LucideIcon> = {
@@ -255,22 +255,7 @@ export function AdminShell({
               </div>
             </nav>
 
-            <WithTooltip label={collapsed ? "Open sidebar" : "Close sidebar"} side="right">
-              <button
-                type="button"
-                onClick={toggleCollapsed}
-                aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
-                className="absolute top-5 -right-3 z-30 flex size-6 cursor-pointer items-center justify-center rounded-md border border-[#D4CEC2] bg-white text-[var(--ink-mid)] shadow-[0_1px_3px_rgba(30,25,40,.12)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 hover:bg-[#FAFAF8]"
-              >
-                <ChevronLeft
-                  className={cn(
-                    "size-3.5 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                    collapsed && "rotate-180",
-                  )}
-                  strokeWidth={2.4}
-                />
-              </button>
-            </WithTooltip>
+            <SidebarCollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} theme="light" />
           </aside>
 
           <div className="admin-scroll min-w-0 flex-1 overflow-y-auto bg-white px-8 py-7 max-md:px-[15px] max-md:pb-24 max-md:pt-[18px]">

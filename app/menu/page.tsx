@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { useLang } from "@/providers/lang-provider";
+import { LangToggle } from "@/components/ui/lang-toggle";
 import { api } from "@/lib/http";
 import { pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -34,7 +35,7 @@ const serviceLinks = [
 type MeProfile = { fullNameEn: string; fullNameGu: string | null } | null;
 
 export default function MenuPage() {
-  const { t, lang, setLang } = useLang();
+  const { t, lang } = useLang();
   const router = useRouter();
   const [newsNotif, setNewsNotif] = useState(true);
   const [feedNotif, setFeedNotif] = useState(false);
@@ -122,10 +123,7 @@ export default function MenuPage() {
               </div>
               <div className="text-sm font-bold">{t("language")}</div>
             </div>
-            <div className="flex gap-2 rounded-[13px] bg-[#F4EFE6] p-1">
-              <button type="button" onClick={() => setLang("gu")} className={cn("flex-1 rounded-[10px] py-2 text-[13.5px] font-bold", lang === "gu" ? "bg-white text-[var(--brand)] shadow-sm" : "text-[var(--muted)]")}>ગુજરાતી</button>
-              <button type="button" onClick={() => setLang("en")} className={cn("flex-1 rounded-[10px] py-2 text-[13.5px] font-bold", lang === "en" ? "bg-white text-[var(--brand)] shadow-sm" : "text-[var(--muted)]")}>English</button>
-            </div>
+            <LangToggle className="gap-2" />
           </div>
           <ToggleRow label={t("newsNotif")} on={newsNotif} onToggle={() => setNewsNotif(!newsNotif)} bg="#FEF3E0" fg="#B26A1E" />
           <ToggleRow label={t("feedNotif")} on={feedNotif} onToggle={() => setFeedNotif(!feedNotif)} bg="#EDEBE6" fg="#8B8375" disabled />

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { fail, ok } from "@/lib/api";
 import { requireAdmin, handleApiError } from "@/lib/admin-guard";
+import { APPLIABLE_MEMBER_FIELDS } from "@/lib/profile-update-fields";
 
 /** One field the member changed, as stored in ProfileUpdateRequest.changes. */
 const changeSchema = z.object({
@@ -10,25 +11,6 @@ const changeSchema = z.object({
   from: z.string().nullable().optional(),
   to: z.string().nullable().optional(),
 });
-
-/**
- * Only these FamilyMember columns may be written by applying a request.
- * Anything else in `changes` is shown in the diff but never applied — this is
- * the allow-list that stops a crafted request from touching isHead, isDeceased
- * or any other privileged column.
- */
-const APPLIABLE_MEMBER_FIELDS = new Set([
-  "fullNameEn",
-  "fullNameGu",
-  "relation",
-  "mobile",
-  "occupation",
-  "education",
-  "currentlyAt",
-  "bloodGroup",
-  "hasWhatsApp",
-  "showPhone",
-]);
 
 const APPLIABLE_FAMILY_FIELDS = new Set([
   "addressEn",

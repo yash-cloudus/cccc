@@ -185,7 +185,7 @@ export function FamilyDetailsFields({
             }))}
           />
         </Wrap>
-        <Wrap variant={variant} label={t("(ગુજરાતી)", "(Gujarati)")}>
+        <Wrap variant={variant} label={`${t("અટક", "Surname")} (${t("ગુજરાતી", "Gujarati")})`}>
           <div className="flex min-h-[44px] items-center rounded-[13px] border border-dashed border-[var(--line-input)] bg-[#F7F3EC] px-3.5 text-sm text-[var(--ink-dim)]">
             {selectedGroup?.nameGu || selectedGroup?.nameEn || "—"}
           </div>
@@ -321,7 +321,10 @@ export function FamilyDetailsFields({
         )}
       </Wrap>
 
-      <Wrap variant={variant} label={`${t("હાલનું સરનામું", "Current address")} (ગુજરાતી)`}>
+      <Wrap
+        variant={variant}
+        label={`${t("હાલનું સરનામું", "Current address")} (${t("ગુજરાતી", "Gujarati")})`}
+      >
         {isAdmin ? (
           <AdminInput gujarati value={values.addressGu} onChange={bindGu("addressGu", "addr:gu")} />
         ) : (

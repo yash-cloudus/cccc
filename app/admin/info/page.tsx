@@ -29,6 +29,24 @@ export default async function CommunityInfoPage() {
       upiId={upiSetting?.value ?? ""}
       logoUrl={community.logoUrl ?? ""}
       bannerUrl={community.bannerUrl ?? ""}
+      basic={{
+        nameEn: community.nameEn ?? "",
+        nameGu: community.nameGu ?? "",
+        estd: community.estd ?? "",
+        village: community.village ?? "",
+        addressEn: community.addressEn ?? "",
+        addressGu: community.addressGu ?? "",
+        taluka: community.taluka ?? "",
+        district: community.district ?? "",
+        state: community.state ?? "",
+        country: community.country ?? "",
+        pincode: community.pincode ?? "",
+        contactPhone: community.contactPhone ?? "",
+        whatsapp: community.whatsapp ?? "",
+        email: community.email ?? "",
+        website: community.website ?? "",
+        mapUrl: community.mapUrl ?? "",
+      }}
       committees={committees.map((c) => ({
         id: c.id,
         nameEn: c.nameEn,

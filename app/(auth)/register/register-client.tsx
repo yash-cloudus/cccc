@@ -403,7 +403,7 @@ export function RegisterClient({
 
           <div className="mt-4 w-full max-w-[340px] rounded-[24px] border border-[var(--brand-line)] bg-white p-4 text-left shadow-[0_14px_35px_-24px_rgba(40,40,40,.25)]">
             <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
-              {T("સવાલિયા જૂથ માટે સંયોજક", "Coordinator for this group")}
+              {T("આ જૂથ માટે સંયોજક", "Coordinator for this group")}
             </div>
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--brand-tint)] text-[18px] font-extrabold text-[var(--brand)]">
@@ -439,7 +439,7 @@ export function RegisterClient({
 
             <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--faint)]">
               {T(
-                "તેઓનો નંબર કોઈ કારણસર ડાઉન હોય તો તેઓનો સંપર્ક કરી શકો છો.",
+                "મંજૂરી બાકી હોય ત્યાં સુધી જરૂર પડે તો આ નંબર પર સંપર્ક કરી શકો છો.",
                 "If needed, you can contact them on this number while approval is pending.",
               )}
             </p>
@@ -622,7 +622,7 @@ export function RegisterClient({
               <Field
                 label={
                   <span className="flex items-center justify-between gap-2">
-                    <span>{T("WhatsApp number", "WhatsApp number")}</span>
+                    <span>{T("WhatsApp નંબર", "WhatsApp number")}</span>
                     <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--brand)]">
                       <input
                         type="checkbox"
@@ -636,7 +636,7 @@ export function RegisterClient({
                         }
                         className="size-3.5 accent-[var(--brand)]"
                       />
-                      {T("same mobile", "same mobile")}
+                      {T("એ જ નંબર", "same mobile")}
                     </label>
                   </span>
                 }
@@ -902,7 +902,7 @@ export function RegisterClient({
                     <Field
                       label={
                         <span className="flex items-center justify-between gap-2">
-                          <span>{T("WhatsApp number", "WhatsApp number")}</span>
+                          <span>{T("WhatsApp નંબર", "WhatsApp number")}</span>
                           <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--brand)]">
                             <input
                               type="checkbox"
@@ -916,7 +916,7 @@ export function RegisterClient({
                               }
                               className="size-3.5 accent-[var(--brand)]"
                             />
-                            {T("same mobile", "same mobile")}
+                            {T("એ જ નંબર", "same mobile")}
                           </label>
                         </span>
                       }
