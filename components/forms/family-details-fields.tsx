@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { SpeechInput } from "@/components/ui/speech-input";
+import { AppSelect } from "@/components/ui/app-select";
 import { AdminInput, AdminSelect } from "@/components/admin/admin-ui";
 import { AdminField, AdminFormRow } from "@/components/admin/admin-form";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
@@ -358,7 +358,7 @@ function Wrap({
   );
 }
 
-/** The member site's popover picker (the admin side uses AdminSelect instead). */
+/** The member site's picker — same dropdown UI as the admin side's `AdminSelect`. */
 function PopoverPicker({
   label,
   options,
@@ -366,38 +366,13 @@ function PopoverPicker({
   label: string;
   options: { key: string; label: string; active: boolean; onPick: () => void }[];
 }) {
-  const [open, setOpen] = useState(false);
+  const active = options.find((o) => o.active);
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="samaj-fld flex w-full items-center justify-between bg-[var(--field)]"
-      >
-        <span className="truncate">{label}</span>
-        <ChevronDown className="size-5 flex-none text-[var(--brand)]" />
-      </button>
-      {open && (
-        <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-[13px] border border-[var(--line-field)] bg-white shadow-lg">
-          {options.map((o, i) => (
-            <button
-              key={o.key}
-              type="button"
-              onClick={() => {
-                o.onPick();
-                setOpen(false);
-              }}
-              className={cn(
-                "block w-full px-3 py-2.5 text-left text-sm",
-                i > 0 && "border-t border-[var(--line-soft)]",
-                o.active && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
-              )}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    <AppSelect
+      value={active?.key ?? ""}
+      onChange={(key) => options.find((o) => o.key === key)?.onPick()}
+      options={options.map((o) => ({ value: o.key, label: o.label }))}
+      placeholder={label}
+    />
   );
 }

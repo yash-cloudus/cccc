@@ -11,8 +11,12 @@ import {
   AdminToggle,
 } from "@/components/admin/admin-ui";
 import {
+  AD_DURATIONS,
   SETTINGS_SECTIONS,
+  getAdPricingSettingValue,
   isOn,
+  parseAdPricing,
+  serializeAdPricing,
   settingKey,
   settingValue,
   type SettingSection,
@@ -25,7 +29,8 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
     const map: Record<string, string> = {};
     for (const section of SETTINGS_SECTIONS) {
       for (const item of section.items) {
-        map[settingKey(section.id, item.key)] = settingValue(stored, section, item);
+        map[settingKey(section.id, item.key)] =
+          item.type === "adPricing" ? getAdPricingSettingValue(stored) : settingValue(stored, section, item);
       }
     }
     return map;
@@ -113,6 +118,8 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
                         options={(item.options ?? []).map((o) => ({ value: o, label: o }))}
                         className="w-[160px] max-md:w-full"
                       />
+                    ) : item.type === "adPricing" ? (
+                      <AdPricingControl value={v} onChange={(next) => set(k, next)} />
                     ) : (
                       <AdminToggle
                         on={isOn(v)}
@@ -141,5 +148,35 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
         ))}
       </div>
     </>
+  );
+}
+
+/**
+ * Merged price + duration editor for a premium banner. Both plans stay
+ * stored in the underlying JSON, fully independent, so each gets its own
+ * price textbox — the admin sets both at once with no toggle needed.
+ */
+function AdPricingControl({ value, onChange }: { value: string; onChange: (next: string) => void }) {
+  const pricing = parseAdPricing(value);
+
+  return (
+    <div className="flex gap-2.5 max-md:w-full">
+      {AD_DURATIONS.map((d) => {
+        const field = d === "1 Year" ? "price1y" : "price6m";
+        return (
+          <div key={d} className="flex flex-col items-center gap-1 max-md:flex-1">
+            <span className="text-[11.5px] font-bold text-[var(--ink-mid)]">{d}</span>
+            <AdminInput
+              type="number"
+              value={pricing[field]}
+              onChange={(next) =>
+                onChange(serializeAdPricing({ ...pricing, [field]: next.replace(/[^0-9]/g, "") }))
+              }
+              className="w-[110px] max-md:w-full"
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 }

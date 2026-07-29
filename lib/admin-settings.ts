@@ -13,8 +13,8 @@ export type SettingItem = {
   key: string;
   label: string;
   help: string;
-  /** Defaults to "toggle". */
-  type?: "toggle" | "number" | "select";
+  /** Defaults to "toggle". "adPricing" renders the merged price+duration control. */
+  type?: "toggle" | "number" | "select" | "adPricing";
   /** Only for type "select". */
   options?: string[];
   /** Toggle default is true unless stated; number/select carry a literal. */
@@ -66,8 +66,12 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
       { key: "general", label: "Enable General Advertisements", help: "Show free directory-linked advertisements." },
       { key: "allowBanner", label: "Allow Premium Banner Requests", help: "Users can request a premium banner from the app." },
       { key: "requireApproval", label: "Require Admin Approval", help: "Premium ads stay pending until an admin approves them." },
-      { key: "price", label: "Premium Advertisement Price", help: "Amount charged for a premium banner advertisement.", type: "number", default: "2000" },
-      { key: "duration", label: "Premium Duration", help: "Default validity period for a premium advertisement.", type: "select", options: ["6 Months", "1 Year"], default: "6 Months" },
+      {
+        key: "pricing",
+        label: "Premium Advertisement Price",
+        help: "Amount charged for a premium banner advertisement — set separately for each validity period.",
+        type: "adPricing",
+      },
     ],
   },
   {
@@ -145,10 +149,101 @@ export function settingValue(
 ): string {
   const raw = stored[settingKey(section.id, item.key)];
   if (raw !== undefined) return raw;
-  if (item.type === "number" || item.type === "select") return String(item.default ?? "");
+  if (item.type === "number" || item.type === "select" || item.type === "adPricing") {
+    return String(item.default ?? "");
+  }
   return item.default === false ? "false" : "true";
 }
 
 export function isOn(value: string): boolean {
   return value === "true";
+}
+
+/* ============================ Premium ad pricing ============================ */
+
+/**
+ * Premium banner plans. The admin Settings UI merges price + duration into
+ * one control (switching duration swaps which tier's price is being edited),
+ * stored as a single JSON blob under `ads.pricing` so both tiers persist even
+ * though only one is visible at a time.
+ */
+export const AD_DURATIONS = ["6 Months", "1 Year"] as const;
+export type AdDuration = (typeof AD_DURATIONS)[number];
+
+export const AD_DURATION_MONTHS: Record<AdDuration, number> = { "6 Months": 6, "1 Year": 12 };
+const AD_PRICE_DEFAULTS: Record<AdDuration, string> = { "6 Months": "2000", "1 Year": "4000" };
+
+export type AdPricing = { duration: AdDuration; price6m: string; price1y: string };
+
+function isAdDuration(v: unknown): v is AdDuration {
+  return v === "6 Months" || v === "1 Year";
+}
+
+/** Parses the JSON stored under `ads.pricing`, tolerating missing/malformed input. */
+export function parseAdPricing(raw: string | undefined): AdPricing {
+  if (raw) {
+    try {
+      const p = JSON.parse(raw);
+      if (isAdDuration(p?.duration)) {
+        return {
+          duration: p.duration,
+          price6m: String(p.price6m ?? AD_PRICE_DEFAULTS["6 Months"]),
+          price1y: String(p.price1y ?? AD_PRICE_DEFAULTS["1 Year"]),
+        };
+      }
+    } catch {
+      // Malformed — fall through to the default below.
+    }
+  }
+  return {
+    duration: "6 Months",
+    price6m: AD_PRICE_DEFAULTS["6 Months"],
+    price1y: AD_PRICE_DEFAULTS["1 Year"],
+  };
+}
+
+export function serializeAdPricing(p: AdPricing): string {
+  return JSON.stringify(p);
+}
+
+/**
+ * The `ads.pricing` value to seed the Settings UI with — migrates one-time
+ * from the older standalone `ads.price` / `ads.duration` keys so communities
+ * that already configured a price don't see it reset to the default the
+ * first time this merged control loads.
+ */
+export function getAdPricingSettingValue(stored: Record<string, string>): string {
+  const existing = stored["ads.pricing"];
+  if (existing) return existing;
+
+  const duration: AdDuration = stored["ads.duration"] === "1 Year" ? "1 Year" : "6 Months";
+  const legacyPrice = stored["ads.price"];
+  return serializeAdPricing({
+    duration,
+    price6m: duration === "6 Months" ? (legacyPrice ?? AD_PRICE_DEFAULTS["6 Months"]) : AD_PRICE_DEFAULTS["6 Months"],
+    price1y: duration === "1 Year" ? (legacyPrice ?? AD_PRICE_DEFAULTS["1 Year"]) : AD_PRICE_DEFAULTS["1 Year"],
+  });
+}
+
+export type AdPriceTiers = Record<AdDuration, number>;
+
+/** Both plan prices + the admin's chosen default plan, resolved from stored Settings. */
+export function getAdPriceTiers(
+  stored: Record<string, string>,
+): { tiers: AdPriceTiers; defaultDuration: AdDuration } {
+  const p = parseAdPricing(getAdPricingSettingValue(stored));
+  return {
+    tiers: {
+      "6 Months": Number(p.price6m) || Number(AD_PRICE_DEFAULTS["6 Months"]),
+      "1 Year": Number(p.price1y) || Number(AD_PRICE_DEFAULTS["1 Year"]),
+    },
+    defaultDuration: p.duration,
+  };
+}
+
+/** Bilingual validity text for a banner's charge, e.g. "6 months" / "6 મહિના". */
+export function adDurationLabel(months: number, T: (g: string, e: string) => string): string {
+  if (months === 12) return T("1 વર્ષ", "1 year");
+  if (months % 12 === 0) return T(`${months / 12} વર્ષ`, `${months / 12} years`);
+  return T(`${months} મહિના`, `${months} months`);
 }

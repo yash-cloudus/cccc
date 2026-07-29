@@ -334,6 +334,7 @@ a:hover {
   background: var(--brand-gradient);
 }
 
+.samaj-btn,
 .samaj-btn-primary {
   background: var(--brand-btn-gradient);
   color: #fff;

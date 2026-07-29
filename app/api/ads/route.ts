@@ -8,6 +8,8 @@ import {
   getWritableCommunityId,
   isCommunityAdmin,
 } from "@/lib/tenant";
+import { getAdPriceTiersForCommunity } from "@/lib/tenant-data";
+import { AD_DURATION_MONTHS } from "@/lib/admin-settings";
 import { MAX_BANNERS_PER_MEMBER } from "@/lib/constants";
 
 export async function GET(req: Request) {
@@ -48,9 +50,11 @@ const schema = z.object({
   /** Business this banner links to — contact details come from it. */
   businessId: z.string().optional(),
   type: z.enum(["premium", "general"]).optional(),
-  /** Members submit for a fixed one-year run; only admins pass explicit dates. */
+  /** Only admins pass explicit dates — members pick a plan (below) instead. */
   startDate: z.string().optional(),
   endDate: z.string().optional(),
+  /** Plan a member chose on the "Add a new banner" screen — 6 or 12 months. */
+  months: z.union([z.literal(6), z.literal(12)]).optional(),
   priority: z.number().int().optional(),
   paymentProof: z.string().optional(),
   upiQrUrl: z.string().optional(),
@@ -67,12 +71,13 @@ export async function POST(req: Request) {
     const isAdmin = isCommunityAdmin(session);
 
     if (!isAdmin) {
-      // A member's banner always runs one year from approval-time submission,
-      // and only so many may be live at once.
+      // Only premium ads are "banners" — every business also carries a free
+      // general ad, which must not count against the member's banner limit.
       const live = await prisma.advertisement.count({
         where: {
           communityId,
           ownerId: session.sub,
+          type: "premium",
           status: { in: ["PENDING", "ACTIVE"] },
         },
       });
@@ -98,9 +103,72 @@ export async function POST(req: Request) {
     }
 
     const start = body.startDate ? new Date(body.startDate) : new Date();
+    // A member's run length is the plan they picked on the buy screen; fall
+    // back to the community's default plan if that's somehow missing.
+    const months =
+      body.months ?? AD_DURATION_MONTHS[(await getAdPriceTiersForCommunity(communityId)).defaultDuration];
     const end = body.endDate
       ? new Date(body.endDate)
-      : new Date(new Date(start).setFullYear(start.getFullYear() + 1));
+      : new Date(new Date(start).setMonth(start.getMonth() + months));
+
+    // A member reaching this route has gone through the pay-and-upload flow, so
+    // their submission is always a paid banner — never trust `type` from them
+    // (the client omits it, which would silently store a paid banner as free).
+    const type = isAdmin ? (body.type ?? "general") : "premium";
+
+    /*
+     * Paying upgrades the business's EXISTING ad in place — a business owns one
+     * ad row for its whole life, flipping general ⇄ premium. Creating a second
+     * row would leave the business listed twice and split its views/clicks.
+     *
+     * Re-upgrading an already-premium ad is blocked so a member cannot overwrite
+     * a live banner (and its stats) with a fresh payment; the limit check above
+     * already counts those.
+     */
+    if (type === "premium" && body.businessId) {
+      // Older data can hold more than one row per business, so upgrade the row
+      // that is actually live — converting a DEACTIVATED leftover would leave
+      // the running ad untouched and the payment with nothing to show for it.
+      const rows = await prisma.advertisement.findMany({
+        where: { communityId, businessId: body.businessId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, type: true, status: true },
+      });
+      const existing =
+        rows.find((r) => r.status === "PENDING" || r.status === "ACTIVE") ?? rows[0] ?? null;
+
+      if (existing) {
+        if (existing.type === "premium" && ["PENDING", "ACTIVE"].includes(existing.status)) {
+          return fail("This business already has a banner", 409);
+        }
+        const upgraded = await prisma.advertisement.update({
+          where: { id: existing.id },
+          data: {
+            // Ownership moves to whoever paid — admins upgrade on a member's behalf.
+            ownerId: isAdmin ? undefined : session.sub,
+            name: body.name,
+            pitch: body.pitch ?? undefined,
+            imageUrl: body.imageUrl,
+            linkUrl: body.linkUrl ?? undefined,
+            ownerName: body.ownerName ?? undefined,
+            ownerMobile: body.ownerMobile ?? undefined,
+            category: body.category ?? undefined,
+            type: "premium",
+            startDate: start,
+            endDate: end,
+            priority: body.priority ?? undefined,
+            paymentProof: body.paymentProof,
+            upiQrUrl: body.upiQrUrl,
+            payStatus: body.paymentProof ? "submitted" : "pending",
+            // Back to the queue — an admin must verify the payment.
+            status: "PENDING",
+            rejectReason: null,
+          },
+        });
+        return created(upgraded);
+      }
+      // No row to convert (admin-created or pre-dating auto-create) — fall through.
+    }
 
     const ad = await prisma.advertisement.create({
       data: {
@@ -114,7 +182,7 @@ export async function POST(req: Request) {
         ownerName: body.ownerName,
         ownerMobile: body.ownerMobile,
         category: body.category,
-        type: body.type ?? "general",
+        type,
         source: isAdmin ? "admin" : "user",
         startDate: start,
         endDate: end,

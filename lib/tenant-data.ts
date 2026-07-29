@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { RegistrationStatus } from "@prisma/client";
 import { COMMUNITY_ADMIN_ROLES } from "@/lib/constants";
+import { getAdPriceTiers } from "@/lib/admin-settings";
 
 /* ============================ Admin dashboard ============================ */
 
@@ -238,11 +239,28 @@ export async function getGalleryAlbum(communityId: string, id: string) {
   });
 }
 
+/**
+ * `activeOnly` returns the paid banner slot — ACTIVE **premium** ads only.
+ *
+ * General ads are the free directory listing every submitted business gets;
+ * they must never reach the home carousel or the "live ads" strip, otherwise
+ * a business would occupy the paid slot without paying for it.
+ */
 export async function getAds(communityId: string, activeOnly = false) {
   return prisma.advertisement.findMany({
-    where: { communityId, ...(activeOnly ? { status: "ACTIVE" } : {}) },
+    where: { communityId, ...(activeOnly ? { status: "ACTIVE", type: "premium" } : {}) },
     orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
   });
+}
+
+/** Both premium banner plan prices, as currently configured in Admin → Settings → Advertisements. */
+export async function getAdPriceTiersForCommunity(communityId: string) {
+  const rows = await prisma.setting.findMany({
+    where: { communityId, key: { in: ["ads.pricing", "ads.price", "ads.duration"] } },
+  });
+  const stored: Record<string, string> = {};
+  for (const r of rows) stored[r.key] = r.value;
+  return getAdPriceTiers(stored);
 }
 
 /* ============================ Community info ============================ */

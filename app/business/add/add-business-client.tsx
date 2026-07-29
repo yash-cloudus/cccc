@@ -6,6 +6,9 @@ import { Check, ChevronDown, ImagePlus, Loader2, MapPin, Plus, Search, X } from 
 import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
+import { bilingualLabel } from "@/components/forms/family-details-fields";
+import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
+import { AppSelect } from "@/components/ui/app-select";
 import { SpeechInput, SpeechTextarea } from "@/components/ui/speech-input";
 import { useLang } from "@/providers/lang-provider";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
@@ -14,6 +17,8 @@ import { pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Category = { id: string; nameEn: string; nameGu: string | null };
+
+export type ContactPerson = { nameEn: string; nameGu: string | null; mobile: string };
 
 export type MemberOption = {
   id: string;
@@ -73,28 +78,40 @@ export function AddBusinessClient({
   categories,
   members,
   signedIn,
+  contactPerson,
 }: {
   categories: Category[];
   members: MemberOption[];
   signedIn: boolean;
+  /** Who to contact about a pending business — shown on the submitted screen. */
+  contactPerson: ContactPerson | null;
 }) {
   const { lang } = useLang();
   const router = useRouter();
   const { fromEn, guInput } = useTranslitSync();
   const T = (g: string, e: string) => (lang === "gu" ? g : e);
 
+  const contactName = contactPerson
+    ? pickText(contactPerson.nameGu, contactPerson.nameEn, lang)
+    : T("સમાજ સંપર્ક", "Community contact");
+  const contactMobile = contactPerson?.mobile || "";
+  const contactPhoneHref = contactMobile ? `tel:${contactMobile}` : "#";
+  const contactWhatsappHref = contactMobile ? `https://wa.me/91${contactMobile}` : "#";
+
   const [form, setForm] = useState<Form>(() => blank(categories[0]?.id ?? ""));
   /** Businesses already saved in this sitting — the "બીજો ધંધો ઉમેરો" list. */
   const [added, setAdded] = useState<{ id: string; name: string; category: string }[]>([]);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  /** Whether Mobile 1 also doubles as the WhatsApp number. */
+  const [hasWhatsApp, setHasWhatsApp] = useState(true);
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
   const categoryLabel = (id: string) => {
     const c = categories.find((x) => x.id === id);
-    return c ? pickText(c.nameGu, c.nameEn, lang) : "";
+    return c ? bilingualLabel(c.nameEn, c.nameGu) : "";
   };
 
   /** Saves the current form; returns true so the caller can reset or finish. */
@@ -163,6 +180,7 @@ export function AddBusinessClient({
   async function addAnother() {
     if (await save()) {
       setForm(blank(categories[0]?.id ?? ""));
+      setHasWhatsApp(true);
       toast.success(T("ધંધો ઉમેરાયો — બીજો ભરો", "Business added — fill the next one"));
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -201,6 +219,50 @@ export function AddBusinessClient({
               "Your business appears in the directory once an admin approves it.",
             )}
           </p>
+
+          {contactPerson && (
+            <div className="mt-4 w-full max-w-[340px] rounded-[24px] border border-[var(--brand-line)] bg-white p-4 text-left shadow-[0_14px_35px_-24px_rgba(40,40,40,.25)]">
+              <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
+                {T("મદદ માટે એડમિનનો સંપર્ક", "Contact admin for help")}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--brand-tint)] text-[18px] font-extrabold text-[var(--brand)]">
+                  {(contactName || "?").trim()[0] || "?"}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[14px] font-bold text-[var(--ink)]">{contactName}</div>
+                  <div className="mt-0.5 text-[12px] font-medium text-[var(--faint)]">
+                    {T("ધંધા ડિરેક્ટરી સંભાળનાર એડમિન", "Admin managing the business directory")}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2.5">
+                <a
+                  href={contactPhoneHref}
+                  className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--brand-tint)] text-[13px] font-extrabold text-[var(--brand)]"
+                >
+                  {T("કોલ કરો", "Call")}
+                </a>
+                <a
+                  href={contactWhatsappHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--success-tint)] text-[13px] font-extrabold text-[var(--wa-dark)]"
+                >
+                  WhatsApp
+                </a>
+              </div>
+
+              <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--faint)]">
+                {T(
+                  "ધંધાની નોંધણી બાબતે કોઈ પ્રશ્ન હોય તો સીધો સંપર્ક કરો.",
+                  "If you have any questions about business registration, contact them directly.",
+                )}
+              </p>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={() => {
@@ -281,7 +343,8 @@ export function AddBusinessClient({
           />
         </Field>
         <Field label={`${T("ધંધાનું નામ", "Business name")} (${T("ગુજરાતી", "Gujarati")}) *`}>
-          <Input
+          <GujaratiInput
+            inputClassName={FIELD}
             value={form.nameGu}
             placeholder={T("ગુજરાતીમાં…", "In Gujarati…")}
             onChange={(v) => {
@@ -297,7 +360,7 @@ export function AddBusinessClient({
             onChange={(v) => set("categoryId", v)}
             options={categories.map((c) => ({
               value: c.id,
-              label: pickText(c.nameGu, c.nameEn, lang),
+              label: bilingualLabel(c.nameEn, c.nameGu),
             }))}
             placeholder={T("કેટેગરી પસંદ કરો", "Pick a category")}
           />
@@ -324,7 +387,9 @@ export function AddBusinessClient({
           />
         </Field>
         <Field label={`${T("ધંધાનું વર્ણન", "Description")} (${T("ગુજરાતી", "Gujarati")})`}>
-          <Textarea
+          <GujaratiInput
+            multiline
+            inputClassName={cn(FIELD, "min-h-[70px] resize-none leading-relaxed")}
             value={form.descriptionGu}
             placeholder={T("ગુજરાતીમાં…", "In Gujarati…")}
             onChange={(v) => {
@@ -348,7 +413,8 @@ export function AddBusinessClient({
         <Field
           label={`${T("ધંધાનું સરનામું", "Business address")} (${T("ગુજરાતી", "Gujarati")}) *`}
         >
-          <Input
+          <GujaratiInput
+            inputClassName={FIELD}
             value={form.addressGu}
             placeholder={T("ગુજરાતીમાં…", "In Gujarati…")}
             onChange={(v) => {
@@ -416,22 +482,60 @@ export function AddBusinessClient({
         </Field>
 
         <SectionHeading>{T("સંપર્ક", "CONTACT")}</SectionHeading>
-        <Field label="Mobile 1 *">
-          <Input
-            value={form.phone}
-            placeholder="98765 43210"
-            numeric
-            onChange={(v) => set("phone", v)}
-          />
-        </Field>
-        <Field label={T("WhatsApp નંબર (વૈકલ્પિક)", "WhatsApp number (optional)")}>
-          <Input
-            value={form.whatsapp}
-            placeholder="98765 43210"
-            numeric
-            onChange={(v) => set("whatsapp", v)}
-          />
-        </Field>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
+          <Field label="Mobile 1 *">
+            <Input
+              value={form.phone}
+              placeholder="98765 43210"
+              numeric
+              onChange={(v) => set("phone", v)}
+            />
+          </Field>
+          {hasWhatsApp ? (
+            <div className="mb-3">
+              <div className="mb-1.5 text-[12px] font-bold text-[var(--ink-mid)]">&nbsp;</div>
+              <button
+                type="button"
+                onClick={() => setHasWhatsApp(false)}
+                className="samaj-card flex h-[48px] w-full items-center justify-between px-3.5"
+              >
+                <span className="text-[13.5px] font-semibold">
+                  {T("આ નંબર પર WhatsApp છે", "This number has WhatsApp")}
+                </span>
+                <span className="relative h-[27px] w-[46px] rounded-2xl bg-[var(--brand)] transition-colors">
+                  <span className="absolute top-[3px] left-[22px] h-[21px] w-[21px] rounded-full bg-white shadow transition-all" />
+                </span>
+              </button>
+            </div>
+          ) : (
+            <Field
+              label={
+                <span className="flex items-center justify-between gap-2">
+                  <span>{T("WhatsApp number", "WhatsApp number")}</span>
+                  <label className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--brand)]">
+                    <input
+                      type="checkbox"
+                      checked={false}
+                      onChange={() => {
+                        setHasWhatsApp(true);
+                        set("whatsapp", "");
+                      }}
+                      className="size-3.5 accent-[var(--brand)]"
+                    />
+                    {T("same mobile", "same mobile")}
+                  </label>
+                </span>
+              }
+            >
+              <Input
+                value={form.whatsapp}
+                placeholder="98765 43210"
+                numeric
+                onChange={(v) => set("whatsapp", v)}
+              />
+            </Field>
+          )}
+        </div>
         <Field label={T("ઈમેલ (વૈકલ્પિક)", "Email (optional)")}>
           <Input value={form.email} placeholder="name@email.com" onChange={(v) => set("email", v)} />
         </Field>
@@ -457,7 +561,7 @@ export function AddBusinessClient({
           ) : (
             <>
               <Check className="size-5" strokeWidth={2.3} />
-              {T("ધંધો સબમિટ", "Submit business")}
+              {T("ધંધો સબમિટ કરો", "Submit business")}
             </>
           )}
         </button>
@@ -597,7 +701,7 @@ function Field({
   hint,
   children,
 }: {
-  label: string;
+  label: React.ReactNode;
   hint?: string;
   children: React.ReactNode;
 }) {
@@ -687,18 +791,12 @@ function NativeSelect({
   placeholder: string;
 }) {
   return (
-    <select
+    <AppSelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={cn(FIELD, "font-semibold")}
-    >
-      <option value="">{placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={[{ value: "", label: placeholder }, ...options]}
+      className={FIELD}
+    />
   );
 }
 
@@ -718,6 +816,8 @@ export function ImageUpload({
   hint: string;
   onError: (msg: string) => void;
 }) {
+  const { lang } = useLang();
+  const T = (g: string, e: string) => (lang === "gu" ? g : e);
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
 
@@ -733,7 +833,7 @@ export function ImageUpload({
   }
 
   return (
-    <>
+    <div className="relative">
       <input
         ref={ref}
         type="file"
@@ -749,21 +849,39 @@ export function ImageUpload({
         type="button"
         onClick={() => ref.current?.click()}
         disabled={busy}
-        className="flex w-full flex-col items-center gap-1 rounded-[15px] border-[1.5px] border-dashed border-[var(--brand-line)] bg-[var(--brand-tint)] px-4 py-6 text-center"
+        className={cn(
+          "flex w-full flex-col items-center gap-1 rounded-[15px] border-[1.5px] border-dashed border-[var(--brand-line)] bg-[var(--brand-tint)] text-center",
+          value ? "p-2" : "px-4 py-6",
+        )}
       >
         {busy ? (
           <Loader2 className="size-6 animate-spin text-[var(--brand)]" />
         ) : value ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={value} alt="" className="mb-1 h-14 rounded-[10px] object-contain" />
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={value} alt="" className="max-h-56 w-full rounded-[10px] bg-white object-contain" />
+            <span className="mt-1 text-[12.5px] font-bold text-[var(--brand)]">
+              {label} ✓ · {T("બદલવા ટેપ કરો", "tap to change")}
+            </span>
+          </>
         ) : (
-          <ImagePlus className="size-6 text-[var(--brand)]" strokeWidth={1.6} />
+          <>
+            <ImagePlus className="size-6 text-[var(--brand)]" strokeWidth={1.6} />
+            <span className="text-[13.5px] font-bold text-[var(--brand)]">{label}</span>
+            <span className="text-[11.5px] text-[#C08A8F]">{hint}</span>
+          </>
         )}
-        <span className="text-[13.5px] font-bold text-[var(--brand)]">
-          {value ? `${label} ✓` : label}
-        </span>
-        <span className="text-[11.5px] text-[#C08A8F]">{hint}</span>
       </button>
-    </>
+      {value && !busy && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label={T("છબી કાઢી નાખો", "Remove image")}
+          className="absolute top-3 right-3 flex size-7 items-center justify-center rounded-full bg-black/60 text-white shadow-md transition-colors hover:bg-black/75"
+        >
+          <X className="size-4" strokeWidth={2.5} />
+        </button>
+      )}
+    </div>
   );
 }
