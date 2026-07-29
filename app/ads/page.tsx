@@ -31,7 +31,6 @@ export default async function AdsPage() {
     name: a.name,
     pitch: a.pitch,
     imageUrl: a.imageUrl,
-    linkUrl: a.linkUrl,
     category: a.category,
   }));
 

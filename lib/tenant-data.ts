@@ -253,6 +253,23 @@ export async function getAds(communityId: string, activeOnly = false) {
   });
 }
 
+/**
+ * One ad plus the business it advertises — powers the Advertisement detail
+ * screen, where the contact block, address and description all come from the
+ * linked business rather than the ad itself.
+ */
+export async function getAd(communityId: string, id: string) {
+  const ad = await prisma.advertisement.findFirst({ where: { id, communityId } });
+  if (!ad) return null;
+  const business = ad.businessId
+    ? await prisma.business.findFirst({
+        where: { id: ad.businessId, communityId },
+        include: { category: true },
+      })
+    : null;
+  return { ...ad, business };
+}
+
 /** Both premium banner plan prices, as currently configured in Admin → Settings → Advertisements. */
 export async function getAdPriceTiersForCommunity(communityId: string) {
   const rows = await prisma.setting.findMany({

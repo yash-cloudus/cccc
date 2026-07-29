@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Megaphone, Plus } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
@@ -14,7 +15,6 @@ export type AdRow = {
   name: string;
   pitch: string | null;
   imageUrl: string | null;
-  linkUrl: string | null;
   category: string | null;
 };
 
@@ -167,12 +167,10 @@ export function AdsClient({
               </div>
             );
 
-            return ad.linkUrl ? (
-              <a key={ad.id} href={ad.linkUrl} target="_blank" rel="noreferrer" className="block">
+            return (
+              <Link key={ad.id} href={`/ads/${ad.id}`} className="block">
                 {inner}
-              </a>
-            ) : (
-              <div key={ad.id}>{inner}</div>
+              </Link>
             );
           })
         )}
