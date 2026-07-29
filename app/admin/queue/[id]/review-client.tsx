@@ -9,7 +9,6 @@ import {
   AdminCellInput,
   AdminH2,
   AdminH3,
-  AdminHint,
   AdminInput,
   AdminLabel,
   AdminSelect,
@@ -244,21 +243,23 @@ export function ReviewClient({
         {backLabel}
       </Link>
 
-      <AdminH2 className="mb-1.5">
+      <AdminH2
+        info={
+          f.status === "PENDING"
+            ? "Edit any field, then Save or Approve. Approving activates family login numbers."
+            : "Edit any field, then Save."
+        }
+      >
         {f.status === "PENDING" ? "Review & edit" : "Edit"}: {f.headNameGu || f.headNameEn} (
         {f.surnameGu || f.surnameEn})
       </AdminH2>
-      <AdminHint className="mt-0 mb-[18px]">
-        {f.status === "PENDING"
-          ? "Edit any field, then Save or Approve. Approving activates family login numbers."
-          : "Edit any field, then Save."}
-      </AdminHint>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <AdminH3>Family details</AdminH3>
           <AdminLabel>Head name (English)</AdminLabel>
           <AdminInput
+            speech
             value={f.headNameEn}
             onChange={(v) => {
               setField("headNameEn", v);
@@ -317,6 +318,7 @@ export function ReviewClient({
               />
               <AdminLabel>Surname (English)</AdminLabel>
               <AdminInput
+                speech
                 value={f.surnameEn}
                 onChange={(v) => {
                   setField("surnameEn", v);
@@ -355,17 +357,17 @@ export function ReviewClient({
                 ]}
               />
               <AdminLabel>{f.livesOutsideVillage ? "City · શહેર *" : "City"}</AdminLabel>
-              <AdminInput value={f.city} onChange={(v) => setField("city", v)} />
+              <AdminInput speech value={f.city} onChange={(v) => setField("city", v)} />
             </>
           )}
           <AdminLabel>Address (English)</AdminLabel>
-          <AdminInput value={f.addressEn} onChange={(v) => setField("addressEn", v)} />
+          <AdminInput speech value={f.addressEn} onChange={(v) => setField("addressEn", v)} />
           <AdminLabel>Address (ગુજરાતી)</AdminLabel>
           <AdminInput value={f.addressGu} onChange={(v) => setField("addressGu", v)} />
           <AdminLabel>Business (ગુજરાતી)</AdminLabel>
           <AdminInput value={f.businessGu} onChange={(v) => setField("businessGu", v)} />
           <AdminLabel>Native elder name (English)</AdminLabel>
-          <AdminInput value={f.nativeElderNameEn} onChange={(v) => setField("nativeElderNameEn", v)} />
+          <AdminInput speech value={f.nativeElderNameEn} onChange={(v) => setField("nativeElderNameEn", v)} />
           <AdminLabel>Native elder name (ગુજરાતી)</AdminLabel>
           <AdminInput value={f.nativeElderNameGu} onChange={(v) => setField("nativeElderNameGu", v)} />
           <AdminLabel>Native elder phone</AdminLabel>

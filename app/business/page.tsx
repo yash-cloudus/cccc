@@ -23,6 +23,8 @@ export default async function BusinessPage() {
     address: b.address,
     city: b.city,
     website: b.website,
+    ownerEn: b.owner?.fullNameEn ?? null,
+    ownerGu: b.owner?.fullNameGu ?? null,
     categoryId: b.category?.id ?? null,
     categoryNameEn: b.category?.nameEn ?? null,
     categoryNameGu: b.category?.nameGu ?? null,

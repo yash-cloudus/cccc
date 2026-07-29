@@ -1,7 +1,10 @@
 "use client";
 
-import { Search, ChevronDown, Check, SlidersHorizontal, type LucideIcon } from "lucide-react";
+import { useState } from "react";
+import { Search, ChevronDown, Check, Info, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
+import { SpeechInput } from "@/components/ui/speech-input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 
@@ -40,19 +43,100 @@ export function ActionBtn({
   );
 }
 
-export function AdminH2({ children, className }: { children: React.ReactNode; className?: string }) {
+/**
+ * The (i) affordance that carries a screen's explanatory note.
+ *
+ * These notes used to sit as grey paragraphs above or below the content, which
+ * pushed the real work down the page and got skipped anyway. Tucking them
+ * behind the title keeps them one gesture away — hover on desktop, tap on
+ * touch (the trigger toggles the controlled state, since a tooltip alone never
+ * opens on touch).
+ */
+export function AdminInfoTip({
+  children,
+  label = "More information",
+  side = "bottom",
+  className,
+}: {
+  children: React.ReactNode;
+  label?: string;
+  side?: "top" | "bottom" | "left" | "right";
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
   return (
-    <h2 className={cn("mb-5 text-[22px] font-extrabold text-[var(--ink)]", className)}>
-      {children}
-    </h2>
+    <Tooltip open={open} onOpenChange={setOpen}>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={label}
+            onClick={() => setOpen((o) => !o)}
+            className={cn(
+              "flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--faint)] transition-colors hover:text-[var(--brand)] focus-visible:text-[var(--brand)] focus-visible:outline-none",
+              className,
+            )}
+          />
+        }
+      >
+        <Info className="size-[15px]" strokeWidth={2.1} />
+      </TooltipTrigger>
+      <TooltipContent
+        side={side}
+        className="max-w-[360px] text-[11.5px] leading-relaxed font-medium"
+      >
+        {children}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
-export function AdminH3({ children, className }: { children: React.ReactNode; className?: string }) {
+export function AdminH2({
+  children,
+  className,
+  info,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  /** Explanatory note, shown behind an (i) button beside the heading. */
+  info?: React.ReactNode;
+}) {
+  if (!info) {
+    return (
+      <h2 className={cn("mb-5 text-[22px] font-extrabold text-[var(--ink)]", className)}>
+        {children}
+      </h2>
+    );
+  }
   return (
-    <h3 className={cn("mb-[11px] text-sm font-extrabold text-[var(--ink)]", className)}>
-      {children}
-    </h3>
+    <div className={cn("mb-5 flex items-center gap-2", className)}>
+      <h2 className="text-[22px] font-extrabold text-[var(--ink)]">{children}</h2>
+      <AdminInfoTip>{info}</AdminInfoTip>
+    </div>
+  );
+}
+
+export function AdminH3({
+  children,
+  className,
+  info,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  info?: React.ReactNode;
+}) {
+  if (!info) {
+    return (
+      <h3 className={cn("mb-[11px] text-sm font-extrabold text-[var(--ink)]", className)}>
+        {children}
+      </h3>
+    );
+  }
+  return (
+    <div className={cn("mb-[11px] flex items-center gap-1.5", className)}>
+      <h3 className="text-sm font-extrabold text-[var(--ink)]">{children}</h3>
+      <AdminInfoTip>{info}</AdminInfoTip>
+    </div>
   );
 }
 
@@ -364,6 +448,7 @@ export function AdminInput({
   className,
   placeholder,
   gujarati,
+  speech,
   onBlur,
   min,
 }: {
@@ -372,8 +457,10 @@ export function AdminInput({
   type?: string;
   className?: string;
   placeholder?: string;
-  /** Adds the on-screen Gujarati keyboard button at the trailing edge. */
+  /** Adds the on-screen Gujarati keyboard button (and its mic) at the trailing edge. */
   gujarati?: boolean;
+  /** Adds an English dictation mic — ignored when `gujarati` already brings one. */
+  speech?: boolean;
   onBlur?: () => void;
   min?: string;
 }) {
@@ -389,6 +476,17 @@ export function AdminInput({
           "font-[family-name:var(--font-noto-sans-gujarati)]",
           className,
         )}
+      />
+    );
+  }
+  if (speech) {
+    return (
+      <SpeechInput
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        placeholder={placeholder}
+        inputClassName={cn(ADMIN_INPUT_CLASS, className)}
       />
     );
   }

@@ -1,8 +1,9 @@
 import { z } from "zod";
+import type { BloodGroupType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { fail, ok } from "@/lib/api";
 import { requireAdmin, handleApiError } from "@/lib/admin-guard";
-import { APPLIABLE_MEMBER_FIELDS } from "@/lib/profile-update-fields";
+import { APPLIABLE_MEMBER_FIELDS, coerceMemberFieldValue } from "@/lib/profile-update-fields";
 
 /** One field the member changed, as stored in ProfileUpdateRequest.changes. */
 const changeSchema = z.object({
@@ -77,11 +78,17 @@ export async function PATCH(req: Request) {
     const parsed = z.array(changeSchema).safeParse(JSON.parse(reqRow.changes || "[]"));
     if (!parsed.success) return fail("This request's payload is malformed", 422);
 
-    const memberData: Record<string, string | null> = {};
+    const memberData: Record<string, string | boolean | Date | null> = {};
     const familyData: Record<string, string | null> = {};
+    // "new.<field>" entries describe a member to CREATE (the member app's
+    // "Add member" request) rather than columns to update.
+    const newMemberData: Record<string, string | boolean | Date | null> = {};
     for (const c of parsed.data) {
-      if (reqRow.memberId && APPLIABLE_MEMBER_FIELDS.has(c.field)) {
-        memberData[c.field] = c.to ?? null;
+      if (c.field.startsWith("new.")) {
+        const f = c.field.slice(4);
+        if (APPLIABLE_MEMBER_FIELDS.has(f)) newMemberData[f] = coerceMemberFieldValue(f, c.to ?? null);
+      } else if (reqRow.memberId && APPLIABLE_MEMBER_FIELDS.has(c.field)) {
+        memberData[c.field] = coerceMemberFieldValue(c.field, c.to ?? null);
       } else if (reqRow.familyId && APPLIABLE_FAMILY_FIELDS.has(c.field)) {
         familyData[c.field] = c.to ?? null;
       }
@@ -100,6 +107,37 @@ export async function PATCH(req: Request) {
           where: { id: reqRow.familyId, communityId },
           data: familyData,
         });
+      }
+      if (
+        !reqRow.memberId &&
+        reqRow.familyId &&
+        typeof newMemberData.fullNameEn === "string" &&
+        newMemberData.fullNameEn
+      ) {
+        const family = await tx.family.findFirst({
+          where: { id: reqRow.familyId, communityId },
+          select: { id: true },
+        });
+        if (family) {
+          await tx.familyMember.create({
+            data: {
+              familyId: family.id,
+              isHead: false,
+              fullNameEn: newMemberData.fullNameEn,
+              fullNameGu: (newMemberData.fullNameGu as string | undefined) ?? null,
+              relation: (newMemberData.relation as string | undefined) ?? null,
+              mobile: (newMemberData.mobile as string | undefined) ?? null,
+              dateOfBirth: (newMemberData.dateOfBirth as Date | undefined) ?? null,
+              bloodGroup: (newMemberData.bloodGroup as BloodGroupType | undefined) ?? null,
+              occupation: (newMemberData.occupation as string | undefined) ?? null,
+              occupationOther: (newMemberData.occupationOther as string | undefined) ?? null,
+              education: (newMemberData.education as string | undefined) ?? null,
+              course: (newMemberData.course as string | undefined) ?? null,
+              currentlyAt: (newMemberData.currentlyAt as string | undefined) ?? null,
+              hasWhatsApp: (newMemberData.hasWhatsApp as boolean | undefined) ?? true,
+            },
+          });
+        }
       }
       await tx.profileUpdateRequest.update({
         where: { id: reqRow.id },

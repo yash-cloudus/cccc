@@ -6,6 +6,7 @@ import { Check, ChevronDown, ImagePlus, Loader2, MapPin, Plus, Search, X } from 
 import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
+import { SpeechInput, SpeechTextarea } from "@/components/ui/speech-input";
 import { useLang } from "@/providers/lang-provider";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { api } from "@/lib/http";
@@ -86,7 +87,6 @@ export function AddBusinessClient({
   /** Businesses already saved in this sitting — the "બીજો ધંધો ઉમેરો" list. */
   const [added, setAdded] = useState<{ id: string; name: string; category: string }[]>([]);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
   const set = <K extends keyof Form>(key: K, value: Form[K]) =>
@@ -100,32 +100,31 @@ export function AddBusinessClient({
   /** Saves the current form; returns true so the caller can reset or finish. */
   async function save(): Promise<boolean> {
     if (!form.memberId) {
-      setError(T("સભ્ય પસંદ કરો", "Pick a member"));
+      toast.error(T("સભ્ય પસંદ કરો", "Pick a member"));
       return false;
     }
     if (form.nameEn.trim().length < 2 || !form.nameGu.trim()) {
-      setError(T("ધંધાનું નામ બંને ભાષામાં ભરો", "Enter the business name in both languages"));
+      toast.error(T("ધંધાનું નામ બંને ભાષામાં ભરો", "Enter the business name in both languages"));
       return false;
     }
     if (!form.categoryId) {
-      setError(T("કેટેગરી પસંદ કરો", "Pick a category"));
+      toast.error(T("કેટેગરી પસંદ કરો", "Pick a category"));
       return false;
     }
     if (form.address.trim().length < 3 || !form.addressGu.trim()) {
-      setError(T("સરનામું બંને ભાષામાં ભરો", "Enter the address in both languages"));
+      toast.error(T("સરનામું બંને ભાષામાં ભરો", "Enter the address in both languages"));
       return false;
     }
     if (!/^[6-9]\d{9}$/.test(form.phone)) {
-      setError(T("સાચો 10-અંકનો મોબાઈલ ભરો", "Enter a valid 10-digit mobile"));
+      toast.error(T("સાચો 10-અંકનો મોબાઈલ ભરો", "Enter a valid 10-digit mobile"));
       return false;
     }
     if (form.whatsapp && !/^[6-9]\d{9}$/.test(form.whatsapp)) {
-      setError(T("સાચો WhatsApp નંબર ભરો", "Enter a valid WhatsApp number"));
+      toast.error(T("સાચો WhatsApp નંબર ભરો", "Enter a valid WhatsApp number"));
       return false;
     }
 
     setBusy(true);
-    setError(null);
     const res = await api.post<{ id: string }>("/api/businesses", {
       memberId: form.memberId,
       nameEn: form.nameEn.trim(),
@@ -147,7 +146,7 @@ export function AddBusinessClient({
     });
     setBusy(false);
     if (!res.ok) {
-      setError(res.issues?.map((i) => i.message).filter(Boolean).join(" · ") || res.error);
+      toast.error(res.issues?.map((i) => i.message).filter(Boolean).join(" · ") || res.error);
       return false;
     }
     setAdded((prev) => [
@@ -274,6 +273,7 @@ export function AddBusinessClient({
           <Input
             value={form.nameEn}
             placeholder={T("નામ લખો…", "Enter name…")}
+            speech
             onChange={(v) => {
               set("nameEn", v);
               fromEn(v, (gu) => set("nameGu", gu));
@@ -316,6 +316,7 @@ export function AddBusinessClient({
           <Textarea
             value={form.description}
             placeholder={T("ટૂંકમાં લખો…", "Write briefly…")}
+            speech
             onChange={(v) => {
               set("description", v);
               fromEn(v, (gu) => set("descriptionGu", gu));
@@ -337,6 +338,7 @@ export function AddBusinessClient({
           <Input
             value={form.address}
             placeholder={T("સરનામું લખો…", "Enter address…")}
+            speech
             onChange={(v) => {
               set("address", v);
               fromEn(v, (gu) => set("addressGu", gu));
@@ -386,7 +388,7 @@ export function AddBusinessClient({
             folder="business-logos"
             label={T("લોગો અપલોડ કરો", "Upload logo")}
             hint={T("tap કરીને પસંદ કરો", "tap to choose")}
-            onError={setError}
+            onError={(msg) => toast.error(msg)}
           />
         </Field>
 
@@ -433,8 +435,6 @@ export function AddBusinessClient({
         <Field label={T("ઈમેલ (વૈકલ્પિક)", "Email (optional)")}>
           <Input value={form.email} placeholder="name@email.com" onChange={(v) => set("email", v)} />
         </Field>
-
-        {error && <p className="mb-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
 
         <button
           type="button"
@@ -615,12 +615,23 @@ function Input({
   onChange,
   placeholder,
   numeric,
+  speech,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
   numeric?: boolean;
+  speech?: boolean;
 }) {
+  if (speech)
+    return (
+      <SpeechInput
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        inputClassName={FIELD}
+      />
+    );
   return (
     <input
       value={value}
@@ -638,11 +649,22 @@ function Textarea({
   value,
   onChange,
   placeholder,
+  speech,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder: string;
+  speech?: boolean;
 }) {
+  if (speech)
+    return (
+      <SpeechTextarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        textareaClassName={cn(FIELD, "min-h-[70px] resize-none leading-relaxed")}
+      />
+    );
   return (
     <textarea
       value={value}

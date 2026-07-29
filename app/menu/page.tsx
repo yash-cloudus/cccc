@@ -73,7 +73,7 @@ export default function MenuPage() {
         </div>
         <Link
           href="/profile"
-          className="relative z-2 flex items-center gap-3.5 rounded-[18px] bg-white/12 p-[13px]"
+          className="relative z-2 flex items-center gap-3.5 rounded-[18px] bg-white/12 p-[13px] text-white hover:text-white"
         >
           <div className="flex h-[52px] w-[52px] flex-none items-center justify-center rounded-2xl bg-white text-xl font-extrabold text-[var(--brand)]">
             {meInit}

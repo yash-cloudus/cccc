@@ -167,10 +167,10 @@ export default function LoginPage() {
               href={community.slug ? communityAdminUrl(community.slug, "/admin/login") : "/admin/login"}
               className="text-[var(--platform-muted)] hover:text-[var(--brand)]"
             >
-              Admin Panel
+              {lang === "gu" ? "એડમિન પેનલ" : "Admin Panel"}
             </a>
             <a href={mainAdminUrl("/login")} className="text-[var(--platform-bright)] hover:underline">
-              Main Admin
+              {lang === "gu" ? "મુખ્ય એડમિન" : "Main Admin"}
             </a>
           </div>
           <LangToggle className="mx-auto mt-5 w-fit" />

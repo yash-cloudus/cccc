@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink, FileText } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, ExternalLink, FileText, ImageIcon } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
@@ -19,6 +20,8 @@ export type NewsDetail = {
   documentUrl: string | null;
   documentName: string | null;
   linkUrl: string | null;
+  authorEn: string | null;
+  authorGu: string | null;
 };
 
 const DEFAULT_BG = "linear-gradient(150deg,#8E2230,#B24C3B)";
@@ -27,7 +30,7 @@ export function NewsDetailClient({ item }: { item: NewsDetail }) {
   const { t, lang } = useLang();
 
   return (
-    <AppScreen showNav={false}>
+    <AppScreen>
       <BackHeader title={t("news")} subtitle={formatDateDMY(item.dateISO)} />
       <div className="px-4 py-4 pb-8">
         {item.isPinned && (
@@ -38,6 +41,11 @@ export function NewsDetailClient({ item }: { item: NewsDetail }) {
         <h1 className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold leading-snug text-[var(--ink)]">
           {pickText(item.titleGu, item.titleEn, lang)}
         </h1>
+        <div className="mt-1.5 text-[12px] font-semibold text-[var(--faint)]">
+          {[formatDateDMY(item.dateISO), pickText(item.authorGu, item.authorEn, lang)]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
         <div
           className="mt-5 flex h-[180px] items-center justify-center overflow-hidden rounded-[20px] text-white"
           style={{ background: item.accent || DEFAULT_BG }}
@@ -63,12 +71,32 @@ export function NewsDetailClient({ item }: { item: NewsDetail }) {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--info-tint)] text-[var(--info)]">
               <FileText className="h-5 w-5" strokeWidth={1.85} />
             </div>
-            <div className="flex-1 text-sm font-bold text-[var(--ink)]">
-              {item.documentName || (lang === "gu" ? "દસ્તાવેજ જુઓ" : "View document")}
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-bold text-[var(--ink)]">
+                {item.documentName || (lang === "gu" ? "દસ્તાવેજ" : "Document")}
+              </div>
+              <div className="mt-0.5 text-[11.5px] text-[var(--faint)]">
+                {lang === "gu" ? "દસ્તાવેજ ખોલો" : "Open document"}
+              </div>
             </div>
             <ExternalLink className="h-[18px] w-[18px] text-[var(--line-strong)]" />
           </a>
         )}
+
+        <Link href="/gallery" className="samaj-card mt-4 flex items-center gap-3 p-3.5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--violet-tint)] text-[var(--violet)]">
+            <ImageIcon className="h-5 w-5" strokeWidth={1.85} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-bold text-[var(--ink)]">
+              {lang === "gu" ? "ફોટા જુઓ" : "See photos"}
+            </div>
+            <div className="mt-0.5 text-[11.5px] text-[var(--faint)]">
+              {lang === "gu" ? "→ ગેલેરી આલ્બમ" : "→ Gallery album"}
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 flex-none text-[var(--line-strong)]" strokeWidth={2.2} />
+        </Link>
 
         {item.linkUrl && (
           <a

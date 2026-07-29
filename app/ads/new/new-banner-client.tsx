@@ -37,7 +37,6 @@ export function NewBannerClient({
   const [businessId, setBusinessId] = useState("");
   const [paymentProof, setPaymentProof] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const business = businesses.find((b) => b.id === businessId) ?? null;
   const amount = BANNER_PRICE_INR;
@@ -50,14 +49,13 @@ export function NewBannerClient({
     : null;
 
   async function submit() {
-    if (!imageUrl) return setError(T("બેનર ઈમેજ અપલોડ કરો", "Upload the banner image"));
-    if (!businessId) return setError(T("ધંધો પસંદ કરો", "Pick the linked business"));
+    if (!imageUrl) return toast.error(T("બેનર ઈમેજ અપલોડ કરો", "Upload the banner image"));
+    if (!businessId) return toast.error(T("ધંધો પસંદ કરો", "Pick the linked business"));
     if (!paymentProof) {
-      return setError(T("ચૂકવણીનો સ્ક્રીનશોટ અપલોડ કરો", "Upload the payment screenshot"));
+      return toast.error(T("ચૂકવણીનો સ્ક્રીનશોટ અપલોડ કરો", "Upload the payment screenshot"));
     }
 
     setBusy(true);
-    setError(null);
     const res = await api.post("/api/ads", {
       name: business?.name ?? T("બેનર", "Banner"),
       imageUrl,
@@ -67,7 +65,7 @@ export function NewBannerClient({
     });
     setBusy(false);
     if (!res.ok) {
-      return setError(res.issues?.map((i) => i.message).filter(Boolean).join(" · ") || res.error);
+      return toast.error(res.issues?.map((i) => i.message).filter(Boolean).join(" · ") || res.error);
     }
     toast.success(T("બેનર મોકલાયું — એડમિન ચકાસશે", "Banner submitted — admin will review"));
     router.push("/ads");
@@ -86,7 +84,7 @@ export function NewBannerClient({
             folder="ad-banners"
             label={T("બેનર ઈમેજ અપલોડ કરો", "Upload banner image")}
             hint={T("ભલામણ માપ: 1200 × 600px", "Recommended size: 1200 × 600px")}
-            onError={setError}
+            onError={toast.error}
           />
         </Field>
 
@@ -207,11 +205,9 @@ export function NewBannerClient({
             folder="ad-payments"
             label={T("સ્ક્રીનશોટ અપલોડ કરો", "Upload screenshot")}
             hint={T("UPI પેમેન્ટ સફળ થયાનો ફોટો", "Photo of the successful UPI payment")}
-            onError={setError}
+            onError={toast.error}
           />
         </Field>
-
-        {error && <p className="mb-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
 
         <button
           type="button"

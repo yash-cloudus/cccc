@@ -10,6 +10,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
+      // Bottom-centre on every surface: on the phone it sits above the thumb
+      // and clear of the fixed bottom nav, and the same placement on desktop
+      // keeps validation messages where the eye already is — near the button
+      // that was just pressed.
+      position="bottom-center"
+      offset={{ bottom: "calc(var(--bottomnav-h, 0px) + 16px)" }}
       className="toaster group"
       icons={{
         success: (

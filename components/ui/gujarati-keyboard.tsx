@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Keyboard, X } from "lucide-react";
+import { MicButton } from "@/components/ui/mic-button";
 import { cn } from "@/lib/utils";
 
 const ROWS: { label: string; keys: string[] }[] = [
@@ -147,28 +148,32 @@ export function GujaratiInput({
         onKeyUp={rememberCaret}
         onClick={rememberCaret}
         onSelect={rememberCaret}
-        className={cn("pr-11", inputClassName)}
+        className={cn("pr-[76px]", inputClassName)}
       />
 
-      <button
-        type="button"
-        aria-label="ગુજરાતી કીબોર્ડ"
-        title="ગુજરાતી કીબોર્ડ"
-        aria-expanded={open}
-        onMouseDown={(e) => e.preventDefault()} // keep caret in the input
-        onClick={() => {
-          rememberCaret();
-          setOpen((o) => !o);
-        }}
-        className={cn(
-          "absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-lg transition",
-          open
-            ? "bg-[var(--brand)] text-white"
-            : "text-[var(--faint)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
-        )}
-      >
-        <Keyboard className="size-[18px]" strokeWidth={1.9} />
-      </button>
+      {/* Dictation sits beside the keyboard — same field, two ways to type. */}
+      <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
+        <MicButton value={value} onChange={onChange} lang="gu-IN" />
+        <button
+          type="button"
+          aria-label="ગુજરાતી કીબોર્ડ"
+          title="ગુજરાતી કીબોર્ડ"
+          aria-expanded={open}
+          onMouseDown={(e) => e.preventDefault()} // keep caret in the input
+          onClick={() => {
+            rememberCaret();
+            setOpen((o) => !o);
+          }}
+          className={cn(
+            "flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg transition",
+            open
+              ? "bg-[var(--brand)] text-white"
+              : "text-[var(--faint)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
+          )}
+        >
+          <Keyboard className="size-[18px]" strokeWidth={1.9} />
+        </button>
+      </div>
 
       {open && (
         <div

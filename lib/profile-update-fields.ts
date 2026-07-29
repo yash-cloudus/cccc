@@ -9,6 +9,7 @@ export const APPLIABLE_MEMBER_FIELDS = new Set([
   "fullNameGu",
   "relation",
   "mobile",
+  "dateOfBirth",
   "occupation",
   "occupationOther",
   "education",
@@ -23,7 +24,9 @@ export const APPLIABLE_MEMBER_FIELDS = new Set([
 export const MEMBER_FIELD_LABELS: Record<string, string> = {
   fullNameEn: "Full name (English)",
   fullNameGu: "Full name (Gujarati)",
+  relation: "Relation",
   mobile: "Mobile",
+  dateOfBirth: "Birth date",
   occupation: "Occupation",
   occupationOther: "Business / job",
   education: "Education",
@@ -31,3 +34,18 @@ export const MEMBER_FIELD_LABELS: Record<string, string> = {
   currentlyAt: "Currently at",
   bloodGroup: "Blood group",
 };
+
+/**
+ * Coerce a change's stored string value into the FamilyMember column type.
+ * ProfileUpdateRequest.changes serializes everything as strings; without this,
+ * applying hasWhatsApp/showPhone/dateOfBirth would write a string into a
+ * Boolean/DateTime column and fail at the Prisma layer.
+ */
+export function coerceMemberFieldValue(
+  field: string,
+  to: string | null,
+): string | boolean | Date | null {
+  if (field === "hasWhatsApp" || field === "showPhone") return to === "true";
+  if (field === "dateOfBirth") return to ? new Date(to) : null;
+  return to;
+}

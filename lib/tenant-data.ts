@@ -195,7 +195,14 @@ export async function getNews(communityId: string, publishedOnly = false) {
 }
 
 export async function getNewsItem(communityId: string, id: string) {
-  return prisma.news.findFirst({ where: { id, communityId } });
+  return prisma.news.findFirst({
+    where: { id, communityId },
+    include: {
+      author: {
+        select: { username: true, profile: { select: { fullNameEn: true, fullNameGu: true } } },
+      },
+    },
+  });
 }
 
 /**
@@ -355,18 +362,39 @@ export async function getCommunityAdmins(communityId: string) {
 /* ============================ Member site ============================ */
 
 export async function getBusinesses(communityId: string) {
-  return prisma.business.findMany({
+  const rows = await prisma.business.findMany({
     where: { communityId, isApproved: true, isVisible: true },
     include: { category: true },
     orderBy: { nameEn: "asc" },
   });
+  // Business.memberId is a plain scalar (no Prisma relation) — batch-resolve
+  // the owners so list cards can show "owner · business" like the prototype.
+  const memberIds = [...new Set(rows.map((b) => b.memberId).filter((id): id is string => !!id))];
+  const owners = memberIds.length
+    ? await prisma.familyMember.findMany({
+        where: { id: { in: memberIds }, family: { communityId } },
+        select: { id: true, fullNameEn: true, fullNameGu: true },
+      })
+    : [];
+  const byId = new Map(owners.map((o) => [o.id, o]));
+  return rows.map((b) => ({ ...b, owner: b.memberId ? (byId.get(b.memberId) ?? null) : null }));
 }
 
 export async function getBusiness(communityId: string, id: string) {
-  return prisma.business.findFirst({
+  const biz = await prisma.business.findFirst({
     where: { id, communityId },
     include: { category: true, gallery: true },
   });
+  if (!biz) return null;
+  // Business.memberId is a plain scalar (no Prisma relation), so the owning
+  // member is resolved with a second lookup.
+  const owner = biz.memberId
+    ? await prisma.familyMember.findFirst({
+        where: { id: biz.memberId, family: { communityId } },
+        select: { fullNameEn: true, fullNameGu: true },
+      })
+    : null;
+  return { ...biz, owner };
 }
 
 /**

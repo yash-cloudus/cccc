@@ -181,16 +181,31 @@ export function AdminsClient({
   return (
     <>
       <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
-        <AdminH2 className="mb-0">Admins &amp; roles</AdminH2>
+        <AdminH2
+          className="mb-0"
+          info={
+            <>
+              <p>
+                create login credentials and assign menu permissions. You cannot delete or
+                deactivate your own account or the last active admin.
+              </p>
+              <p className="mt-2">
+                Role filters follow the templates in the Add admin form. One person can hold
+                multiple roles. Admins sign in with username &amp; password — <b>reset</b> sets a
+                new one.
+              </p>
+            </>
+          }
+        >
+          Admins &amp; roles
+        </AdminH2>
         <AdminBtn onClick={openAdd}>
           <Plus className="size-4" />
           Add admin
         </AdminBtn>
       </div>
       <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
-        <b>{activeCount}</b> active of <b>{rows.length}</b> admins · create login credentials and
-        assign menu permissions. You cannot delete or deactivate your own account or the last
-        active admin.
+        <b>{activeCount}</b> active of <b>{rows.length}</b> admins
       </AdminHint>
 
       {error && !formOpen && !resetRow && (
@@ -343,11 +358,6 @@ export function AdminsClient({
           )}
         </tbody>
       </AdminTable>
-
-      <AdminHint>
-        Role filters follow the templates in the Add admin form. One person can hold multiple roles.
-        Admins sign in with username &amp; password — <b>reset</b> sets a new one.
-      </AdminHint>
 
       <AdminFormModal
         open={formOpen}

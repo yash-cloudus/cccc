@@ -1,6 +1,7 @@
 "use client";
 
-import { ExternalLink, Globe, Phone } from "lucide-react";
+import Link from "next/link";
+import { ExternalLink, Globe, MapPin, Phone } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
@@ -18,10 +19,17 @@ export type BusinessDetail = {
   nameEn: string;
   nameGu: string | null;
   description: string | null;
+  descriptionGu: string | null;
   phone: string | null;
+  whatsapp: string | null;
   address: string | null;
+  addressGu: string | null;
   city: string | null;
   website: string | null;
+  mapUrl: string | null;
+  familyId: string | null;
+  ownerEn: string | null;
+  ownerGu: string | null;
   categoryNameEn: string | null;
   categoryNameGu: string | null;
   gallery: GalleryImage[];
@@ -58,6 +66,7 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
   const brand = useCommunity();
 
   const name = pickText(biz.nameGu, biz.nameEn, lang);
+  const owner = pickText(biz.ownerGu, biz.ownerEn, lang);
   const category =
     biz.categoryNameEn || biz.categoryNameGu ? pickText(biz.categoryNameGu, biz.categoryNameEn, lang) : "";
   const palette = PALETTE[hashIndex(biz.id, PALETTE.length)];
@@ -66,7 +75,14 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
   const addressLabel = lang === "gu" ? "સરનામું" : "Address";
   const cityLabel = lang === "gu" ? "શહેર" : "City";
   const websiteLabel = lang === "gu" ? "વેબસાઇટ" : "Website";
-  const hasContactInfo = Boolean(biz.address || biz.city);
+  const description = pickText(biz.descriptionGu, biz.description, lang);
+  const address = pickText(biz.addressGu, biz.address, lang);
+  const mapHref =
+    biz.mapUrl ||
+    (address || biz.city
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([address, biz.city].filter(Boolean).join(", "))}`
+      : null);
+  const hasContactInfo = Boolean(address || biz.city);
 
   return (
     <AppScreen showNav={false}>
@@ -82,6 +98,9 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
           </div>
           <div className="min-w-0">
             <div className="text-xl font-extrabold text-[var(--brand)]">{name}</div>
+            {owner && (
+              <div className="mt-0.5 truncate text-[13px] font-semibold text-[var(--ink-mid)]">{owner}</div>
+            )}
             {category && (
               <span
                 className="mt-2 inline-block rounded-full px-3 py-1 text-xs font-bold"
@@ -93,20 +112,20 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
           </div>
         </div>
 
-        {biz.description && (
+        {description && (
           <div className="samaj-card mb-4 p-4">
             <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{aboutLabel}</div>
-            <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">{biz.description}</p>
+            <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">{description}</p>
           </div>
         )}
 
         {hasContactInfo && (
           <div className="samaj-card mb-4 p-4">
             <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{addressLabel}</div>
-            {biz.address && (
+            {address && (
               <div className="mt-1 flex gap-3 py-1 text-[13px]">
                 <b className="min-w-[70px] font-bold text-[var(--faint)]">{addressLabel}</b>
-                <span>{biz.address}</span>
+                <span>{address}</span>
               </div>
             )}
             {biz.city && (
@@ -118,7 +137,7 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
           </div>
         )}
 
-        {(biz.phone || biz.website) && (
+        {(biz.phone || biz.website || mapHref) && (
           <div className="space-y-2">
             {biz.phone && (
               <div className="flex gap-2">
@@ -129,14 +148,36 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
                   <Phone className="h-4 w-4" /> {t("call")}
                 </a>
                 <a
-                  href={waLink(biz.phone)}
+                  href={waLink(biz.whatsapp || biz.phone)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--success-tint)] py-3.5 text-sm font-bold text-[var(--success)]"
                 >
                   <WaIcon /> {t("whatsapp")}
                 </a>
+                {mapHref && (
+                  <a
+                    href={mapHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={lang === "gu" ? "નકશામાં જુઓ" : "View on map"}
+                    title={lang === "gu" ? "નકશામાં જુઓ" : "View on map"}
+                    className="flex w-[54px] flex-none items-center justify-center rounded-2xl bg-[var(--leaf-tint)] text-[var(--leaf)]"
+                  >
+                    <MapPin className="h-[18px] w-[18px]" />
+                  </a>
+                )}
               </div>
+            )}
+            {!biz.phone && mapHref && (
+              <a
+                href={mapHref}
+                target="_blank"
+                rel="noreferrer"
+                className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--leaf-tint)] text-sm font-bold text-[var(--leaf)]"
+              >
+                <MapPin className="h-4 w-4" /> {lang === "gu" ? "નકશામાં જુઓ" : "View on map"}
+              </a>
             )}
             {biz.website && (
               <a
@@ -149,6 +190,15 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
               </a>
             )}
           </div>
+        )}
+
+        {biz.familyId && (
+          <Link
+            href={`/directory/family/${biz.familyId}`}
+            className="mt-4 block text-center text-sm font-bold text-[var(--brand)]"
+          >
+            {lang === "gu" ? "પરિવારની માહિતી જુઓ →" : "View family information →"}
+          </Link>
         )}
 
         {biz.gallery.length > 0 && (

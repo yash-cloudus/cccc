@@ -83,7 +83,7 @@ export function AboutClient({
   );
 
   return (
-    <AppScreen showNav={false}>
+    <AppScreen>
       <header className="samaj-header relative flex-none overflow-hidden px-[18px] pb-[18px] pt-12 text-white">
         <div className="absolute -right-[30px] -top-10 h-[150px] w-[150px] rounded-full bg-white/5" />
         <div className="relative z-2 flex items-center gap-3">
@@ -105,8 +105,13 @@ export function AboutClient({
 
       <div className="px-4 py-4 pb-8">
         <div className="samaj-card mb-4 p-5">
-          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-[20px] bg-gradient-to-br from-[var(--gold-light)] to-[var(--gold)] text-2xl font-bold text-[var(--brand-hover)]">
-            {c.shortLogo}
+          <div className="mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-[20px] border-2 border-[var(--gold)] bg-gradient-to-br from-[var(--gold-light)] to-[var(--gold)] text-2xl font-bold text-[var(--brand-hover)]">
+            {c.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={c.logoUrl} alt="" className="size-full object-cover" />
+            ) : (
+              c.shortLogo
+            )}
           </div>
           <h1 className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold text-[var(--ink)]">
             {name}
@@ -115,6 +120,7 @@ export function AboutClient({
             <div className="mt-1 text-[12.5px] font-semibold text-[#A98A50]">
               {lang === "gu" ? "સ્થાપના " : "Established "}
               {c.estd}
+              {c.village ? ` · ${c.village}` : ""}
             </div>
           )}
           {description && (

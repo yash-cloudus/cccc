@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
   AdminBtn,
   AdminH2,
-  AdminHint,
   AdminInput,
   AdminLabel,
   AdminTable,
@@ -361,8 +360,19 @@ export function DropdownsClient({
 
   return (
     <>
-      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
-        <AdminH2 className="mb-0">Dropdown lists (masters)</AdminH2>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <AdminH2
+          className="mb-0"
+          info={
+            <>
+              Each option is saved in English + ગુજરાતી. Disabled options stay on old records but no
+              longer appear in the app’s dropdowns. Masters adapt to{" "}
+              <b>{communityType === "PARIVAR" ? "Parivar" : "Gam"}</b> community type.
+            </>
+          }
+        >
+          Dropdown lists (masters)
+        </AdminH2>
         {cat.api && (
           <AdminBtn onClick={() => openEdit()}>
             <Plus className="size-4" />
@@ -370,12 +380,6 @@ export function DropdownsClient({
           </AdminBtn>
         )}
       </div>
-
-      <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
-        Each option is saved in English + ગુજરાતી. Disabled options stay on old records but no
-        longer appear in the app’s dropdowns. Masters adapt to{" "}
-        <b>{communityType === "PARIVAR" ? "Parivar" : "Gam"}</b> community type.
-      </AdminHint>
 
       {lockedSurname && (
         <p className="mb-4 rounded-xl border border-[var(--brand)]/25 bg-[var(--brand-tint)] px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--brand)]">

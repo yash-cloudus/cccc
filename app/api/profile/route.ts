@@ -25,9 +25,16 @@ export async function GET() {
             },
           })
         : null,
-      record?.source === "familyMember"
+      record
         ? prisma.profileUpdateRequest.findFirst({
-            where: { memberId: record.id, status: "PENDING" },
+            // Own edits, edits I made to family members, and add-member requests.
+            where: {
+              status: "PENDING",
+              OR: [
+                ...(record.source === "familyMember" ? [{ memberId: record.id }] : []),
+                { requestedBy: session.sub },
+              ],
+            },
             orderBy: { submittedAt: "desc" },
             select: { id: true, submittedAt: true },
           })
@@ -51,6 +58,10 @@ const schema = z.object({
   showBusiness: z.boolean().optional(),
   fullNameEn: z.string().min(2).max(120).optional(),
   fullNameGu: z.string().max(120).optional(),
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   occupation: z.string().max(120).optional(),
   occupationOther: z.string().max(120).optional(),
   education: z.string().max(120).optional(),
@@ -69,9 +80,17 @@ export async function PATCH(req: Request) {
     const record = await getMyMemberRecord(session.sub);
     if (!record) return fail("Profile not found", 404);
 
+    // dateOfBirth arrives as "YYYY-MM-DD" but both columns are DateTime.
+    const data = {
+      ...body,
+      ...(body.dateOfBirth !== undefined
+        ? { dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : null }
+        : {}),
+    };
+
     // Write back to whichever table this member actually lives in.
     if (record.source === "profile") {
-      const updated = await prisma.profile.update({ where: { userId: session.sub }, data: body });
+      const updated = await prisma.profile.update({ where: { userId: session.sub }, data });
       return ok(updated);
     }
 

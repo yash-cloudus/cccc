@@ -131,6 +131,29 @@ export function blankFamilyDetails(
   };
 }
 
+/**
+ * Family-level place, derived from where the HEAD member lives.
+ *
+ * Location is collected per member (households span villages and cities), but
+ * `Family.city` / `Family.villageAreaId` still drive the directory, the queue's
+ * city filter and the families table. The head's pick is the household's
+ * address of record; a pick that matches no village is simply an outside city,
+ * which is exactly what "lives outside the village" used to mean.
+ */
+export function familyPlaceFromHead(
+  headPlace: string,
+  villages: { id: string; nameEn: string; nameGu: string | null }[],
+): { city: string; villageAreaId: string | null; livesOutsideVillage: boolean } {
+  const place = headPlace.trim();
+  if (!place) return { city: "", villageAreaId: null, livesOutsideVillage: false };
+  const village = villages.find(
+    (v) => v.nameEn.trim().toLowerCase() === place.toLowerCase() || v.nameGu?.trim() === place,
+  );
+  return village
+    ? { city: place, villageAreaId: village.id, livesOutsideVillage: false }
+    : { city: place, villageAreaId: null, livesOutsideVillage: true };
+}
+
 /** Trim + drop empties so blank optional fields are stored as NULL, not "". */
 export function familyDetailsToPayload(v: FamilyDetailsValues) {
   const t = (s: string) => s.trim() || undefined;

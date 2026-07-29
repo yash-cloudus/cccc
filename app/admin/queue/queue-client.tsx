@@ -6,7 +6,6 @@ import { Check, Loader2, X } from "lucide-react";
 import {
   AdminBtn,
   AdminH2,
-  AdminHint,
   AdminTable,
   AdminTd,
   AdminTh,
@@ -209,7 +208,19 @@ export function QueueClient({
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <AdminH2 className="mb-0">Registration queue</AdminH2>
+        <AdminH2
+          className="mb-0"
+          info={
+            <>
+              <p>Approve → family&apos;s phone numbers can log in · Reject requires a reason.</p>
+              <p className="mt-1.5">
+                Members edited their profile in the app. Review what changed, then apply or reject.
+              </p>
+            </>
+          }
+        >
+          Registration queue
+        </AdminH2>
         <div className="flex gap-2.5">
           <QStat count={qc.pending} color="#B0801E" label="Pending" />
           <QStat count={qc.approved} color="#1E9E52" label="Approved" />
@@ -354,19 +365,12 @@ export function QueueClient({
         </p>
       )}
 
-      <AdminHint>
-        Approve → family&apos;s phone numbers can log in · Reject requires a reason.
-      </AdminHint>
       </>
       )}
 
       {/* ── Profile update requests ─────────────────────────────────── */}
       {tab === "updates" && (
       <>
-      <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
-        Members edited their profile in the app. Review what changed, then apply or reject.
-      </AdminHint>
-
       <AdminTable>
         <thead>
           <tr>

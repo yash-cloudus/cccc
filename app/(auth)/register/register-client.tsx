@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { Loader2, MapPin } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
@@ -14,6 +14,7 @@ import { bloodToEnum, pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
+import { SpeechInput } from "@/components/ui/speech-input";
 import { toast } from "sonner";
 import {
   type CascadingOccupationValues,
@@ -21,8 +22,13 @@ import {
   resolveCascadingOccupationForSave,
 } from "@/lib/cascading-occupation";
 import type { OccupationTreeNode } from "@/lib/occupation-defaults";
-import { validateFamilyByType, type FamilyDetailsValues } from "@/lib/family-form";
+import {
+  familyPlaceFromHead,
+  validateFamilyByType,
+  type FamilyDetailsValues,
+} from "@/lib/family-form";
 import { FamilyDetailsFields } from "@/components/forms/family-details-fields";
+import { MemberPlacePicker, labelForPlace } from "@/components/forms/member-place-picker";
 
 type Group = { id: string; nameEn: string; nameGu: string | null };
 type Place = { id: string; nameEn: string; nameGu: string | null };
@@ -37,6 +43,8 @@ type Member = {
   mobile: string;
   whatsapp: string;
   hasWa: boolean;
+  /** Where this member currently lives — English name of a village / city. */
+  place: string;
 } & CascadingOccupationValues;
 
 const BLOOD = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
@@ -48,7 +56,7 @@ function bilingualLabel(nameEn?: string | null, nameGu?: string | null) {
   return en || gu || "—";
 }
 
-const blankMember = (): Member => ({
+const blankMember = (place = ""): Member => ({
   name: "",
   nameGu: "",
   relation: "Son",
@@ -57,6 +65,7 @@ const blankMember = (): Member => ({
   mobile: "",
   whatsapp: "",
   hasWa: true,
+  place,
   ...blankCascadingOccupation(),
 });
 
@@ -94,7 +103,6 @@ export function RegisterClient({
   const [editingMemberIndex, setEditingMemberIndex] = useState<number | null>(null);
   const [consent, setConsent] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
   const initialGroupId =
@@ -105,17 +113,28 @@ export function RegisterClient({
     return surnameGroups.find((g) => g.id === surnameGroupId) ?? null;
   }, [lockedSurname, surnameGroups, surnameGroupId]);
 
-  const [city, setCity] = useState(
-    communityType === "PARIVAR" ? cities[0]?.nameEn ?? "" : "",
-  );
-  const [villageAreaId, setVillageAreaId] = useState(villages[0]?.id ?? "");
-  const [livesOutsideVillage, setLivesOutsideVillage] = useState(false);
   const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({
     lat: null,
     lng: null,
   });
   const [nativePlace] = useState("");
   const [email] = useState("");
+
+  /**
+   * Places a member can pick from. GAM communities live in villages, PARIVAR
+   * communities in cities — one list either way, since a member only ever
+   * answers "where do you live now?".
+   */
+  const placeOptions = communityType === "GAM" ? villages : cities;
+  /** Locally-added places (typed by the registrant) sit alongside the masters. */
+  const [extraPlaces, setExtraPlaces] = useState<Place[]>([]);
+  const allPlaces = useMemo(() => [...placeOptions, ...extraPlaces], [placeOptions, extraPlaces]);
+  const addPlace = ({ nameEn, nameGu }: { nameEn: string; nameGu: string }) =>
+    setExtraPlaces((prev) =>
+      prev.some((p) => p.nameEn === nameEn) || placeOptions.some((p) => p.nameEn === nameEn)
+        ? prev
+        : [...prev, { id: `new:${nameEn}`, nameEn, nameGu: nameGu || null }],
+    );
 
   const [form, setForm] = useState({
     addr: "",
@@ -130,6 +149,7 @@ export function RegisterClient({
     m1whatsapp: "",
     m1dob: "",
     m1blood: "B+",
+    m1place: "",
     hasWhatsApp: true,
     ...blankCascadingOccupation(),
   });
@@ -137,9 +157,16 @@ export function RegisterClient({
   const [members, setMembers] = useState<Member[]>([]);
   const [newMember, setNewMember] = useState<Member>(blankMember);
 
+  /** Household place of record — the head's. Drives Family.city / villageAreaId. */
+  const { city, villageAreaId, livesOutsideVillage } = useMemo(
+    () => familyPlaceFromHead(form.m1place, villages),
+    [form.m1place, villages],
+  );
+
   function openAddMember() {
     setEditingMemberIndex(null);
-    setNewMember(blankMember());
+    // New members default to the head's place — most households share one.
+    setNewMember(blankMember(form.m1place));
     setAddOpen(true);
   }
 
@@ -160,6 +187,7 @@ export function RegisterClient({
             { nameEn: "Father", nameGu: "પિતા" },
             { nameEn: "Mother", nameGu: "માતા" },
             { nameEn: "Brother", nameGu: "ભાઈ" },
+            { nameEn: "Sister", nameGu: "બહેન" },
           ],
     [relations],
   );
@@ -204,26 +232,7 @@ export function RegisterClient({
     active: step === n,
   }));
 
-  const placeLabel = useMemo(() => {
-    if (communityType === "PARIVAR") {
-      const c = cities.find((x) => x.nameEn === city);
-      if (c) return bilingualLabel(c.nameEn, c.nameGu);
-      return city || (lang === "gu" ? "પસંદ કરો" : "Select");
-    }
-    if (livesOutsideVillage) {
-      return city
-        ? `${lang === "gu" ? "બહાર" : "Outside"} · ${city}`
-        : lang === "gu"
-          ? "ગામ બહાર રહે છે"
-          : "Lives outside";
-    }
-    const v = villages.find((x) => x.id === villageAreaId);
-    return v
-      ? bilingualLabel(v.nameEn, v.nameGu)
-      : lang === "gu"
-        ? "પસંદ કરો"
-        : "Select";
-  }, [communityType, city, cities, livesOutsideVillage, villageAreaId, villages, lang]);
+  const placeLabel = labelForPlace(form.m1place, allPlaces, T("પસંદ કરો", "Select"));
 
   /**
    * The shared <FamilyDetailsFields> speaks the API's field names, while this
@@ -237,7 +246,7 @@ export function RegisterClient({
     addressEn: form.addr,
     addressGu: form.addrGu,
     city,
-    villageAreaId,
+    villageAreaId: villageAreaId ?? "",
     livesOutsideVillage,
     nativeElderNameEn: form.elder,
     nativeElderNameGu: form.elderGu,
@@ -248,9 +257,6 @@ export function RegisterClient({
 
   function applyDetails(patch: Partial<FamilyDetailsValues>) {
     if (patch.surnameGroupId !== undefined) setSurnameGroupId(patch.surnameGroupId);
-    if (patch.city !== undefined) setCity(patch.city);
-    if (patch.villageAreaId !== undefined) setVillageAreaId(patch.villageAreaId);
-    if (patch.livesOutsideVillage !== undefined) setLivesOutsideVillage(patch.livesOutsideVillage);
     if (patch.latitude !== undefined || patch.longitude !== undefined) {
       setCoords({ lat: patch.latitude ?? null, lng: patch.longitude ?? null });
     }
@@ -273,42 +279,45 @@ export function RegisterClient({
       return T("અટક જૂથ પસંદ કરો", "Pick a surname group");
     }
     if (form.addr.trim().length < 3) return T("સરનામું જરૂરી છે", "Address is required");
-    const typeErr = validateFamilyByType(communityType, {
-      headNameEn: "x",
-      addressEn: form.addr,
-      city,
-      villageAreaId: livesOutsideVillage ? null : villageAreaId,
-      livesOutsideVillage,
-      surnameGroupId: selectedGroup?.id ?? surnameGroupId,
-      surnameEn: selectedGroup?.nameEn,
-    });
-    if (typeErr) {
-      if (typeErr.includes("City")) return T("શહેર જરૂરી છે", "City is required");
-      if (typeErr.includes("Village")) return T("ગામ પસંદ કરો", "Pick a village");
-      return typeErr;
+    if (!selectedGroup && !surnameGroupId) {
+      return T("અટક જૂથ પસંદ કરો", "Pick a surname group");
     }
     return null;
   }
 
+  /** The head's place lives on their member card, so it is validated with step 2. */
   function validateStep2() {
     if (form.m1name.trim().length < 2) return T("વડાનું નામ જરૂરી છે", "Head name is required");
     const mob = form.m1mobile.replace(/\D/g, "");
     if (!/^[6-9]\d{9}$/.test(mob)) {
       return T("લોગિન મોબાઈલ 10 અંકનો હોવો જોઈએ", "Login mobile must be 10 digits (6–9…)");
     }
+    const typeErr = validateFamilyByType(communityType, {
+      headNameEn: form.m1name,
+      addressEn: form.addr,
+      city,
+      villageAreaId,
+      livesOutsideVillage,
+      surnameGroupId: selectedGroup?.id ?? surnameGroupId,
+      surnameEn: selectedGroup?.nameEn,
+    });
+    if (typeErr) {
+      return communityType === "GAM"
+        ? T("વડાનું ગામ / શહેર પસંદ કરો", "Pick the head's village / city")
+        : T("વડાનું શહેર પસંદ કરો", "Pick the head's city");
+    }
     return null;
   }
 
   async function submit() {
     const e1 = validateStep1();
-    if (e1) return setError(e1);
+    if (e1) return toast.error(e1);
     const e2 = validateStep2();
-    if (e2) return setError(e2);
-    if (!consent) return setError(T("સંમતિ જરૂરી છે", "Consent is required"));
-    if (!selectedGroup) return setError(T("અટક જૂથ પસંદ કરો", "Pick a surname group"));
+    if (e2) return toast.error(e2);
+    if (!consent) return toast.error(T("સંમતિ જરૂરી છે", "Consent is required"));
+    if (!selectedGroup) return toast.error(T("અટક જૂથ પસંદ કરો", "Pick a surname group"));
 
     setBusy(true);
-    setError(null);
 
     const headOcc = await resolveCascadingOccupationForSave(occupationTree, form);
     const memberOcc = await Promise.all(
@@ -341,7 +350,7 @@ export function RegisterClient({
           relation: "Head",
           mobile: form.m1mobile.replace(/\D/g, ""),
           bloodGroup: bloodToEnum(form.m1blood),
-          currentlyAt: city || undefined,
+          currentlyAt: form.m1place || undefined,
           dateOfBirth: form.m1dob || undefined,
           hasWhatsApp: true,
           isHead: true,
@@ -356,7 +365,7 @@ export function RegisterClient({
           relation: m.relation,
           mobile: m.mobile.replace(/\D/g, "") || undefined,
           bloodGroup: bloodToEnum(m.blood),
-          currentlyAt: city || undefined,
+          currentlyAt: m.place || city || undefined,
           dateOfBirth: m.dob || undefined,
           hasWhatsApp: m.hasWa,
           isHead: false,
@@ -371,7 +380,6 @@ export function RegisterClient({
     const res = await api.post("/api/families", payload);
     setBusy(false);
     if (!res.ok) {
-      setError(res.error);
       toast.error(res.error || T("નોંધણી થઈ નથી", "Registration failed"));
       return;
     }
@@ -401,6 +409,7 @@ export function RegisterClient({
             )}
           </p>
 
+          {contactPerson ? (
           <div className="mt-4 w-full max-w-[340px] rounded-[24px] border border-[var(--brand-line)] bg-white p-4 text-left shadow-[0_14px_35px_-24px_rgba(40,40,40,.25)]">
             <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
               {T("આ જૂથ માટે સંયોજક", "Coordinator for this group")}
@@ -444,6 +453,14 @@ export function RegisterClient({
               )}
             </p>
           </div>
+          ) : (
+            <p className="mt-4 max-w-[320px] text-[11.5px] leading-relaxed text-[var(--faint)]">
+              {T(
+                "આ સંભાળનાર ત્યારે જ દેખાય જ્યારે તમારા અટક જૂથ માટે એડમિન નિમાયેલ હોય.",
+                "A coordinator appears here only when the admin has assigned one for your surname group.",
+              )}
+            </p>
+          )}
 
           <button
             type="button"
@@ -464,6 +481,7 @@ export function RegisterClient({
                 m1whatsapp: "",
                 m1dob: "",
                 m1blood: "B+",
+                m1place: "",
                 hasWhatsApp: true,
                 ...blankCascadingOccupation(),
               });
@@ -499,21 +517,20 @@ export function RegisterClient({
             setEditingMemberIndex(null);
           }}
         />
-        <div className="flex-1 px-4 py-[18px] pb-6">
+        <div className="mx-auto w-full max-w-[680px] flex-1 px-4 py-[18px] pb-6">
           <Field label={`${T("પૂરું નામ", "Full name")} (${T("English", "English")}) *`}>
             <div className="relative">
-              <input
-                className="samaj-fld pr-[120px]"
+              <SpeechInput
+                inputClassName="samaj-fld pr-[150px]"
                 value={newMember.name}
-                onChange={(e) => {
-                  const v = e.target.value;
+                onChange={(v) => {
                   setNewMember((prev) => ({ ...prev, name: v }));
                   fromEn(v, (gu) => setNewMember((prev) => ({ ...prev, nameGu: gu })), "newMember");
                 }}
                 placeholder={T("નામ લખો…", "Enter name…")}
               />
               {selectedGroup && (
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-[#F1E4CC] bg-[#FFF7EA] px-2.5 py-1 text-[10.5px] font-extrabold text-[#9C6A1B]">
+                <span className="pointer-events-none absolute right-12 top-1/2 -translate-y-1/2 rounded-full border border-[#F1E4CC] bg-[#FFF7EA] px-2.5 py-1 text-[10.5px] font-extrabold text-[#9C6A1B]">
                   {selectedGroup.nameEn}
                 </span>
               )}
@@ -555,6 +572,17 @@ export function RegisterClient({
               ))}
             </div>
           </Field>
+          <Field
+            label={`${communityType === "GAM" ? T("ગામ / શહેર", "Village / city") : T("શહેર", "City")}`}
+          >
+            <MemberPlacePicker
+              value={newMember.place}
+              onChange={(v) => setNewMember((prev) => ({ ...prev, place: v }))}
+              options={allPlaces}
+              onAddNew={addPlace}
+              t={T}
+            />
+          </Field>
           <div className="mb-3.5 grid grid-cols-2 gap-2.5">
             <Field label={T("જન્મ", "DOB")}>
               <input
@@ -579,7 +607,7 @@ export function RegisterClient({
             </Field>
           </div>
           <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
-            <Field label={T("મોબાઈલ", "Mobile")}>
+            <Field label={T("મોબાઈલ (વૈકલ્પિક)", "Mobile (optional)")}>
               <input
                 className="samaj-fld"
                 value={newMember.mobile}
@@ -659,6 +687,7 @@ export function RegisterClient({
           <div className="mb-3.5">
             <CascadingOccupationFields
               tree={occupationTree}
+              t={T}
               values={newMember}
               onChange={(patch) => setNewMember((prev) => ({ ...prev, ...patch }))}
             />
@@ -690,7 +719,7 @@ export function RegisterClient({
     <AppShell>
       <header className="samaj-header relative flex-none overflow-hidden px-[18px] pb-[18px] pt-12 text-white">
         <div className="absolute -right-[30px] -top-10 h-[150px] w-[150px] rounded-full bg-white/5" />
-        <div className="relative z-2 flex items-center gap-3">
+        <div className="relative z-2 mx-auto flex w-full max-w-[680px] items-center gap-3">
           <button
             type="button"
             onClick={() => (step > 1 ? setStep(step - 1) : router.push("/login"))}
@@ -704,7 +733,7 @@ export function RegisterClient({
             {T("પરિવાર નોંધણી", "Family Registration")}
           </div>
         </div>
-        <div className="relative z-2 mt-4 flex items-center gap-2">
+        <div className="relative z-2 mx-auto mt-4 flex w-full max-w-[680px] items-center gap-2">
           {steps.map((s, idx) => (
             <div key={s.n} className="flex flex-1 items-center gap-2">
               <div
@@ -725,9 +754,7 @@ export function RegisterClient({
         </div>
       </header>
 
-      <div className="flex-1 px-4 py-4 pb-6">
-        {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
-
+      <div className="mx-auto w-full max-w-[680px] flex-1 px-4 py-4 pb-6">
         {communityType === "GAM" && surnameGroups.length === 0 && (
           <p className="mb-3 rounded-[14px] border border-[#EFE3CB] bg-[#FDF9F0] p-3.5 text-xs text-[#8B7A55]">
             {T(
@@ -751,16 +778,13 @@ export function RegisterClient({
                 communityType={communityType}
                 lockedSurname={lockedSurname}
                 surnameGroups={surnameGroups}
-                cities={cities}
-                villages={villages}
                 t={T}
               />
 
               <PrimaryBtn
                 onClick={() => {
                   const err = validateStep1();
-                  if (err) return setError(err);
-                  setError(null);
+                  if (err) return toast.error(err);
                   setStep(2);
                 }}
               >
@@ -798,17 +822,16 @@ export function RegisterClient({
                 </div>
                 <Field label={`${T("પૂરું નામ", "Full name")} *`}>
                   <div className="relative">
-                    <input
-                      className="samaj-fld pr-[120px]"
+                    <SpeechInput
+                      inputClassName="samaj-fld pr-[150px]"
                       value={form.m1name}
-                      onChange={(e) => {
-                        const v = e.target.value;
+                      onChange={(v) => {
                         setForm((prev) => ({ ...prev, m1name: v }));
                         fromEn(v, (gu) => setForm((prev) => ({ ...prev, m1nameGu: gu })), "m1");
                       }}
                     />
                     {selectedGroup && (
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-[#F1E4CC] bg-[#FFF7EA] px-2.5 py-1 text-[10.5px] font-extrabold text-[#9C6A1B]">
+                      <span className="pointer-events-none absolute right-12 top-1/2 -translate-y-1/2 rounded-full border border-[#F1E4CC] bg-[#FFF7EA] px-2.5 py-1 text-[10.5px] font-extrabold text-[#9C6A1B]">
                         {selectedGroup.nameEn}
                       </span>
                     )}
@@ -831,11 +854,16 @@ export function RegisterClient({
                     )}
                   </div>
                 </Field>
-                <Field label={`${T("હાલ", "Currently at")} *`}>
-                  <div className="samaj-fld flex items-center justify-between bg-[#F7F3EC] text-[var(--ink)]">
-                    <span>{placeLabel || T("પસંદ કરો", "Select")}</span>
-                    <ChevronDown className="h-4 w-4 text-[var(--brand)]" />
-                  </div>
+                <Field
+                  label={`${communityType === "GAM" ? T("ગામ / શહેર", "Village / city") : T("શહેર", "City")} *`}
+                >
+                  <MemberPlacePicker
+                    value={form.m1place}
+                    onChange={(v) => setForm((prev) => ({ ...prev, m1place: v }))}
+                    options={allPlaces}
+                    onAddNew={addPlace}
+                    t={T}
+                  />
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
                   <Field label={T("જન્મ", "DOB")}>
@@ -938,6 +966,7 @@ export function RegisterClient({
                 </div>
                 <CascadingOccupationFields
                   tree={occupationTree}
+                  t={T}
                   values={form}
                   onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
                 />
@@ -981,6 +1010,12 @@ export function RegisterClient({
                         : ""}
                     </span>
                   </div>
+                  {m.place && (
+                    <div className="mt-1.5 flex items-center gap-1.5 px-1 text-[11.5px] font-semibold text-[var(--faint)]">
+                      <MapPin className="size-3.5 flex-none text-[var(--ochre)]" strokeWidth={2} />
+                      {labelForPlace(m.place, allPlaces, "")}
+                    </div>
+                  )}
                 </div>
               ))}
               <button
@@ -993,8 +1028,7 @@ export function RegisterClient({
               <PrimaryBtn
                 onClick={() => {
                   const err = validateStep2();
-                  if (err) return setError(err);
-                  setError(null);
+                  if (err) return toast.error(err);
                   setStep(3);
                 }}
               >
@@ -1016,6 +1050,14 @@ export function RegisterClient({
                 />
                 <Kv k={T("સરનામું", "Address")} v={form.addr || "—"} />
                 <Kv k={T("હાલ", "Currently at")} v={placeLabel || "—"} />
+                {(form.elder || form.elderGu || form.elderPhone) && (
+                  <Kv
+                    k={T("વડીલ", "Elder")}
+                    v={[lang === "gu" ? form.elderGu || form.elder : form.elder || form.elderGu, form.elderPhone]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  />
+                )}
                 <button type="button" onClick={() => setStep(1)} className="mt-1.5 text-xs font-bold text-[var(--brand)] underline">
                   {T("ફેરફાર કરવો?", "Make changes?")}
                 </button>
@@ -1037,6 +1079,7 @@ export function RegisterClient({
                     dob: form.m1dob,
                     blood: form.m1blood,
                     occupation: occupationLabel(form),
+                    place: form.m1place,
                   },
                   ...members.map((m) => ({
                     name: m.name,
@@ -1045,11 +1088,13 @@ export function RegisterClient({
                     dob: m.dob,
                     blood: m.blood,
                     occupation: occupationLabel(m),
+                    place: m.place,
                   })),
                 ].map((member, i) => {
                   const displayName = lang === "gu" && member.nameGu ? member.nameGu : member.name;
                   const parts = [
                     relationLabel(member.relation),
+                    member.place ? labelForPlace(member.place, allPlaces, "") : "",
                     member.dob ? `${T("જન્મ", "DOB")} ${formatShortDate(member.dob)}` : "",
                     member.blood || "",
                     member.occupation || "",

@@ -16,7 +16,6 @@ import {
   ActionBtn,
   AdminBtn,
   AdminH2,
-  AdminHint,
   AdminInput,
   AdminLabel,
   AdminSelect,
@@ -639,8 +638,23 @@ export function AdsClient({
 
   return (
     <>
-      <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
-        <AdminH2 className="mb-0">Advertisements</AdminH2>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <AdminH2
+          className="mb-0"
+          info={
+            <>
+              <p>
+                General ads are auto-created when a business is approved (or added here) · Premium ads are
+                paid banner requests.
+              </p>
+              <p className="mt-1.5">
+                Auto-expiry on end date · renew = extend date · views/clicks help renewal conversations.
+              </p>
+            </>
+          }
+        >
+          Advertisements
+        </AdminH2>
         <AdminBtn
           onClick={() => {
             setModal({ kind: "create", draft: emptyDraft() });
@@ -651,11 +665,6 @@ export function AdsClient({
           New advertisement
         </AdminBtn>
       </div>
-
-      <AdminHint className="mt-0 mb-4 max-w-3xl text-[12.5px]">
-        General ads are auto-created when a business is approved (or added here) · Premium ads are
-        paid banner requests.
-      </AdminHint>
 
       {/* Type tabs (left) · date range (middle, desktop-only) · search + filters (right) — one row */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -908,10 +917,6 @@ export function AdsClient({
           )}
         </tbody>
       </AdminTable>
-
-      <AdminHint>
-        Auto-expiry on end date · renew = extend date · views/clicks help renewal conversations.
-      </AdminHint>
 
       <AdminModal
         open={modal !== null}

@@ -7,7 +7,6 @@ import {
   AdminBtn,
   AdminH2,
   AdminH3,
-  AdminHint,
   AdminInput,
   AdminLabel,
   AdminSelect,
@@ -494,7 +493,16 @@ export function ResultsClient({
                 </AdminBtn>
               </div>
 
-              <AdminH3>{activeStd}</AdminH3>
+              <AdminH3
+                info={
+                  <>
+                    Enter total + obtained marks then Save — percentage auto-calculates. ≥80% →
+                    eligible for felicitation 🎁.
+                  </>
+                }
+              >
+                {activeStd}
+              </AdminH3>
 
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {(
@@ -600,11 +608,6 @@ export function ResultsClient({
               </tbody>
             </AdminTable>
           )}
-
-              <AdminHint>
-                Enter total + obtained marks then Save — percentage auto-calculates. ≥80% →
-                eligible for felicitation 🎁.
-              </AdminHint>
             </>
           )}
         </>

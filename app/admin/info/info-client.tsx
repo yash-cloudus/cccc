@@ -6,7 +6,6 @@ import {
   AdminBtn,
   AdminH2,
   AdminH3,
-  AdminHint,
   AdminInput,
   AdminLabel,
   AdminTable,
@@ -76,9 +75,9 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 /** The "Basic information" grid, in the order the prototype lists them. */
-const BASIC_FIELDS: { key: keyof BasicInfo; label: string; gujarati?: boolean }[] = [
+const BASIC_FIELDS: { key: keyof BasicInfo; label: string; gujarati?: boolean; speech?: boolean }[] = [
   { key: "nameGu", label: "Community name (ગુજરાતી)", gujarati: true },
-  { key: "nameEn", label: "Community name (English)" },
+  { key: "nameEn", label: "Community name (English)", speech: true },
   { key: "estd", label: "Established year" },
   { key: "village", label: "Village name", gujarati: true },
   { key: "addressEn", label: "Address", gujarati: true },
@@ -316,11 +315,16 @@ export function InfoClient({
 
   return (
     <>
-      <AdminH2 className="mb-1">Community info</AdminH2>
-      <AdminHint className="mt-0 mb-5 max-w-3xl text-[12.5px]">
-        Everything shown in the User App → Community Information section is managed here. Changes
-        sync to the app on save.
-      </AdminHint>
+      <AdminH2
+        info={
+          <>
+            Everything shown in the User App → Community Information section is managed here. Changes
+            sync to the app on save.
+          </>
+        }
+      >
+        Community info
+      </AdminH2>
 
       <div className="mb-5 flex flex-wrap gap-2">
         {TABS.map((x) => (
@@ -405,6 +409,7 @@ export function InfoClient({
               <AdminLabel>{f.label}</AdminLabel>
               <AdminInput
                 gujarati={f.gujarati}
+                speech={f.speech}
                 value={basic[f.key]}
                 onChange={(v) => setField(f.key, v)}
               />
@@ -420,7 +425,9 @@ export function InfoClient({
 
       <div className="grid grid-cols-1 gap-6">
         <div className={tab === "committee" ? "" : "hidden"}>
-          <AdminH3>Committees</AdminH3>
+          <AdminH3 info="Manage = add members, assign position/role + contact visibility.">
+            Committees
+          </AdminH3>
           <AdminTable>
             <thead>
               <tr>
@@ -459,7 +466,6 @@ export function InfoClient({
               </tr>
             </tbody>
           </AdminTable>
-          <AdminHint>Manage = add members, assign position/role + contact visibility.</AdminHint>
         </div>
 
         <div className={tab === "sections" ? "" : "hidden"}>
@@ -537,10 +543,9 @@ export function InfoClient({
           tab === "basic" ? "" : "hidden",
         )}
       >
-        <AdminH3 className="mb-1">Donations — UPI ID</AdminH3>
-        <AdminHint className="mb-3">
-          Members on the Donate screen will open a UPI payment to this ID. Leave blank to only record donation pledges.
-        </AdminHint>
+        <AdminH3 info="Members on the Donate screen will open a UPI payment to this ID. Leave blank to only record donation pledges.">
+          Donations — UPI ID
+        </AdminH3>
         <div className="flex flex-wrap items-end gap-2.5">
           <div className="min-w-[220px] flex-1">
             <AdminLabel>UPI ID</AdminLabel>
@@ -563,11 +568,21 @@ export function InfoClient({
 
       <div
         className={cn(
-          "mt-[26px] flex flex-wrap items-center justify-between gap-3",
+          "mt-[26px] mb-3 flex flex-wrap items-center justify-between gap-3",
           tab === "basic" ? "" : "hidden",
         )}
       >
-        <AdminH3 className="mb-0">Directory privacy by village (ગામ પ્રમાણે નંબર)</AdminH3>
+        <AdminH3
+          className="mb-0"
+          info={
+            <>
+              Turn ON to let members of that village show their phone numbers in the directory. When OFF,
+              no phone is shown to others for that village — regardless of the member&apos;s own setting.
+            </>
+          }
+        >
+          Directory privacy by village (ગામ પ્રમાણે નંબર)
+        </AdminH3>
         <label className="flex items-center gap-2 text-[11.5px] font-bold text-[var(--ink-mid)]">
           <span>Global: show phones in directory</span>
           <Switch
@@ -577,10 +592,6 @@ export function InfoClient({
           />
         </label>
       </div>
-      <AdminHint className="-mt-1 mb-3">
-        Turn ON to let members of that village show their phone numbers in the directory. When OFF,
-        no phone is shown to others for that village — regardless of the member&apos;s own setting.
-      </AdminHint>
 
       <AdminTable>
         <thead>
@@ -647,6 +658,7 @@ export function InfoClient({
             <div>
               <AdminLabel>Name (English) *</AdminLabel>
               <AdminInput
+                speech
                 value={committeeEdit.nameEn}
                 onChange={(v) => {
                   setCommitteeEdit((prev) => (prev ? { ...prev, nameEn: v } : prev));
@@ -687,6 +699,7 @@ export function InfoClient({
             <div>
               <AdminLabel>Title (English) *</AdminLabel>
               <AdminInput
+                speech
                 value={infoEdit.titleEn}
                 onChange={(v) => {
                   setInfoEdit((prev) => (prev ? { ...prev, titleEn: v } : prev));
@@ -745,6 +758,7 @@ export function InfoClient({
             <div>
               <AdminLabel>Name (English) *</AdminLabel>
               <AdminInput
+                speech
                 value={villageAdd.nameEn}
                 onChange={(v) => {
                   setVillageAdd((prev) => (prev ? { ...prev, nameEn: v } : prev));
@@ -877,7 +891,7 @@ function CommitteeMembersModal({
 
               <div className="mt-3 rounded-xl border border-[#EEE7DA] bg-[var(--field)] p-3">
                 <AdminLabel>Member name *</AdminLabel>
-                <AdminInput value={form.nameOverride} onChange={(v) => setForm({ ...form, nameOverride: v })} />
+                <AdminInput speech value={form.nameOverride} onChange={(v) => setForm({ ...form, nameOverride: v })} />
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <AdminLabel>Role (ગુજરાતી)</AdminLabel>

@@ -6,7 +6,6 @@ import { Loader2, Plus, X } from "lucide-react";
 import {
   AdminBtn,
   AdminH2,
-  AdminHint,
   AdminInput,
   AdminSelect,
   AdminTable,
@@ -29,6 +28,8 @@ import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
 import { FamilyDetailsFields } from "@/components/forms/family-details-fields";
+import { MemberPlacePicker } from "@/components/forms/member-place-picker";
+import { familyPlaceFromHead } from "@/lib/family-form";
 import {
   type CascadingOccupationValues,
   blankCascadingOccupation,
@@ -114,9 +115,11 @@ export type MemberDraft = {
   dateOfBirth: string;
   bloodGroup: string;
   hasWhatsApp: boolean;
+  /** Where this member currently lives — English name of a village / city. */
+  place: string;
 } & CascadingOccupationValues;
 
-function blankMemberDraft(): MemberDraft {
+function blankMemberDraft(place = ""): MemberDraft {
   return {
     fullNameEn: "",
     fullNameGu: "",
@@ -125,6 +128,7 @@ function blankMemberDraft(): MemberDraft {
     dateOfBirth: "",
     bloodGroup: "",
     hasWhatsApp: true,
+    place,
     ...blankCascadingOccupation(),
   };
 }
@@ -136,6 +140,8 @@ function blankForm() {
     headDateOfBirth: "",
     headBloodGroup: "",
     headHasWhatsApp: true,
+    /** The head's village / city — becomes the family's place of record. */
+    headPlace: "",
     surnameEn: "",
     surnameGu: "",
     surnameGroupId: "",
@@ -215,6 +221,47 @@ export function FamiliesClient({
 
   useEffect(() => setOccupationTreeState(occupationTree), [occupationTree]);
 
+  /**
+   * Places a member can live in — villages for a Gam community, cities for a
+   * Parivar one. A place typed into the picker is persisted to the matching
+   * master list so the next admin picks it instead of retyping it.
+   */
+  const [extraPlaces, setExtraPlaces] = useState<SurnameOption[]>([]);
+  const basePlaces = communityType === "GAM" ? villages : cities;
+  const allPlaces = useMemo(
+    () => [...basePlaces, ...extraPlaces],
+    [basePlaces, extraPlaces],
+  );
+
+  async function addPlace({ nameEn, nameGu }: { nameEn: string; nameGu: string }) {
+    if (allPlaces.some((p) => p.nameEn.toLowerCase() === nameEn.toLowerCase())) return;
+    setExtraPlaces((prev) => [...prev, { id: `pending:${nameEn}`, nameEn, nameGu }]);
+    const body = { nameEn, nameGu: nameGu || nameEn };
+    const res =
+      communityType === "GAM"
+        ? await api.post<{ id: string; nameEn: string; nameGu: string }>(
+            "/api/admin/villages",
+            body,
+          )
+        : await api.post<{ id: string; nameEn: string; nameGu: string }>("/api/admin/dropdowns", {
+            type: "city",
+            ...body,
+          });
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    // Swap the optimistic row for the saved one so its id is real.
+    setExtraPlaces((prev) =>
+      prev.map((p) =>
+        p.id === `pending:${nameEn}`
+          ? { id: res.data.id, nameEn: res.data.nameEn, nameGu: res.data.nameGu ?? "" }
+          : p,
+      ),
+    );
+    router.refresh();
+  }
+
   const [membersOf, setMembersOf] = useState<FamilyRow | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
@@ -252,24 +299,13 @@ export function FamiliesClient({
       setError("Head name is required");
       return;
     }
-    if (communityType === "PARIVAR") {
-      if (!form.city.trim()) {
-        setError("City is required");
-        return;
-      }
-    } else {
-      if (!form.surnameEn.trim() && !form.surnameGroupId) {
-        setError("Surname is required");
-        return;
-      }
-      if (form.livesOutsideVillage && !form.city.trim()) {
-        setError("City is required when living outside the village");
-        return;
-      }
-      if (!form.livesOutsideVillage && !form.villageAreaId) {
-        setError("Village is required");
-        return;
-      }
+    if (!form.headPlace.trim()) {
+      setError(communityType === "PARIVAR" ? "Head's city is required" : "Head's village / city is required");
+      return;
+    }
+    if (communityType === "GAM" && !form.surnameEn.trim() && !form.surnameGroupId) {
+      setError("Surname is required");
+      return;
     }
     if (!form.addressEn.trim()) {
       setError("Address is required");
@@ -298,6 +334,9 @@ export function FamiliesClient({
         ? lockedSurname.nameGu
         : form.surnameGu.trim();
 
+    // Family place of record = the head's place (members each carry their own).
+    const place = familyPlaceFromHead(form.headPlace, villages);
+
     const payload = {
       headNameEn: form.headNameEn.trim(),
       headNameGu: form.headNameGu.trim() || undefined,
@@ -309,11 +348,11 @@ export function FamiliesClient({
           : form.surnameGroupId || matchedGroup?.id) || undefined,
       addressEn: form.addressEn.trim() || undefined,
       addressGu: form.addressGu.trim() || undefined,
-      city: form.city.trim() || undefined,
+      city: place.city || undefined,
       nativePlace: form.nativePlace.trim() || undefined,
       email: form.email.trim() || undefined,
-      villageAreaId: form.livesOutsideVillage ? null : form.villageAreaId || null,
-      livesOutsideVillage: form.livesOutsideVillage,
+      villageAreaId: place.villageAreaId,
+      livesOutsideVillage: place.livesOutsideVillage,
       nativeElderNameEn: form.nativeElderNameEn.trim() || undefined,
       nativeElderNameGu: form.nativeElderNameGu.trim() || undefined,
       nativeElderPhone: form.nativeElderPhone.trim() || undefined,
@@ -332,7 +371,7 @@ export function FamiliesClient({
           education: resolvedHead.education || undefined,
           course: resolvedHead.course || undefined,
           isHead: true,
-          currentlyAt: form.city.trim() || undefined,
+          currentlyAt: form.headPlace.trim() || undefined,
           hasWhatsApp: form.headHasWhatsApp,
         },
         ...keptMembers.map((m, i) => ({
@@ -346,7 +385,7 @@ export function FamiliesClient({
           occupationOther: resolved[i].occupationOther || undefined,
           education: resolved[i].education || undefined,
           course: resolved[i].course || undefined,
-          currentlyAt: form.city.trim() || undefined,
+          currentlyAt: m.place.trim() || form.headPlace.trim() || undefined,
           hasWhatsApp: m.hasWhatsApp,
           isHead: false,
         })),
@@ -504,7 +543,19 @@ export function FamiliesClient({
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <AdminH2 className="mb-0">Families &amp; Members</AdminH2>
+        <AdminH2
+          className="mb-0"
+          info={
+            <>
+              Edit: change head name, surname, address, or add/remove members. Member editor:
+              visibility overrides · mark deceased (સ્વર્ગસ્થ) · change login number · reassign head.
+              &quot;Add family directly&quot; bypasses the registration queue. New surnames are added to
+              Surname groups automatically.
+            </>
+          }
+        >
+          Families &amp; Members
+        </AdminH2>
         <AdminBtn
           onClick={() => {
             setError(null);
@@ -607,13 +658,6 @@ export function FamiliesClient({
         </p>
       )}
 
-      <AdminHint>
-        Edit: change head name, surname, address, or add/remove members. Member editor:
-        visibility overrides · mark deceased (સ્વર્ગસ્થ) · change login number · reassign head.
-        &quot;Add family directly&quot; bypasses the registration queue. New surnames are added to
-        Surname groups automatically.
-      </AdminHint>
-
       <AdminModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
@@ -638,16 +682,19 @@ export function FamiliesClient({
           communityType={communityType}
           lockedSurname={lockedSurname}
           surnameGroups={groups}
-          cities={cities}
-          villages={villages}
           allowNewSurname
           t={(_gu, en) => en}
         />
-        <AdminFormSection title="Members" className="mt-5" />
-        <p className="mb-3 text-[11.5px] text-[var(--faint)]">
-          First person is the family head. Add other household members below — or later from
-          Members.
-        </p>
+        <AdminFormSection
+          title="Members"
+          className="mt-5"
+          info={
+            <>
+              First person is the family head. Add other household members below — or later from
+              Members.
+            </>
+          }
+        />
 
         <div className="mb-3 rounded-2xl border border-[var(--gold-border)] bg-[var(--surface-admin)] p-3.5">
           <div className="mb-2 flex items-center justify-between">
@@ -670,6 +717,7 @@ export function FamiliesClient({
             </AdminField>
             <AdminField label="Name (English)" required>
               <AdminInput
+                speech
                 value={form.headNameEn}
                 onChange={(v) => {
                   setForm((prev) => ({ ...prev, headNameEn: v }));
@@ -698,6 +746,21 @@ export function FamiliesClient({
               />
             </AdminField>
           </AdminFormRow>
+
+          <AdminField
+            label={communityType === "GAM" ? "Village / city · ગામ / શહેર" : "City · શહેર"}
+            required
+            hint="Where the head lives — this is also the family's place in the directory."
+          >
+            <MemberPlacePicker
+              variant="admin"
+              value={form.headPlace}
+              onChange={(v) => setForm((prev) => ({ ...prev, headPlace: v }))}
+              options={allPlaces}
+              onAddNew={addPlace}
+              t={(_gu, en) => en}
+            />
+          </AdminField>
 
           <AdminFormRow>
             <AdminField label="Birth date">
@@ -767,6 +830,7 @@ export function FamiliesClient({
               </AdminField>
               <AdminField label="Name (English)">
                 <AdminInput
+                  speech
                   value={m.fullNameEn}
                   onChange={(v) => {
                     updateMemberDraft(i, { fullNameEn: v });
@@ -800,6 +864,20 @@ export function FamiliesClient({
                 />
               </AdminField>
             </AdminFormRow>
+
+            <AdminField
+              label={communityType === "GAM" ? "Village / city · ગામ / શહેર" : "City · શહેર"}
+              hint="Defaults to the head's — change it for a member living elsewhere."
+            >
+              <MemberPlacePicker
+                variant="admin"
+                value={m.place}
+                onChange={(v) => updateMemberDraft(i, { place: v })}
+                options={allPlaces}
+                onAddNew={addPlace}
+                t={(_gu, en) => en}
+              />
+            </AdminField>
 
             <AdminFormRow>
               <AdminField label="Birth date">
@@ -840,7 +918,9 @@ export function FamiliesClient({
 
         <button
           type="button"
-          onClick={() => setForm((f) => ({ ...f, members: [...f.members, blankMemberDraft()] }))}
+          onClick={() =>
+            setForm((f) => ({ ...f, members: [...f.members, blankMemberDraft(f.headPlace)] }))
+          }
           className="w-full cursor-pointer rounded-[13px] border-[1.5px] border-dashed border-[var(--brand-border)] bg-[var(--brand-tint-soft)] py-3 text-[13px] font-bold text-[var(--brand)]"
         >
           ＋ Add member

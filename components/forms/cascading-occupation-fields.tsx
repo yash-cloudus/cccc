@@ -35,10 +35,13 @@ export function CascadingOccupationFields({
   tree,
   values,
   onChange,
+  t = (_gu, en) => en,
 }: {
   tree: OccupationTreeNode[];
   values: CascadingOccupationValues;
   onChange: (patch: Partial<CascadingOccupationValues>) => void;
+  /** Translator for the add-new UI — member screens pass their Gujarati-first `T`. */
+  t?: (gu: string, en: string) => string;
 }) {
   const rootNode =
     values.occupation && values.occupation !== OTHER
@@ -97,6 +100,8 @@ export function CascadingOccupationFields({
           })
         }
         onOtherChange={(v) => onChange({ occupationCustom: v })}
+        onOtherGuChange={(v) => onChange({ occupationCustomGu: v })}
+        t={t}
       />
 
       {showVeparNokri && (
@@ -110,6 +115,8 @@ export function CascadingOccupationFields({
             onChange({ occupationOther: v, occupationOtherCustom: "" })
           }
           onOtherChange={(v) => onChange({ occupationOtherCustom: v })}
+          onOtherGuChange={(v) => onChange({ occupationOtherCustomGu: v })}
+          t={t}
         />
       )}
 
@@ -132,6 +139,8 @@ export function CascadingOccupationFields({
               })
             }
             onOtherChange={(v) => onChange({ educationCustom: v })}
+            onOtherGuChange={(v) => onChange({ educationCustomGu: v })}
+            t={t}
           />
 
           {showStreamChips && (
@@ -156,7 +165,7 @@ export function CascadingOccupationFields({
                   />
                 ))}
                 <FilterChip
-                  label="Other · અન્ય"
+                  label="＋ નવું ઉમેરો · Add new"
                   active={values.course === OTHER}
                   onClick={() =>
                     onChange({
@@ -170,12 +179,14 @@ export function CascadingOccupationFields({
               </div>
               {values.course === OTHER && (
                 <DropdownWithOther
-                  label="Stream — type it"
+                  label="Stream · પ્રવાહ"
                   value={OTHER}
                   otherValue={values.courseCustom}
                   options={[]}
                   onChange={() => {}}
                   onOtherChange={(v) => onChange({ courseCustom: v })}
+                  onOtherGuChange={(v) => onChange({ courseCustomGu: v })}
+                  t={t}
                 />
               )}
             </div>
@@ -198,6 +209,8 @@ export function CascadingOccupationFields({
                 })
               }
               onOtherChange={(v) => onChange({ courseCustom: v })}
+                  onOtherGuChange={(v) => onChange({ courseCustomGu: v })}
+                  t={t}
             />
           )}
 
@@ -212,6 +225,8 @@ export function CascadingOccupationFields({
                 onChange({ specialization: v, specializationCustom: "" })
               }
               onOtherChange={(v) => onChange({ specializationCustom: v })}
+              onOtherGuChange={(v) => onChange({ specializationCustomGu: v })}
+              t={t}
             />
           )}
         </>

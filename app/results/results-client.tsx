@@ -156,7 +156,6 @@ function UploadTab({
   const [marksheetUrl, setMarksheetUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Live preview of the same formula the API applies on submit.
   const percentage = useMemo(() => {
@@ -184,27 +183,25 @@ function UploadTab({
 
   async function pickFile(file: File) {
     setUploading(true);
-    setError(null);
     const body = new FormData();
     body.append("file", file);
     body.append("folder", "results");
     const res = await api.upload<{ url: string }>("/api/upload", body);
     setUploading(false);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) return toast.error(res.error);
     setMarksheetUrl(res.data.url);
   }
 
   async function submit() {
     const child = childOptions.find((c) => c.id === memberId);
-    if (!child) return setError(T("બાળક પસંદ કરો", "Pick a child"));
-    if (!standard) return setError(T("ધોરણ પસંદ કરો", "Pick a standard"));
+    if (!child) return toast.error(T("બાળક પસંદ કરો", "Pick a child"));
+    if (!standard) return toast.error(T("ધોરણ પસંદ કરો", "Pick a standard"));
     if (percentage == null) {
-      return setError(T("સાચા ટોટલ અને મેળવેલ ગુણ ભરો", "Enter valid total and obtained marks"));
+      return toast.error(T("સાચા ટોટલ અને મેળવેલ ગુણ ભરો", "Enter valid total and obtained marks"));
     }
-    if (!marksheetUrl) return setError(T("માર્કશીટ અપલોડ કરો", "Upload the marksheet"));
+    if (!marksheetUrl) return toast.error(T("માર્કશીટ અપલોડ કરો", "Upload the marksheet"));
 
     setBusy(true);
-    setError(null);
     const res = await api.post("/api/results", {
       driveId: drive.id,
       memberId: child.id,
@@ -215,7 +212,7 @@ function UploadTab({
       marksheetUrl,
     });
     setBusy(false);
-    if (!res.ok) return setError(res.error);
+    if (!res.ok) return toast.error(res.error);
     toast.success(T("પરિણામ મોકલાયું — ચકાસણી બાકી", "Result submitted — pending verification"));
     setMemberId("");
     setStandard("");
@@ -299,8 +296,6 @@ function UploadTab({
           {T("tap કરીને અપલોડ કરો", "tap to upload")}
         </span>
       </button>
-
-      {error && <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
 
       <button
         type="button"

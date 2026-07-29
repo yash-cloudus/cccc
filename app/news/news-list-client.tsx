@@ -14,13 +14,15 @@ export type NewsRow = {
   isPinned: boolean;
   accent: string | null;
   imageUrl: string | null;
+  authorEn: string | null;
+  authorGu: string | null;
 };
 
 const DEFAULT_BG = "linear-gradient(150deg,#8E2230,#B24C3B)";
 
 export function NewsListClient({ rows }: { rows: NewsRow[] }) {
   const { t, lang } = useLang();
-  const sub = lang === "gu" ? "સમાજના સમાચાર અને સૂચનાઓ" : "Community news and notices";
+  const sub = lang === "gu" ? "સમાજના તાજા સમાચાર" : "Latest community updates";
 
   return (
     <AppScreen>
@@ -69,7 +71,11 @@ export function NewsListClient({ rows }: { rows: NewsRow[] }) {
                   <div className="text-[14.5px] font-bold leading-snug text-[var(--ink)]">
                     {pickText(n.titleGu, n.titleEn, lang)}
                   </div>
-                  <div className="mt-0.5 text-[11.5px] font-medium text-[var(--faint)]">{formatDateDMY(n.dateISO)}</div>
+                  <div className="mt-0.5 text-[11.5px] font-medium text-[var(--faint)]">
+                    {[formatDateDMY(n.dateISO), pickText(n.authorGu, n.authorEn, lang)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
                 </div>
                 <ChevronRight className="h-5 w-5 flex-none text-[var(--line-strong)]" strokeWidth={2.2} />
               </Link>

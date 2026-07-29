@@ -17,7 +17,6 @@ import {
   ActionBtn,
   AdminBtn,
   AdminH2,
-  AdminHint,
   AdminInput,
   AdminLabel,
   AdminSelect,
@@ -45,6 +44,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { SpeechTextarea } from "@/components/ui/speech-input";
 import { toast } from "sonner";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
@@ -376,7 +376,17 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <AdminH2 className="mb-0 shrink-0">News</AdminH2>
+        <AdminH2
+          className="mb-0 shrink-0"
+          info={
+            <>
+              &quot;Send notification&quot; pushes an in-app alert to all approved members. Use for
+              important updates only.
+            </>
+          }
+        >
+          News
+        </AdminH2>
 
         <div className="flex w-full items-center gap-3 md:w-auto">
           <SearchInput
@@ -530,11 +540,6 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         </p>
       )}
 
-      <AdminHint>
-        &quot;Send notification&quot; pushes an in-app alert to all approved members. Use for
-        important updates only.
-      </AdminHint>
-
       <AdminModal
         open={draft !== null}
         onClose={() => setDraft(null)}
@@ -564,6 +569,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
 
             <AdminField label="Title (English)">
               <AdminInput
+                speech
                 value={draft.titleEn}
                 onChange={(v) => {
                   setDraft((d) => (d ? { ...d, titleEn: v } : d));
@@ -603,15 +609,16 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
             </AdminField>
 
             <AdminField label="Description (English)">
-              <Textarea
+              {/* Same classes as the shadcn <Textarea> base, with `px-2.5` split to
+                  `pl-2.5` so SpeechTextarea's `pr-11` mic gutter survives the merge. */}
+              <SpeechTextarea
                 value={draft.contentEn}
                 placeholder="News description…"
-                onChange={(e) => {
-                  const v = e.target.value;
+                onChange={(v) => {
                   setDraft((d) => (d ? { ...d, contentEn: v } : d));
                   fromEn(v, (gu) => setDraft((d) => (d ? { ...d, contentGu: gu } : d)), "content");
                 }}
-                className="min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
+                textareaClassName="flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent pl-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
             </AdminField>
 

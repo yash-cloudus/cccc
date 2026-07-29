@@ -18,6 +18,8 @@ export default async function NewsPage() {
     isPinned: n.isPinned,
     accent: n.accent,
     imageUrl: n.imageUrl,
+    authorEn: n.author?.profile?.fullNameEn || n.author?.username || null,
+    authorGu: n.author?.profile?.fullNameGu || null,
   }));
 
   return <NewsListClient rows={rows} />;

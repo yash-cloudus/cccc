@@ -28,6 +28,8 @@ export default async function NewsDetailPage({ params }: { params: Promise<{ id:
         documentUrl: item.documentUrl,
         documentName: item.documentName,
         linkUrl: item.linkUrl,
+        authorEn: item.author?.profile?.fullNameEn || item.author?.username || null,
+        authorGu: item.author?.profile?.fullNameGu || null,
       }}
     />
   );

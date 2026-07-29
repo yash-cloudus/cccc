@@ -22,6 +22,17 @@ export type CascadingOccupationValues = {
   /** Third level under Student (e.g. College → B.Tech → IT). Stored as leaf in `course` when set. */
   specialization: string;
   specializationCustom: string;
+  /**
+   * Gujarati halves of the typed-in ("add new") values. Kept beside each
+   * `*Custom` so a newly created master carries a real Gujarati name instead
+   * of repeating the English one. Optional — an older draft without them still
+   * saves, it just falls back to the English text.
+   */
+  occupationCustomGu?: string;
+  occupationOtherCustomGu?: string;
+  educationCustomGu?: string;
+  courseCustomGu?: string;
+  specializationCustomGu?: string;
 };
 
 export const blankCascadingOccupation = (): CascadingOccupationValues => ({
@@ -35,6 +46,11 @@ export const blankCascadingOccupation = (): CascadingOccupationValues => ({
   courseCustom: "",
   specialization: "",
   specializationCustom: "",
+  occupationCustomGu: "",
+  occupationOtherCustomGu: "",
+  educationCustomGu: "",
+  courseCustomGu: "",
+  specializationCustomGu: "",
 });
 
 export function occupationChoices(tree: OccupationTreeNode[]): DropdownChoice[] {
@@ -169,6 +185,7 @@ export async function resolveCascadingOccupationForSave(
     values.occupation,
     values.occupationCustom,
     rootChoices,
+    { nameGu: values.occupationCustomGu },
   );
   if (!rootStored) {
     return { occupation: "" };
@@ -193,7 +210,7 @@ export async function resolveCascadingOccupationForSave(
       values.education,
       values.educationCustom,
       eduChoices,
-      { parentId: root.id },
+      { parentId: root.id, nameGu: values.educationCustomGu },
     );
     let course: string | undefined;
     if (education) {
@@ -205,7 +222,7 @@ export async function resolveCascadingOccupationForSave(
           values.course,
           values.courseCustom,
           courseChoices,
-          { parentId: eduNode.id },
+          { parentId: eduNode.id, nameGu: values.courseCustomGu },
         );
         if (mid) {
           const courseNode = findOccupationNode(eduNode.children, mid);
@@ -220,7 +237,7 @@ export async function resolveCascadingOccupationForSave(
               values.specialization,
               values.specializationCustom,
               specChoices,
-              { parentId: courseNode.id },
+              { parentId: courseNode.id, nameGu: values.specializationCustomGu },
             );
             // Persist deepest selected leaf so directory / profile stay specific.
             course = leaf || mid;
@@ -244,7 +261,7 @@ export async function resolveCascadingOccupationForSave(
       values.occupationOther,
       values.occupationOtherCustom,
       subChoices,
-      { parentId: root.id },
+      { parentId: root.id, nameGu: values.occupationOtherCustomGu },
     );
     return {
       occupation: labelOf(root),

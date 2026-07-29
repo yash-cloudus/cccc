@@ -55,7 +55,7 @@ export function AppHeader({
         {showBell && (
           <Link
             href="/notifications"
-            className="relative flex h-11 w-11 flex-none items-center justify-center rounded-[14px] bg-white/12"
+            className="relative flex h-11 w-11 flex-none items-center justify-center rounded-[14px] bg-white/12 text-white hover:text-white"
             aria-label="notifications"
           >
             <Bell className="h-[22px] w-[22px]" strokeWidth={1.9} />

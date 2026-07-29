@@ -6,7 +6,6 @@ import { toast } from "sonner";
 import {
   AdminBtn,
   AdminH2,
-  AdminHint,
   AdminInput,
   AdminSelect,
   AdminToggle,
@@ -63,11 +62,16 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
 
   return (
     <>
-      <AdminH2 className="mb-2">Settings</AdminH2>
-      <AdminHint className="mt-0 mb-6 text-[13px]">
-        Control which features are enabled, disabled or visible in the Community Mobile App.
-        Changes apply only after you save each section.
-      </AdminHint>
+      <AdminH2
+        info={
+          <>
+            Control which features are enabled, disabled or visible in the Community Mobile App.
+            Changes apply only after you save each section.
+          </>
+        }
+      >
+        Settings
+      </AdminH2>
 
       <div className="flex flex-col gap-5">
         {SETTINGS_SECTIONS.map((section) => (

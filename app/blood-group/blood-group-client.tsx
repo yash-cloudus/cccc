@@ -39,8 +39,8 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
   const pickLabel = lang === "gu" ? "બ્લડ ગ્રુપ પસંદ કરો" : "CHOOSE BLOOD GROUP";
   const note =
     lang === "gu"
-      ? "આ માહિતી માત્ર સમાજના સભ્યો માટે છે. ઇમરજન્સીમાં જ કૉલ કરો."
-      : "This information is for registered members only. Call only in emergencies.";
+      ? "યાદી ડિરેક્ટરીમાંથી આપોઆપ બને છે — અલગ ડેટા એન્ટ્રી નથી. ઇમરજન્સીમાં જ કૉલ કરો."
+      : "The list is built automatically from the directory — no separate data entry. Call only in emergencies.";
 
   const grouped = useMemo(() => {
     const map: Record<string, BloodDonorRow[]> = {};
@@ -72,7 +72,7 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
   }
 
   return (
-    <AppScreen showNav={false}>
+    <AppScreen>
       <header className="samaj-header relative flex-none overflow-hidden px-[18px] pb-[18px] pt-12 text-white">
         <div className="absolute -right-[30px] -top-10 h-[150px] w-[150px] rounded-full bg-white/5" />
         <div className="relative z-2 flex items-center gap-3">

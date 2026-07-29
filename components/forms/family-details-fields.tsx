@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, MapPin } from "lucide-react";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
+import { SpeechInput } from "@/components/ui/speech-input";
 import { AdminInput, AdminSelect } from "@/components/admin/admin-ui";
 import { AdminField, AdminFormRow } from "@/components/admin/admin-form";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
@@ -26,6 +27,10 @@ export function bilingualLabel(nameEn?: string | null, nameGu?: string | null) {
  * order, transliteration and geo capture live here once. Only the input chrome
  * differs — `variant="member"` renders the app's samaj fields, `variant="admin"`
  * the desktop AdminField/AdminInput set.
+ *
+ * Village / city is deliberately NOT here: a household is often spread across
+ * places, so each member carries their own (see `MemberPlacePicker`). The
+ * head's pick is what becomes the family's `city` / `villageAreaId` on save.
  */
 export function FamilyDetailsFields({
   variant,
@@ -34,8 +39,6 @@ export function FamilyDetailsFields({
   communityType,
   lockedSurname = null,
   surnameGroups,
-  cities,
-  villages,
   /** Admin-only: a surname matching no group creates a new one on save. */
   allowNewSurname = false,
   t,
@@ -46,8 +49,6 @@ export function FamilyDetailsFields({
   communityType: "PARIVAR" | "GAM";
   lockedSurname?: NamedOption | null;
   surnameGroups: NamedOption[];
-  cities: NamedOption[];
-  villages: NamedOption[];
   allowNewSurname?: boolean;
   /** Label translator — the member side passes its Gujarati-first `T`. */
   t: (gu: string, en: string) => string;
@@ -150,6 +151,7 @@ export function FamilyDetailsFields({
         <AdminFormRow>
           <AdminField label="Surname (English)" required>
             <AdminInput
+              speech
               value={values.surnameEn}
               onChange={bindEn("surnameEn", "surnameGu", "surname")}
             />
@@ -193,107 +195,6 @@ export function FamilyDetailsFields({
       </div>
     );
 
-  /* ─────────────────────────── place ─────────────────────────── */
-
-  const cityOption = cities.find((c) => c.nameEn === values.city) ?? null;
-  const villageOption = villages.find((v) => v.id === values.villageAreaId) ?? null;
-  const placeLabel =
-    communityType === "PARIVAR"
-      ? cityOption
-        ? bilingualLabel(cityOption.nameEn, cityOption.nameGu)
-        : t("પસંદ કરો", "Select")
-      : values.livesOutsideVillage
-        ? t("ગામ બહાર રહે છે", "Lives outside village")
-        : villageOption
-          ? bilingualLabel(villageOption.nameEn, villageOption.nameGu)
-          : t("પસંદ કરો", "Select");
-
-  const placeBlock =
-    communityType === "PARIVAR" ? (
-      isAdmin ? (
-        <AdminField label="City · શહેર" required>
-          <AdminSelect
-            value={values.city}
-            onChange={(v) => onChange({ city: v })}
-            className="w-full"
-            options={[
-              { value: "", label: "Select city…" },
-              ...cities.map((c) => ({ value: c.nameEn, label: bilingualLabel(c.nameEn, c.nameGu) })),
-            ]}
-          />
-        </AdminField>
-      ) : (
-        <Wrap variant={variant} label={`${t("શહેર", "City")} *`}>
-          <PopoverPicker
-            label={placeLabel}
-            options={cities.map((c) => ({
-              key: c.id,
-              label: bilingualLabel(c.nameEn, c.nameGu),
-              active: values.city === c.nameEn,
-              onPick: () => onChange({ city: c.nameEn }),
-            }))}
-          />
-        </Wrap>
-      )
-    ) : isAdmin ? (
-      <>
-        <AdminField label="Village · ગામ">
-          <AdminSelect
-            value={values.livesOutsideVillage ? "__outside__" : values.villageAreaId}
-            onChange={(v) =>
-              v === "__outside__"
-                ? onChange({ livesOutsideVillage: true, villageAreaId: "" })
-                : onChange({ livesOutsideVillage: false, villageAreaId: v })
-            }
-            className="w-full"
-            options={[
-              { value: "", label: "Select village…" },
-              ...villages.map((v) => ({ value: v.id, label: bilingualLabel(v.nameEn, v.nameGu) })),
-              { value: "__outside__", label: "Lives outside · બહાર" },
-            ]}
-          />
-        </AdminField>
-        <AdminField
-          label={values.livesOutsideVillage ? "City · શહેર" : "City"}
-          required={values.livesOutsideVillage}
-        >
-          <AdminInput value={values.city} onChange={(v) => onChange({ city: v })} />
-        </AdminField>
-      </>
-    ) : (
-      <>
-        <Wrap variant={variant} label={`${t("ગામ / શહેર", "Village / city")} *`}>
-          <PopoverPicker
-            label={placeLabel}
-            options={[
-              ...villages.map((v) => ({
-                key: v.id,
-                label: bilingualLabel(v.nameEn, v.nameGu),
-                active: !values.livesOutsideVillage && values.villageAreaId === v.id,
-                onPick: () => onChange({ livesOutsideVillage: false, villageAreaId: v.id }),
-              })),
-              {
-                key: "__outside__",
-                label: t("ગામ બહાર રહે છે", "Lives outside village"),
-                active: values.livesOutsideVillage,
-                onPick: () => onChange({ livesOutsideVillage: true, villageAreaId: "" }),
-              },
-            ]}
-          />
-        </Wrap>
-        {values.livesOutsideVillage && (
-          <Wrap variant={variant} label={`${t("શહેર", "City")} *`}>
-            <input
-              className="samaj-fld"
-              value={values.city}
-              onChange={(e) => onChange({ city: e.target.value })}
-              placeholder={t("હાલનું શહેર…", "Current city…")}
-            />
-          </Wrap>
-        )}
-      </>
-    );
-
   /* ─────────────────────────── render ─────────────────────────── */
 
   return (
@@ -307,15 +208,16 @@ export function FamilyDetailsFields({
       >
         {isAdmin ? (
           <AdminInput
+            speech
             value={values.addressEn}
             placeholder="Full postal address…"
             onChange={bindEn("addressEn", "addressGu", "addr")}
           />
         ) : (
-          <input
-            className="samaj-fld"
+          <SpeechInput
+            inputClassName="samaj-fld"
             value={values.addressEn}
-            onChange={(e) => bindEn("addressEn", "addressGu", "addr")(e.target.value)}
+            onChange={(v) => bindEn("addressEn", "addressGu", "addr")(v)}
             placeholder={t("મકાન, વિસ્તાર, શહેર…", "House, area, city…")}
           />
         )}
@@ -361,13 +263,12 @@ export function FamilyDetailsFields({
         </button>
       </Wrap>
 
-      {placeBlock}
-
       {isAdmin ? (
         <>
           <AdminFormRow>
             <AdminField label="Native elder name (English)">
               <AdminInput
+                speech
                 value={values.nativeElderNameEn}
                 onChange={bindEn("nativeElderNameEn", "nativeElderNameGu", "elder")}
               />
@@ -393,12 +294,10 @@ export function FamilyDetailsFields({
             variant={variant}
             label={t("વતનમાં રહેતા વડીલ (નામ) (English)", "Native elder name (English)")}
           >
-            <input
-              className="samaj-fld"
+            <SpeechInput
+              inputClassName="samaj-fld"
               value={values.nativeElderNameEn}
-              onChange={(e) =>
-                bindEn("nativeElderNameEn", "nativeElderNameGu", "elder")(e.target.value)
-              }
+              onChange={(v) => bindEn("nativeElderNameEn", "nativeElderNameGu", "elder")(v)}
               placeholder={t("વડીલનું નામ…", "Elder name…")}
             />
           </Wrap>

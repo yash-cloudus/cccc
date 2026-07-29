@@ -18,6 +18,8 @@ export type BusinessRow = {
   address: string | null;
   city: string | null;
   website: string | null;
+  ownerEn: string | null;
+  ownerGu: string | null;
   categoryId: string | null;
   categoryNameEn: string | null;
   categoryNameGu: string | null;
@@ -151,6 +153,11 @@ export function BusinessClient({
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-base font-extrabold text-[var(--brand)]">{name}</div>
+                    {(b.ownerEn || b.ownerGu) && (
+                      <div className="mt-0.5 truncate text-[12.5px] font-semibold text-[var(--ink-mid)]">
+                        {pickText(b.ownerGu, b.ownerEn, lang)}
+                      </div>
+                    )}
                     {secondary && (
                       <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[var(--ink)]">
                         <MapPin className="h-[15px] w-[15px] flex-none text-[var(--ochre)]" strokeWidth={1.8} />

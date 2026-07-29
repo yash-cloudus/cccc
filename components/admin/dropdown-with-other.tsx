@@ -1,19 +1,20 @@
 "use client";
 
 /**
- * Select backed by Dropdown lists (masters), with an "Other" escape hatch.
+ * Select backed by Dropdown lists (masters), with an inline "add new" escape
+ * hatch.
  *
  * Mirrors the prototype's CustomDropdown (Registration.dc.html): pick a saved
- * option, or choose "Other" (અન્ય) to reveal a free-text field. Whatever is
- * typed there is saved back into `DropdownOption` for this community, so the
- * next person picks it from the list instead of retyping it.
+ * option, or add one without leaving the dropdown. Whatever is typed is saved
+ * back into `DropdownOption` for this community, so the next person picks it
+ * from the list instead of retyping it.
  *
  * The new option is created on save (not on keystroke) by `commitOtherValue`,
  * so abandoning the form never pollutes the masters list.
  */
 
-import { AdminSelect } from "@/components/admin/admin-ui";
 import { AdminField } from "@/components/admin/admin-form";
+import { PickerWithAdd } from "@/components/ui/picker-with-add";
 import { api } from "@/lib/http";
 
 /** Sentinel for the "Other" choice — never a real DropdownOption value. */
@@ -27,49 +28,67 @@ export function DropdownWithOther({
   value,
   otherValue,
   options,
-  otherPlaceholder,
-  otherLabel = "Other · અન્ય",
+  otherLabel,
   onChange,
   onOtherChange,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  otherPlaceholder: _otherPlaceholder,
+  onOtherGuChange,
+  t = (_gu, en) => en,
 }: {
   label: string;
   required?: boolean;
-  /** Selected option value, or OTHER when the free-text field is in use. */
+  /** Selected option value, or OTHER when a typed-in value is in use. */
   value: string;
-  /** Free-text value, only meaningful while `value === OTHER`. */
+  /** Typed-in value, only meaningful while `value === OTHER`. */
   otherValue: string;
   options: DropdownChoice[];
-  otherPlaceholder?: string;
   otherLabel?: string;
+  /** Kept for call-site compatibility; the inline add-new supplies its own. */
+  otherPlaceholder?: string;
   onChange: (v: string) => void;
   onOtherChange: (v: string) => void;
+  /** Gujarati half of a typed-in value, persisted alongside the English one. */
+  onOtherGuChange?: (v: string) => void;
+  /** Label translator — member screens pass their Gujarati-first `T`. */
+  t?: (gu: string, en: string) => string;
 }) {
+  const typed = otherValue.trim();
   return (
-    <>
-      <AdminField label={label} required={required}>
-        <AdminSelect
-          value={value}
-          onChange={onChange}
-          className="w-full"
-          options={[{ value: "", label: "—" }, ...options, { value: OTHER, label: otherLabel }]}
-        />
-      </AdminField>
-
-      {value === OTHER && (
-        <AdminField
-          label={`${label} — type it`}
-          required={required}
-          hint="Saved to Dropdown lists, so it can be reused next time."
-        >
-          <input
-            value={otherValue}
-            onChange={(e) => onOtherChange(e.target.value)}
-            placeholder={otherPlaceholder}
-            className="h-[42px] w-full rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none"
-          />
-        </AdminField>
-      )}
-    </>
+    <AdminField
+      label={label}
+      required={required}
+      hint={
+        value === OTHER && typed
+          ? t(
+              "નવું ઉમેરાશે — યાદીમાં સચવાશે અને ફરી વાપરી શકાશે.",
+              "Saved to Dropdown lists, so it can be reused next time.",
+            )
+          : undefined
+      }
+    >
+      <PickerWithAdd
+        value={value}
+        onChange={onChange}
+        variant="admin"
+        syncKey={`dropdown:${label}`}
+        placeholder="—"
+        addLabel={otherLabel || t("નવું ઉમેરો", "Add new")}
+        options={[
+          { value: "", label: "—" },
+          ...options,
+          // A typed-in value shows as its own row, so the trigger reads like
+          // any other selection instead of the word "Other".
+          ...(typed ? [{ value: OTHER, label: typed }] : []),
+        ]}
+        onAddNew={({ nameEn, nameGu }) => {
+          onOtherChange(nameEn);
+          onOtherGuChange?.(nameGu);
+          onChange(OTHER);
+        }}
+        t={t}
+      />
+    </AdminField>
   );
 }
 

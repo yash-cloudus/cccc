@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { AdminBtn } from "@/components/admin/admin-ui";
+import { AdminBtn, AdminInfoTip } from "@/components/admin/admin-ui";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 
@@ -108,20 +108,26 @@ export function AdminFormSection({
   step,
   title,
   className,
+  info,
 }: {
   step?: number;
   title: string;
   className?: string;
+  /** Explanatory note, shown behind an (i) button beside the heading. */
+  info?: React.ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "mb-2.5 text-[11px] font-extrabold tracking-wider text-[var(--brand)] uppercase",
+        "mb-2.5 flex items-center gap-1.5 text-[11px] font-extrabold tracking-wider text-[var(--brand)] uppercase",
         className,
       )}
     >
-      {step != null ? `${step} · ` : ""}
-      {title}
+      <span>
+        {step != null ? `${step} · ` : ""}
+        {title}
+      </span>
+      {info && <AdminInfoTip>{info}</AdminInfoTip>}
     </div>
   );
 }

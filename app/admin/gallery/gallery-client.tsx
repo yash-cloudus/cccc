@@ -7,7 +7,6 @@ import {
   AdminBtn,
   AdminColorSelect,
   AdminH2,
-  AdminHint,
   AdminInput,
   AdminSelect,
   FilterButton,
@@ -254,7 +253,25 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <AdminH2 className="mb-0 shrink-0">Event Gallery — albums</AdminH2>
+        <AdminH2
+          className="mb-0 shrink-0"
+          info={
+            <>
+              <p>
+                Create a folder with a name, start &amp; end date, then upload multiple images into
+                it. Photos appear in the User App under that album until the end date passes, after
+                which the album is automatically deactivated.
+              </p>
+              <p className="mt-1.5">
+                Album = title + start/end date + description + cover. Long videos = YouTube link
+                inside album. End date reached → album auto-deactivates (not visible in the User
+                App).
+              </p>
+            </>
+          }
+        >
+          Event Gallery — albums
+        </AdminH2>
 
         <div className="flex w-full items-center gap-2.5 md:w-auto">
           <SearchInput
@@ -304,12 +321,6 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
           </div>
         </SheetContent>
       </Sheet>
-
-      <AdminHint className="mt-0 mb-5 max-w-3xl text-[12.5px]">
-        Create a folder with a name, start &amp; end date, then upload multiple images into it.
-        Photos appear in the User App under that album until the end date passes, after which the
-        album is automatically deactivated.
-      </AdminHint>
 
       <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
         {filteredRows.map((a) => {
@@ -399,11 +410,6 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
           {rows.length === 0 ? "No albums yet — create your first folder." : "No matching albums."}
         </p>
       )}
-
-      <AdminHint>
-        Album = title + start/end date + description + cover. Long videos = YouTube link inside
-        album. End date reached → album auto-deactivates (not visible in the User App).
-      </AdminHint>
 
       <AdminModal
         open={draft !== null}
