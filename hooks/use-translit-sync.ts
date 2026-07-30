@@ -4,6 +4,17 @@ import { useCallback, useRef, useState } from "react";
 
 export type TranslitDirection = "en2gu" | "gu2en";
 
+/**
+ * The English and Gujarati sides of one field pair are two separate calls
+ * (`fromEn(..., "head")`, `guInput(..., "head:gu")`) that both end up writing
+ * the same Gujarati value — so they must share one debounce/token bucket, or
+ * neither side knows about the other's in-flight request and whichever
+ * resolves last wins, not whichever was typed last.
+ */
+export function translitBucket(key: string): string {
+  return key.replace(/:(en|gu)$/, "");
+}
+
 /** A word that is purely Latin, so safe to transliterate into Gujarati. */
 const LATIN_WORD = /^[A-Za-z][A-Za-z'’.-]*$/;
 
@@ -40,21 +51,22 @@ export function useTranslitSync(debounceMs = 350) {
 
   const sync = useCallback(
     (direction: TranslitDirection, text: string, apply: (result: string) => void, key = "default") => {
-      const prev = timers.current.get(key);
+      const bucket = translitBucket(key);
+      const prev = timers.current.get(bucket);
       if (prev) clearTimeout(prev);
-      const myToken = (tokens.current.get(key) ?? 0) + 1;
-      tokens.current.set(key, myToken);
+      const myToken = (tokens.current.get(bucket) ?? 0) + 1;
+      tokens.current.set(bucket, myToken);
 
       const timer = setTimeout(async () => {
         const trimmed = text.trim();
         if (!trimmed) {
-          if (tokens.current.get(key) !== myToken) return;
+          if (tokens.current.get(bucket) !== myToken) return;
           apply("");
-          setSyncing((s) => (s?.key === key ? null : s));
+          setSyncing((s) => (s?.key === bucket ? null : s));
           return;
         }
 
-        setSyncing({ direction, key });
+        setSyncing({ direction, key: bucket });
         try {
           const res = await fetch("/api/i18n/transliterate", {
             method: "POST",
@@ -62,20 +74,20 @@ export function useTranslitSync(debounceMs = 350) {
             body: JSON.stringify({ text: trimmed, direction }),
           });
           const json = await res.json();
-          if (tokens.current.get(key) !== myToken) return;
+          if (tokens.current.get(bucket) !== myToken) return;
           if (json.success && typeof json.data?.result === "string") {
             apply(json.data.result);
           }
         } catch {
           /* keep last value; server has local fallback */
         } finally {
-          if (tokens.current.get(key) === myToken) {
-            setSyncing((s) => (s?.key === key ? null : s));
+          if (tokens.current.get(bucket) === myToken) {
+            setSyncing((s) => (s?.key === bucket ? null : s));
           }
         }
       }, debounceMs);
 
-      timers.current.set(key, timer);
+      timers.current.set(bucket, timer);
     },
     [debounceMs],
   );

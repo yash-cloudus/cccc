@@ -21,8 +21,6 @@ import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
-import { BrandColorsPicker } from "@/components/shared/brand-colors-picker";
-import { communityThemeVars } from "@/lib/color";
 
 type Committee = { id: string; nameEn: string; nameGu: string | null; members: number };
 type InfoSection = {
@@ -100,8 +98,6 @@ export function InfoClient({
   upiId: initialUpi,
   logoUrl: initialLogo,
   bannerUrl: initialBanner,
-  primaryColor: initialPrimary,
-  secondaryColor: initialSecondary,
   basic: initialBasic,
   committees: initialCommittees,
   infoSections: initialInfo,
@@ -111,8 +107,6 @@ export function InfoClient({
   upiId: string;
   logoUrl: string;
   bannerUrl: string;
-  primaryColor: string;
-  secondaryColor: string;
   basic: BasicInfo;
   committees: Committee[];
   infoSections: InfoSection[];
@@ -122,10 +116,7 @@ export function InfoClient({
   const [globalPhones, setGlobalPhones] = useState(initialGlobal);
   const [logoUrl, setLogoUrl] = useState(initialLogo);
   const [bannerUrl, setBannerUrl] = useState(initialBanner);
-  const [primaryColor, setPrimaryColor] = useState(initialPrimary);
-  const [secondaryColor, setSecondaryColor] = useState(initialSecondary);
   const [brandBusy, setBrandBusy] = useState(false);
-  const [colorsBusy, setColorsBusy] = useState(false);
   const [tab, setTab] = useState<Tab>("basic");
   const [basic, setBasic] = useState<BasicInfo>(initialBasic);
   const [basicBusy, setBasicBusy] = useState(false);
@@ -144,30 +135,6 @@ export function InfoClient({
     setBrandBusy(false);
     if (!res.ok) return setError(res.error);
     flash("Banner & logo saved");
-  }
-
-  function applyThemeVars(primary: string, secondary: string) {
-    const vars = communityThemeVars(primary, secondary);
-    for (const [key, value] of Object.entries(vars)) {
-      document.body.style.setProperty(key, value);
-    }
-  }
-
-  useEffect(() => {
-    applyThemeVars(primaryColor, secondaryColor);
-  }, [primaryColor, secondaryColor]);
-
-  async function saveBrandColors() {
-    setColorsBusy(true);
-    setError(null);
-    const res = await api.patch("/api/admin/settings", {
-      primaryColor,
-      secondaryColor,
-    });
-    setColorsBusy(false);
-    if (!res.ok) return setError(res.error);
-    applyThemeVars(primaryColor, secondaryColor);
-    flash("Brand colors saved — app & admin updated");
   }
 
   /** Brief confirmation under the header, like the prototype's toast. */
@@ -429,33 +396,6 @@ export function InfoClient({
         </div>
       </section>
 
-      <section
-        className={cn(
-          "mb-6 rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4",
-          tab === "basic" ? "" : "hidden",
-        )}
-      >
-        <AdminH3 info="Primary colors buttons and headers; secondary is used for gold accents and highlights.">
-          Brand colors
-        </AdminH3>
-        <BrandColorsPicker
-          variant="admin"
-          primary={primaryColor}
-          secondary={secondaryColor}
-          onPrimaryChange={setPrimaryColor}
-          onSecondaryChange={setSecondaryColor}
-        />
-        <AdminBtn
-          className="mt-4"
-          onClick={saveBrandColors}
-          disabled={
-            colorsBusy ||
-            (primaryColor === initialPrimary && secondaryColor === initialSecondary)
-          }
-        >
-          {colorsBusy ? <Loader2 className="size-4 animate-spin" /> : "Save brand colors"}
-        </AdminBtn>
-      </section>
 
       <section
         className={cn(

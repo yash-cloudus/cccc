@@ -31,6 +31,11 @@ enum BloodGroupType {
   AB_NEG
 }
 
+enum Gender {
+  MALE
+  FEMALE
+}
+
 enum ResultStatus {
   PENDING
   APPROVED
@@ -307,6 +312,12 @@ model FamilyMember {
   fullNameEn      String
   fullNameGu      String?
   relation        String?
+  /**
+   * Required in every form, but nullable in the database: rows that existed
+   * before this column did have no answer, and the migration can only infer one
+   * for relations that imply it (Son/Wife/…), never for an ambiguous Head.
+   */
+  gender          Gender?
   mobile          String?
   dateOfBirth     DateTime?
   bloodGroup      BloodGroupType?
@@ -316,6 +327,8 @@ model FamilyMember {
   course          String?
   currentlyAt     String?
   hasWhatsApp     Boolean         @default(true)
+  /** Set only when `hasWhatsApp` is false — WhatsApp lives on a different number. */
+  whatsapp        String?
   showPhone       Boolean         @default(true)
   isHead          Boolean         @default(false)
   isVisible       Boolean         @default(true)

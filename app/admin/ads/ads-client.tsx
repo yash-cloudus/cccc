@@ -894,7 +894,7 @@ export function AdsClient({
             <AdminTh>Views</AdminTh>
             <AdminTh>Clicks</AdminTh>
             <AdminTh>Source</AdminTh>
-            <AdminTh className="w-[1%] text-right whitespace-nowrap">Actions</AdminTh>
+            <AdminTh className="text-right whitespace-nowrap">Actions</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -932,7 +932,7 @@ export function AdsClient({
               <AdminTd>{a.views.toLocaleString()}</AdminTd>
               <AdminTd>{a.clicks.toLocaleString()}</AdminTd>
               <AdminTd className="capitalize">{a.source === "user" ? "User app" : "Admin"}</AdminTd>
-              <AdminTd className="w-[1%]">
+              <AdminTd>
                 {/* Buttons size to their own content — Approve/Reject, Activate,
                     Deactivate and the Rejected badge all share one spot (exactly
                     one applies per row); View/Delete stay constant on the right. */}

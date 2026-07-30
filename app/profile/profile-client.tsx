@@ -432,7 +432,7 @@ export function ProfileClient({
                   { value: "", label: "—" },
                   ...BLOOD.map((b) => ({ value: b, label: b })),
                 ]}
-                placeholder="—"
+                placeholder={T("બ્લડ ગ્રુપ પસંદ કરો", "Select blood group")}
                 t={T}
               />
             </EditField>

@@ -23,10 +23,10 @@ export default async function ReviewRegistrationPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ from?: string }>;
+  searchParams: Promise<{ from?: string; add?: string }>;
 }) {
   const { id } = await params;
-  const { from } = await searchParams;
+  const { from, add } = await searchParams;
   const fromFamilies = from === "families";
   const community = await getActiveCommunity();
   if (!community) notFound();
@@ -79,15 +79,23 @@ export default async function ReviewRegistrationPage({
     nativeElderNameEn: family.nativeElderNameEn || "",
     nativeElderNameGu: family.nativeElderNameGu || "",
     nativeElderPhone: family.nativeElderPhone || "",
+    latitude: family.latitude,
+    longitude: family.longitude,
     members: family.familyMembers.map((m) => ({
       id: m.id,
       isNew: false,
       fullNameEn: m.fullNameEn,
       fullNameGu: m.fullNameGu || "",
       relation: m.relation || "",
+      gender: m.gender || "",
       mobile: m.mobile || "",
       dateOfBirth: ymd(m.dateOfBirth),
       bloodGroup: m.bloodGroup || "",
+      // Falls back to the family's place for members registered before it moved
+      // onto the member record.
+      currentlyAt: m.currentlyAt || family.city || "",
+      hasWhatsApp: m.hasWhatsApp,
+      whatsapp: m.whatsapp || "",
       isHead: m.isHead,
       ...cascadingFromStored(occupationTree, {
         occupation: m.occupation,
@@ -116,6 +124,8 @@ export default async function ReviewRegistrationPage({
       occupationTree={occupationTree}
       backHref={fromFamilies ? "/admin/families" : "/admin/queue"}
       backLabel={fromFamilies ? "‹ Back to families" : "‹ Back to queue"}
+      fromFamilies={fromFamilies}
+      autoAddMember={add === "1"}
     />
   );
 }

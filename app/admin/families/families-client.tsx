@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, UserPlus, Users, X, ZapOff, Zap } from "lucide-react";
 import {
+  ActionBtn,
   AdminBtn,
   AdminH2,
   AdminInput,
@@ -30,6 +31,8 @@ import { CascadingOccupationFields } from "@/components/forms/cascading-occupati
 import { DateField } from "@/components/ui/date-field";
 import { FamilyDetailsFields } from "@/components/forms/family-details-fields";
 import { MemberPlacePicker } from "@/components/forms/member-place-picker";
+import { WhatsAppField } from "@/components/forms/whatsapp-field";
+import { GENDERS, genderFromRelation } from "@/lib/constants";
 import { familyPlaceFromHead } from "@/lib/family-form";
 import {
   type CascadingOccupationValues,
@@ -112,6 +115,8 @@ export type MemberDraft = {
   fullNameEn: string;
   fullNameGu: string;
   relation: string;
+  /** `Gender` enum value — required before the family can be created. */
+  gender: string;
   mobile: string;
   dateOfBirth: string;
   bloodGroup: string;
@@ -127,6 +132,7 @@ function blankMemberDraft(place = ""): MemberDraft {
     fullNameEn: "",
     fullNameGu: "",
     relation: "",
+    gender: "",
     mobile: "",
     dateOfBirth: "",
     bloodGroup: "",
@@ -141,6 +147,7 @@ function blankForm() {
   return {
     headNameEn: "",
     headNameGu: "",
+    headGender: "",
     headDateOfBirth: "",
     headBloodGroup: "",
     headHasWhatsApp: true,
@@ -168,64 +175,6 @@ function blankForm() {
     ...blankCascadingOccupation(),
     members: [] as MemberDraft[],
   };
-}
-
-/**
- * Checked → just the "this number has WhatsApp" box. Unchecked → a field for
- * the separate WhatsApp number, with a link back to "same as mobile".
- * ponytail: AdminInput has no inputMode prop, so `type="tel"` carries the
- * numeric keypad — add inputMode to AdminInput if other fields ever need it.
- */
-function WhatsAppField({
-  hasWhatsApp,
-  whatsapp,
-  onChange,
-  className,
-}: {
-  hasWhatsApp: boolean;
-  whatsapp: string;
-  onChange: (next: { hasWhatsApp: boolean; whatsapp: string }) => void;
-  className?: string;
-}) {
-  if (hasWhatsApp) {
-    return (
-      <label
-        className={cn(
-          "flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-[var(--ink-mid)]",
-          className,
-        )}
-      >
-        <input
-          type="checkbox"
-          checked
-          onChange={() => onChange({ hasWhatsApp: false, whatsapp })}
-          className="size-4 accent-[var(--wa)]"
-        />
-        આ નંબર પર WhatsApp છે
-      </label>
-    );
-  }
-  return (
-    <div className={className}>
-      <AdminField label="WhatsApp number · WhatsApp નંબર" className="mb-1">
-        <AdminInput
-          type="tel"
-          value={whatsapp}
-          onChange={(v) =>
-            onChange({ hasWhatsApp: false, whatsapp: v.replace(/\D/g, "").slice(0, 10) })
-          }
-          placeholder="98765 43210"
-        />
-      </AdminField>
-      <button
-        type="button"
-        onClick={() => onChange({ hasWhatsApp: true, whatsapp: "" })}
-        className="mb-3 cursor-pointer text-[11.5px] font-bold text-[var(--brand)]"
-      >
-        Same as mobile
-      </button>
-    </div>
-  );
 }
 
 function matchGroup(groups: SurnameOption[], surnameEn: string) {
@@ -378,10 +327,26 @@ export function FamiliesClient({
       setError("Head mobile is required (10 digits, starts with 6–9)");
       return;
     }
-    setAddBusy(true);
-    setError(null);
+    if (!form.headGender) {
+      setError("Head gender is required");
+      return;
+    }
 
     const keptMembers = form.members.filter((m) => m.fullNameEn.trim() || m.fullNameGu.trim());
+
+    const missingRelation = keptMembers.findIndex((m) => !m.relation.trim());
+    if (missingRelation >= 0) {
+      setError(`Member ${missingRelation + 2}: pick a relation`);
+      return;
+    }
+    const missingGender = keptMembers.findIndex((m) => !m.gender);
+    if (missingGender >= 0) {
+      setError(`Member ${missingGender + 2}: pick a gender`);
+      return;
+    }
+
+    setAddBusy(true);
+    setError(null);
 
     const resolved = await Promise.all(
       keptMembers.map((m) => resolveCascadingOccupationForSave(occupationTreeState, m)),
@@ -426,6 +391,7 @@ export function FamiliesClient({
           fullNameEn: form.headNameEn.trim(),
           fullNameGu: form.headNameGu.trim() || undefined,
           relation: "Head",
+          gender: form.headGender || undefined,
           mobile: form.headMobile.replace(/\D/g, ""),
           dateOfBirth: form.headDateOfBirth || undefined,
           bloodGroup: form.headBloodGroup || undefined,
@@ -442,6 +408,7 @@ export function FamiliesClient({
           fullNameEn: m.fullNameEn.trim() || m.fullNameGu.trim(),
           fullNameGu: m.fullNameGu.trim() || undefined,
           relation: m.relation || undefined,
+          gender: m.gender || undefined,
           mobile: m.mobile || undefined,
           dateOfBirth: m.dateOfBirth || undefined,
           bloodGroup: m.bloodGroup || undefined,
@@ -538,20 +505,6 @@ export function FamiliesClient({
     setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, mobile: mobile || null } : x)));
     const res = await api.patch(`/api/admin/family-members`, { id: m.id, mobile: mobile || null });
     if (!res.ok) setError(res.error);
-  }
-
-  async function addMember() {
-    if (!membersOf) return;
-    const res = await api.post<Member>(`/api/admin/family-members`, {
-      familyId: membersOf.id,
-      fullNameEn: "New member",
-    });
-    if (res.ok) {
-      setMembers((prev) => [...prev, res.data]);
-      setRows((prev) =>
-        prev.map((r) => (r.id === membersOf.id ? { ...r, members: r.members + 1 } : r)),
-      );
-    } else setError(res.error);
   }
 
   async function removeMember(m: Member) {
@@ -663,7 +616,7 @@ export function FamiliesClient({
             <AdminTh>City</AdminTh>
             <AdminTh>Members</AdminTh>
             <AdminTh>Status</AdminTh>
-            <AdminTh className="text-right">Actions</AdminTh>
+            <AdminTh className="text-right whitespace-nowrap">Actions</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -696,21 +649,31 @@ export function FamiliesClient({
                 <FamilyStatusPill status={f.status} />
               </AdminTd>
               <AdminTd className="text-right">
-                <span className="flex flex-wrap justify-end gap-1">
-                  <LinkAction onClick={() => router.push(`/admin/queue/${f.id}?from=families`)}>
-                    Edit
-                  </LinkAction>
-                  <span className="text-[var(--faint)]">·</span>
-                  <LinkAction onClick={() => openMembers(f)}>Members</LinkAction>
-                  <span className="text-[var(--faint)]">·</span>
-                  <LinkAction onClick={() => toggleStatus(f)}>
-                    {f.status === "APPROVED" ? "Deactivate" : "Activate"}
-                  </LinkAction>
-                  <span className="text-[var(--faint)]">·</span>
-                  <LinkAction danger onClick={() => deleteFamily(f)}>
-                    Delete
-                  </LinkAction>
-                </span>
+                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <ActionBtn
+                    icon={Pencil}
+                    label="Edit"
+                    onClick={() => router.push(`/admin/queue/${f.id}?from=families`)}
+                  />
+                  <ActionBtn
+                    icon={UserPlus}
+                    label="Add member"
+                    onClick={() => router.push(`/admin/queue/${f.id}?from=families&add=1`)}
+                  />
+
+                  <ActionBtn
+                    icon={f.status === "APPROVED" ? ZapOff : Zap}
+                    label={f.status === "APPROVED" ? "Deactivate" : "Activate"}
+                    tone={f.status === "APPROVED" ? "warn" : "success"}
+                    onClick={() => toggleStatus(f)}
+                  />
+                  <ActionBtn
+                    icon={Trash2}
+                    label="Delete"
+                    tone="danger"
+                    onClick={() => deleteFamily(f)}
+                  />
+                </div>
               </AdminTd>
             </tr>
           ))}
@@ -802,12 +765,15 @@ export function FamiliesClient({
                 placeholder="10-digit mobile"
               />
             </AdminField>
-            <AdminField label="Relation (સંબંધ)">
+            <AdminField label="Gender · જાતિ" required>
               <AdminSelect
-                value="Head"
-                onChange={() => undefined}
+                value={form.headGender}
+                onChange={(v) => setForm((prev) => ({ ...prev, headGender: v }))}
                 className="w-full"
-                options={[{ value: "Head", label: "Head · વડા" }]}
+                options={[
+                  { value: "", label: "Select gender…" },
+                  ...GENDERS.map((g) => ({ value: g.value, label: `${g.en} · ${g.gu}` })),
+                ]}
               />
             </AdminField>
           </AdminFormRow>
@@ -841,7 +807,7 @@ export function FamiliesClient({
                 value={form.headBloodGroup}
                 onChange={(v) => setForm({ ...form, headBloodGroup: v })}
                 className="w-full"
-                options={[{ value: "", label: "—" }, ...BLOOD_GROUPS]}
+                options={[{ value: "", label: "Select blood group" }, ...BLOOD_GROUPS]}
               />
             </AdminField>
           </AdminFormRow>
@@ -910,13 +876,20 @@ export function FamiliesClient({
             </AdminFormRow>
 
             <AdminFormRow>
-              <AdminField label="Relation (સંબંધ)">
+              <AdminField label="Relation (સંબંધ)" required>
                 <AdminSelect
                   value={m.relation}
-                  onChange={(v) => updateMemberDraft(i, { relation: v })}
+                  onChange={(v) =>
+                    // Most relations state the gender; fill it in, but never
+                    // overwrite an answer already given.
+                    updateMemberDraft(i, {
+                      relation: v,
+                      ...(m.gender ? {} : { gender: genderFromRelation(v) ?? "" }),
+                    })
+                  }
                   className="w-full"
                   options={[
-                    { value: "", label: "—" },
+                    { value: "", label: "Select relation…" },
                     ...relationOptions.map((r) => ({
                       value: r.nameEn,
                       label: `${r.nameEn}${r.nameGu && r.nameGu !== r.nameEn ? ` · ${r.nameGu}` : ""}`,
@@ -924,15 +897,27 @@ export function FamiliesClient({
                   ]}
                 />
               </AdminField>
-              <AdminField label="Mobile number">
-                <AdminInput
-                  value={m.mobile}
-                  onChange={(v) =>
-                    updateMemberDraft(i, { mobile: v.replace(/\D/g, "").slice(0, 10) })
-                  }
+              <AdminField label="Gender · જાતિ" required>
+                <AdminSelect
+                  value={m.gender}
+                  onChange={(v) => updateMemberDraft(i, { gender: v })}
+                  className="w-full"
+                  options={[
+                    { value: "", label: "Select gender…" },
+                    ...GENDERS.map((g) => ({ value: g.value, label: `${g.en} · ${g.gu}` })),
+                  ]}
                 />
               </AdminField>
             </AdminFormRow>
+
+            <AdminField label="Mobile number">
+              <AdminInput
+                value={m.mobile}
+                onChange={(v) =>
+                  updateMemberDraft(i, { mobile: v.replace(/\D/g, "").slice(0, 10) })
+                }
+              />
+            </AdminField>
 
             <AdminField
               label={communityType === "GAM" ? "Village / city · ગામ / શહેર" : "City · શહેર"}
@@ -962,7 +947,7 @@ export function FamiliesClient({
                   value={m.bloodGroup}
                   onChange={(v) => updateMemberDraft(i, { bloodGroup: v })}
                   className="w-full"
-                  options={[{ value: "", label: "—" }, ...BLOOD_GROUPS]}
+                  options={[{ value: "", label: "Select blood group" }, ...BLOOD_GROUPS]}
                 />
               </AdminField>
             </AdminFormRow>
@@ -1059,13 +1044,7 @@ export function FamiliesClient({
                             {(m.relation || "Member")} · {m.mobile || "— no login"}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeMember(m)}
-                          className="cursor-pointer text-[11px] font-bold text-[var(--danger)] underline"
-                        >
-                          Remove
-                        </button>
+
                       </div>
                       <div className="mt-2.5 flex flex-wrap gap-1.5">
                         <button
@@ -1109,23 +1088,6 @@ export function FamiliesClient({
                   );
                 })}
 
-                <button
-                  type="button"
-                  onClick={addMember}
-                  className="mb-4 flex h-[46px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-[13px] border-[1.5px] border-dashed border-[var(--brand-line)] bg-[var(--brand-tint-soft)] text-[13px] font-extrabold text-[var(--brand)]"
-                >
-                  + Add member
-                </button>
-
-                <AdminBtn
-                  className="w-full justify-center"
-                  onClick={() => {
-                    setMembersOf(null);
-                    router.refresh();
-                  }}
-                >
-                  Done
-                </AdminBtn>
               </>
             )}
           </div>

@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, Eye, Loader2, Pencil, X } from "lucide-react";
 import {
+  ActionBtn,
   AdminBtn,
   AdminH2,
+  AdminSelect,
   AdminTable,
   AdminTd,
   AdminTh,
@@ -268,39 +270,36 @@ export function QueueClient({
 
       {tab === "new" && (
       <>
-      <div className="mb-3.5">
+      <div className="mb-4 flex flex-wrap gap-2.5">
         <SearchInput
           value={query}
           onChange={setQuery}
           placeholder="Search family / surname / city…"
-          className="max-w-full"
+          className="min-w-[200px] flex-1"
         />
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-4">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11.5px] font-bold text-[var(--faint)]">Status:</span>
-          {(["all", "PENDING", "APPROVED", "REJECTED"] as const).map((s) => (
-            <FilterChip
-              key={s}
-              label={s === "all" ? "All" : s.charAt(0) + s.slice(1).toLowerCase()}
-              active={status === s}
-              onClick={() => setStatus(s)}
-            />
-          ))}
-        </div>
+        <AdminSelect
+          value={status}
+          onChange={(v) => setStatus(v as "all" | QueueRow["status"])}
+          ariaLabel="Filter by status"
+          className="w-[140px]"
+          options={[
+            { value: "all", label: "All statuses" },
+            { value: "PENDING", label: "Pending" },
+            { value: "APPROVED", label: "Approved" },
+            { value: "REJECTED", label: "Rejected" },
+          ]}
+        />
         {cities.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11.5px] font-bold text-[var(--faint)]">City:</span>
-            {["all", ...cities].map((c) => (
-              <FilterChip
-                key={c}
-                label={c === "all" ? "All" : c}
-                active={city === c}
-                onClick={() => setCity(c)}
-              />
-            ))}
-          </div>
+          <AdminSelect
+            value={city}
+            onChange={setCity}
+            ariaLabel="Filter by city"
+            className="w-[160px]"
+            options={[
+              { value: "all", label: "All cities" },
+              ...cities.map((c) => ({ value: c, label: c })),
+            ]}
+          />
         )}
       </div>
 
@@ -313,7 +312,7 @@ export function QueueClient({
             <AdminTh>Members</AdminTh>
             <AdminTh>Submitted</AdminTh>
             <AdminTh>Status</AdminTh>
-            <AdminTh>Action</AdminTh>
+            <AdminTh className="text-right whitespace-nowrap">Action</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -329,38 +328,33 @@ export function QueueClient({
               <AdminTd>
                 <StatusPill status={lower(r.status)} />
               </AdminTd>
-              <AdminTd>
+              <AdminTd className="text-right">
                 {r.status === "PENDING" ? (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Link
-                      href={`/admin/queue/${r.id}`}
-                      className="text-xs font-bold text-[#3D7BC4] underline"
-                    >
-                      View
-                    </Link>
-                    <button
-                      type="button"
+                  <div className="flex flex-wrap items-center justify-end gap-1.5">
+                    <ActionBtn
+                      icon={Eye}
+                      label="View"
+                      onClick={() => { window.location.href = `/admin/queue/${r.id}`; }}
+                    />
+                    <ActionBtn
+                      icon={Check}
+                      label="Approve"
+                      tone="success"
                       onClick={() => openApprove(r.id)}
-                      className="cursor-pointer rounded-[9px] bg-[var(--success-tint)] px-[11px] py-[5px] text-[11.5px] font-extrabold text-[var(--success)]"
-                    >
-                      <Check className="mr-0.5 inline size-3" />
-                      Approve
-                    </button>
-                    <button
-                      type="button"
+                    />
+                    <ActionBtn
+                      icon={X}
+                      label="Reject"
+                      tone="danger"
                       onClick={() => {
                         setRejectId(r.id);
                         setRejectReason("");
                         setError(null);
                       }}
-                      className="cursor-pointer rounded-[9px] bg-[var(--danger-tint)] px-[11px] py-[5px] text-[11.5px] font-extrabold text-[var(--danger)]"
-                    >
-                      <X className="mr-0.5 inline size-3" />
-                      Reject
-                    </button>
+                    />
                   </div>
                 ) : (
-                  <span className="text-[11.5px] text-[var(--faint)]">
+                  <span className="flex justify-end text-[11.5px] text-[var(--faint)]">
                     {r.status === "APPROVED" ? "Approved" : "Rejected"}
                   </span>
                 )}
@@ -569,9 +563,17 @@ export function QueueClient({
       >
         {approveRow && (
           <div>
-            <h4 className="mb-3 text-sm font-extrabold text-[var(--ink)]">
-              {approveRow.head} — {approveRow.surname}
-            </h4>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h4 className="text-sm font-extrabold text-[var(--ink)]">
+                {approveRow.head} — {approveRow.surname}
+              </h4>
+              <Link
+                href={`/admin/queue/${approveRow.id}`}
+                className="shrink-0 text-xs font-bold text-[#3D7BC4] underline"
+              >
+                View
+              </Link>
+            </div>
 
             {loadingDetail ? (
               <div className="flex items-center gap-2 py-6 text-[13px] text-[var(--faint)]">

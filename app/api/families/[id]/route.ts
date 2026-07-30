@@ -13,6 +13,7 @@ const memberSchema = z.object({
   fullNameEn: z.string().min(1),
   fullNameGu: z.string().optional().nullable(),
   relation: z.string().optional().nullable(),
+  gender: z.enum(["MALE", "FEMALE"]).optional().nullable(),
   mobile: z.string().optional().nullable(),
   dateOfBirth: z.string().optional().nullable(),
   bloodGroup: z.enum(BLOOD).optional().nullable(),
@@ -20,6 +21,11 @@ const memberSchema = z.object({
   occupationOther: z.string().optional().nullable(),
   education: z.string().optional().nullable(),
   course: z.string().optional().nullable(),
+  // Registration collects both; without them here an admin edit silently wiped
+  // the member's place and reset their WhatsApp flag.
+  currentlyAt: z.string().optional().nullable(),
+  hasWhatsApp: z.boolean().optional(),
+  whatsapp: z.string().optional().nullable(),
   isHead: z.boolean().optional(),
 });
 
@@ -36,6 +42,10 @@ const putSchema = z.object({
   email: z.string().optional().nullable(),
   villageAreaId: z.string().optional().nullable(),
   businessGu: z.string().optional().nullable(),
+  // The map pin the review screen can capture — without these zod dropped them
+  // and the button looked like it worked.
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
   nativeElderNameEn: z.string().optional().nullable(),
   nativeElderNameGu: z.string().optional().nullable(),
   nativeElderPhone: z.string().optional().nullable(),
@@ -126,6 +136,7 @@ export async function PUT(req: Request, { params }: Params) {
             fullNameEn: m.fullNameEn,
             fullNameGu: m.fullNameGu ?? null,
             relation: m.relation ?? null,
+            gender: m.gender ?? null,
             mobile: m.mobile ?? null,
             dateOfBirth: m.dateOfBirth ? new Date(m.dateOfBirth) : null,
             bloodGroup: m.bloodGroup ?? null,
@@ -133,6 +144,9 @@ export async function PUT(req: Request, { params }: Params) {
             occupationOther: m.occupationOther ?? null,
             education: m.education ?? null,
             course: m.course ?? null,
+            currentlyAt: m.currentlyAt ?? null,
+            hasWhatsApp: m.hasWhatsApp ?? true,
+            whatsapp: m.whatsapp ?? null,
             isHead: m.isHead ?? false,
           };
           if (m.id && existing.familyMembers.some((e) => e.id === m.id)) {

@@ -83,6 +83,7 @@ const createSchema = z.object({
         fullNameEn: z.string().min(2),
         fullNameGu: z.string().optional(),
         relation: z.string().optional(),
+        gender: z.enum(["MALE", "FEMALE"]).optional(),
         mobile: z.string().optional(),
         bloodGroup: z
           .enum(["A_POS", "A_NEG", "B_POS", "B_NEG", "O_POS", "O_NEG", "AB_POS", "AB_NEG"])
@@ -94,6 +95,7 @@ const createSchema = z.object({
         currentlyAt: z.string().optional(),
         dateOfBirth: z.string().optional(),
         hasWhatsApp: z.boolean().optional(),
+        whatsapp: z.string().optional(),
         isHead: z.boolean().optional(),
       }),
     )
@@ -202,6 +204,7 @@ export async function POST(req: Request) {
               fullNameEn: m.fullNameEn,
               fullNameGu: m.fullNameGu,
               relation: isHead ? "Head" : m.relation,
+              gender: m.gender ?? null,
               mobile: m.mobile?.replace(/\D/g, "") || null,
               bloodGroup: m.bloodGroup,
               occupation: m.occupation,
@@ -211,6 +214,7 @@ export async function POST(req: Request) {
               currentlyAt: m.currentlyAt || body.city,
               dateOfBirth: m.dateOfBirth ? new Date(m.dateOfBirth) : undefined,
               hasWhatsApp: m.hasWhatsApp ?? true,
+              whatsapp: m.hasWhatsApp === false ? m.whatsapp?.trim() || undefined : undefined,
               isHead,
             };
           }),

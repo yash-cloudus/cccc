@@ -29,8 +29,6 @@ export default async function CommunityInfoPage() {
       upiId={upiSetting?.value ?? ""}
       logoUrl={community.logoUrl ?? ""}
       bannerUrl={community.bannerUrl ?? ""}
-      primaryColor={community.primaryColor}
-      secondaryColor={community.secondaryColor}
       basic={{
         nameEn: community.nameEn ?? "",
         nameGu: community.nameGu ?? "",

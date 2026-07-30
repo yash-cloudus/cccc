@@ -30,6 +30,7 @@ const schema = z.object({
         fullNameEn: z.string().min(1),
         fullNameGu: z.string().optional().nullable(),
         relation: z.string().optional().nullable(),
+        gender: z.enum(["MALE", "FEMALE"]).optional().nullable(),
         mobile: z.string().optional().nullable(),
         dateOfBirth: z.string().optional().nullable(),
         bloodGroup: z.string().optional().nullable(),
@@ -39,6 +40,7 @@ const schema = z.object({
         course: z.string().optional().nullable(),
         currentlyAt: z.string().optional().nullable(),
         hasWhatsApp: z.boolean().optional(),
+        whatsapp: z.string().optional().nullable(),
         isHead: z.boolean().optional(),
       }),
     )
@@ -194,6 +196,7 @@ export async function POST(req: Request) {
               fullNameEn: m.fullNameEn.trim(),
               fullNameGu: m.fullNameGu?.trim() || null,
               relation: isHead ? "Head" : m.relation || null,
+              gender: m.gender ?? null,
               mobile: m.mobile?.replace(/\D/g, "") || null,
               dateOfBirth: m.dateOfBirth ? new Date(m.dateOfBirth) : null,
               bloodGroup: parseBlood(m.bloodGroup),
@@ -203,6 +206,7 @@ export async function POST(req: Request) {
               course: m.course || null,
               currentlyAt: m.currentlyAt || body.city?.trim() || null,
               hasWhatsApp: m.hasWhatsApp ?? true,
+              whatsapp: m.hasWhatsApp === false ? m.whatsapp?.trim() || null : null,
               isHead,
             };
           }),

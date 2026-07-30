@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
-import { getFamilies, getSurnameGroups } from "@/lib/tenant-data";
+import { getSurnameGroups } from "@/lib/tenant-data";
 import { SurnameClient, type FamilyRow } from "./surname-client";
 
 export const dynamic = "force-dynamic";
@@ -18,16 +19,28 @@ export default async function SurnameFamiliesPage({
   const group = groups.find((g) => g.id === surname);
   if (!group) notFound();
 
-  const families = await getFamilies(community.id, {
-    status: "APPROVED",
-    surnameGroupId: surname,
+  // Every member, not just the head — search matches a member's name too, not
+  // only who the family is registered under.
+  const families = await prisma.family.findMany({
+    where: { communityId: community.id, status: "APPROVED", surnameGroupId: surname },
+    include: {
+      familyMembers: {
+        select: { fullNameEn: true, fullNameGu: true, relation: true, isHead: true },
+        orderBy: { createdAt: "asc" },
+      },
+      _count: { select: { familyMembers: true } },
+    },
   });
+
   const rows: FamilyRow[] = families.map((f) => ({
     id: f.id,
     headNameEn: f.headNameEn,
     headNameGu: f.headNameGu,
     city: f.city,
     memberCount: f._count.familyMembers,
+    otherMembers: f.familyMembers
+      .filter((m) => !m.isHead)
+      .map((m) => ({ fullNameEn: m.fullNameEn, fullNameGu: m.fullNameGu, relation: m.relation })),
   }));
 
   return (

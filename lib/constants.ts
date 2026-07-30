@@ -36,6 +36,39 @@ export const BLOOD_GROUPS = [
   { type: "AB_NEG", label: "AB-" },
 ] as const;
 
+/** The `Gender` enum, with the bilingual labels every form shows. */
+export const GENDERS = [
+  { value: "MALE", en: "Male", gu: "પુરુષ" },
+  { value: "FEMALE", en: "Female", gu: "સ્ત્રી" },
+] as const;
+
+export type GenderValue = (typeof GENDERS)[number]["value"];
+
+/** Relations that state the gender outright. Keep in step with the backfill in
+ *  `20260730140000_family_member_gender` — same list, same answers. */
+const RELATION_GENDER: Record<string, GenderValue> = {
+  husband: "MALE",
+  son: "MALE",
+  father: "MALE",
+  brother: "MALE",
+  grandfather: "MALE",
+  "son-in-law": "MALE",
+  wife: "FEMALE",
+  daughter: "FEMALE",
+  mother: "FEMALE",
+  sister: "FEMALE",
+  grandmother: "FEMALE",
+  "daughter-in-law": "FEMALE",
+};
+
+/**
+ * Gender implied by a relation, or undefined when it isn't implied — "Head" and
+ * "Other" tell us nothing, so they must still be asked.
+ */
+export function genderFromRelation(relation?: string | null): GenderValue | undefined {
+  return RELATION_GENDER[(relation || "").trim().toLowerCase()];
+}
+
 export const REJECT_REASONS = [
   "Incomplete form",
   "Duplicate family",

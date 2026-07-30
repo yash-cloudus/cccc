@@ -12,6 +12,7 @@ import { CascadingOccupationFields } from "@/components/forms/cascading-occupati
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { bloodToEnum, pickText } from "@/lib/format";
+import { GENDERS, genderFromRelation } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { DateField } from "@/components/ui/date-field";
@@ -42,6 +43,8 @@ type Member = {
   name: string;
   nameGu: string;
   relation: string;
+  /** `Gender` enum value — required before the member can be added. */
+  gender: string;
   dob: string;
   blood: string;
   mobile: string;
@@ -65,8 +68,11 @@ const blankMember = (place = ""): Member => ({
   name: "",
   nameGu: "",
   relation: "Son",
+  gender: genderFromRelation("Son") ?? "",
   dob: "",
-  blood: "B+",
+  // No pre-selected blood group: "B+" was a guess that silently became the
+  // answer for anyone who never opened the picker.
+  blood: "",
   mobile: "",
   whatsapp: "",
   hasWa: true,
@@ -153,7 +159,8 @@ export function RegisterClient({
     m1mobile: "",
     m1whatsapp: "",
     m1dob: "",
-    m1blood: "B+",
+    m1blood: "",
+    m1gender: "",
     m1place: "",
     hasWhatsApp: true,
     ...blankCascadingOccupation(),
@@ -287,6 +294,7 @@ export function RegisterClient({
   /** The head's place lives on their member card, so it is validated with step 2. */
   function validateStep2() {
     if (form.m1name.trim().length < 2) return T("વડાનું નામ જરૂરી છે", "Head name is required");
+    if (!form.m1gender) return T("વડાની જાતિ પસંદ કરો", "Pick the head's gender");
     const mob = form.m1mobile.replace(/\D/g, "");
     if (!/^[6-9]\d{9}$/.test(mob)) {
       return T("લોગિન મોબાઈલ 10 અંકનો હોવો જોઈએ", "Login mobile must be 10 digits (6–9…)");
@@ -347,11 +355,13 @@ export function RegisterClient({
           fullNameEn: form.m1name.trim(),
           fullNameGu: form.m1nameGu.trim() || undefined,
           relation: "Head",
+          gender: form.m1gender || undefined,
           mobile: form.m1mobile.replace(/\D/g, ""),
           bloodGroup: bloodToEnum(form.m1blood),
           currentlyAt: form.m1place || undefined,
           dateOfBirth: form.m1dob || undefined,
-          hasWhatsApp: true,
+          hasWhatsApp: form.hasWhatsApp,
+          whatsapp: form.hasWhatsApp ? undefined : form.m1whatsapp.trim() || undefined,
           isHead: true,
           occupation: headOcc.occupation || undefined,
           occupationOther: headOcc.occupationOther || undefined,
@@ -362,11 +372,13 @@ export function RegisterClient({
           fullNameEn: m.name.trim(),
           fullNameGu: m.nameGu.trim() || undefined,
           relation: m.relation,
+          gender: m.gender || undefined,
           mobile: m.mobile.replace(/\D/g, "") || undefined,
           bloodGroup: bloodToEnum(m.blood),
           currentlyAt: m.place || city || undefined,
           dateOfBirth: m.dob || undefined,
           hasWhatsApp: m.hasWa,
+          whatsapp: m.hasWa ? undefined : m.whatsapp.trim() || undefined,
           isHead: false,
           occupation: memberOcc[i].occupation || undefined,
           occupationOther: memberOcc[i].occupationOther || undefined,
@@ -479,7 +491,8 @@ export function RegisterClient({
                 m1mobile: "",
                 m1whatsapp: "",
                 m1dob: "",
-                m1blood: "B+",
+                m1blood: "",
+                m1gender: "",
                 m1place: "",
                 hasWhatsApp: true,
                 ...blankCascadingOccupation(),
@@ -558,7 +571,15 @@ export function RegisterClient({
                 <button
                   key={r.nameEn}
                   type="button"
-                  onClick={() => setNewMember({ ...newMember, relation: r.nameEn })}
+                  onClick={() =>
+                    setNewMember((prev) => ({
+                      ...prev,
+                      relation: r.nameEn,
+                      // Most relations state the gender; fill it in, but never
+                      // overwrite an answer already given.
+                      ...(prev.gender ? {} : { gender: genderFromRelation(r.nameEn) ?? "" }),
+                    }))
+                  }
                   className={cn(
                     "rounded-full px-4 py-2.5 text-[13px] font-bold",
                     newMember.relation === r.nameEn
@@ -567,6 +588,25 @@ export function RegisterClient({
                   )}
                 >
                   {lang === "gu" ? r.nameGu || r.nameEn : r.nameEn}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <Field label={`${T("જાતિ", "Gender")} *`}>
+            <div className="flex flex-wrap gap-2">
+              {GENDERS.map((g) => (
+                <button
+                  key={g.value}
+                  type="button"
+                  onClick={() => setNewMember((prev) => ({ ...prev, gender: g.value }))}
+                  className={cn(
+                    "rounded-full px-4 py-2.5 text-[13px] font-bold",
+                    newMember.gender === g.value
+                      ? "bg-[var(--brand)] text-white"
+                      : "border border-[var(--line-field)] bg-white text-[var(--ink-dim)]",
+                  )}
+                >
+                  {lang === "gu" ? g.gu : g.en}
                 </button>
               ))}
             </div>
@@ -596,6 +636,7 @@ export function RegisterClient({
                 value={newMember.blood}
                 onChange={(v) => setNewMember({ ...newMember, blood: v })}
                 options={BLOOD_OPTIONS}
+                placeholder={T("બ્લડ ગ્રુપ પસંદ કરો", "Select blood group")}
                 t={T}
               />
             </Field>
@@ -689,7 +730,16 @@ export function RegisterClient({
           <button
             type="button"
             onClick={() => {
-              if (newMember.name.trim().length < 2) return;
+              // These used to fail silently — the button just did nothing.
+              if (newMember.name.trim().length < 2) {
+                return toast.error(T("સભ્યનું નામ જરૂરી છે", "Member name is required"));
+              }
+              if (!newMember.relation) {
+                return toast.error(T("સબંધ પસંદ કરો", "Pick a relation"));
+              }
+              if (!newMember.gender) {
+                return toast.error(T("જાતિ પસંદ કરો", "Pick a gender"));
+              }
               if (editingMemberIndex === null) {
                 setMembers([...members, newMember]);
               } else {
@@ -860,6 +910,25 @@ export function RegisterClient({
                     t={T}
                   />
                 </Field>
+                <Field label={`${T("જાતિ", "Gender")} *`}>
+                  <div className="flex flex-wrap gap-2">
+                    {GENDERS.map((g) => (
+                      <button
+                        key={g.value}
+                        type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, m1gender: g.value }))}
+                        className={cn(
+                          "rounded-full px-4 py-2.5 text-[13px] font-bold",
+                          form.m1gender === g.value
+                            ? "bg-[var(--brand)] text-white"
+                            : "border border-[var(--line-field)] bg-white text-[var(--ink-dim)]",
+                        )}
+                      >
+                        {lang === "gu" ? g.gu : g.en}
+                      </button>
+                    ))}
+                  </div>
+                </Field>
                 <div className="grid grid-cols-2 gap-2">
                   <Field label={T("જન્મ", "DOB")}>
                     <DateField
@@ -874,6 +943,7 @@ export function RegisterClient({
                       value={form.m1blood}
                       onChange={(v) => setForm({ ...form, m1blood: v })}
                       options={BLOOD_OPTIONS}
+                      placeholder={T("બ્લડ ગ્રુપ પસંદ કરો", "Select blood group")}
                       t={T}
                     />
                   </Field>
