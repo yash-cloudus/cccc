@@ -502,6 +502,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
               <AdminFilePicker
                 value={draft.coverUrl}
                 folder="gallery"
+                hint="1200 × 600 px (2:1) recommended"
                 onChange={(url) => setDraft((d) => (d ? { ...d, coverUrl: url } : d))}
               />
             </AdminField>
@@ -513,7 +514,10 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
               />
             </AdminField>
 
-            <AdminField label={`Photos (${draft.images.length})`}>
+            <AdminField
+              label={`Photos (${draft.images.length})`}
+              hint="1280 × 720 px (16:9) recommended, per photo"
+            >
               <AdminMultiImagePicker
                 images={draft.images}
                 onChange={(next) => setDraft((d) => (d ? { ...d, images: next } : d))}

@@ -32,7 +32,7 @@ export default async function AboutPage() {
   if (!community) notFound();
 
   const [committees, members, infoSections] = await Promise.all([
-    getCommittees(community.id),
+    getCommittees(community.id, true),
     getCommitteeMembers(community.id, true),
     getInfoSections(community.id, true),
   ]);

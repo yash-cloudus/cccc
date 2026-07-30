@@ -1009,6 +1009,11 @@ export default function PlatformPage() {
                         <span className="mt-1.5 text-[12.5px] font-bold">
                           {logoUploading ? "Uploading…" : "Upload logo (PNG/SVG)"}
                         </span>
+                        {!logoUploading && !f.logoUrl && (
+                          <span className="mt-0.5 text-[11px] font-medium opacity-75">
+                            512 × 512 px (1:1) recommended
+                          </span>
+                        )}
                       </button>
                       {f.logoUrl && (
                         <button

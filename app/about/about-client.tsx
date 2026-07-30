@@ -8,12 +8,12 @@ import {
   Info,
   Mail,
   MapPin,
-  MessageCircle,
   Phone,
   Users,
 } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { HeaderLangToggle } from "@/components/ui/lang-toggle";
+import { WaIcon } from "@/components/directory/contact-card";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 import { pickText, telLink, waLink } from "@/lib/format";
@@ -108,71 +108,113 @@ export function AboutClient({
       </header>
 
       <div className="px-4 py-4 pb-8">
-        <div className="samaj-card mb-4 p-5">
-          <div className="mb-3 flex h-16 w-16 items-center justify-center overflow-hidden rounded-[20px] border-2 border-[var(--gold)] bg-gradient-to-br from-[var(--gold-light)] to-[var(--gold)] text-2xl font-bold text-[var(--brand-hover)]">
-            {c.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={c.logoUrl} alt="" className="size-full object-cover" />
-            ) : (
-              c.shortLogo
-            )}
+        <div className="samaj-card mb-4 overflow-hidden p-0">
+          <div className="h-[140px] w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={c.bannerUrl || "/images/banners/common-banner.webp"}
+              alt=""
+              className="size-full object-cover"
+            />
           </div>
-          <h1 className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold text-[var(--ink)]">
-            {name}
-          </h1>
-          {c.estd && (
-            <div className="mt-1 text-[12.5px] font-semibold text-[#A98A50]">
-              {lang === "gu" ? "સ્થાપના " : "Established "}
-              {c.estd}
-              {c.village ? ` · ${c.village}` : ""}
+          <div className="-mt-14 flex items-end gap-3 px-4 pb-4">
+            <div className="flex h-28 w-28 flex-none items-center justify-center overflow-hidden rounded-[28px] border-[4px] border-white bg-gradient-to-br from-[var(--gold-light)] to-[var(--gold)] text-4xl font-bold text-[var(--brand-hover)] shadow-[0_4px_10px_rgba(0,0,0,.2)]">
+              {c.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.logoUrl} alt="" className="size-full object-cover" />
+              ) : (
+                c.shortLogo
+              )}
             </div>
-          )}
-          {description && (
-            <p className="mt-3 whitespace-pre-line text-[14px] leading-relaxed text-[var(--ink-mid)]">
+            <div className="min-w-0 flex-1 pb-1">
+              <h1 className="truncate font-[family-name:var(--font-noto-serif-gujarati)] text-[19px] font-bold text-[var(--ink)]">
+                {name}
+              </h1>
+              {c.estd && (
+                <div className="mt-0.5 truncate text-[12.5px] font-semibold text-[#A98A50]">
+                  {lang === "gu" ? "સ્થાપના " : "Established "}
+                  {c.estd}
+                  {c.village ? ` · ${c.village}` : ""}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {description && (
+          <div className="samaj-card mb-4 p-4">
+            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
+              {lang === "gu" ? "સમિતિનો હેતુ" : "OUR PURPOSE"}
+            </div>
+            <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-mid)]">
               {description}
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
         {hasContact && (
           <div className="samaj-card p-4">
             <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
               {lang === "gu" ? "સંપર્ક" : "CONTACT"}
             </div>
-            {primaryLocation && (
-              <div className="flex items-start gap-3 py-2 text-[13px]">
-                <MapPin className="mt-0.5 h-4 w-4 flex-none text-[var(--brand)]" />
-                <span>{primaryLocation}</span>
-              </div>
-            )}
-            {c.contactPhone && (
-              <div className="flex items-center gap-3 py-2 text-[13px]">
-                <Phone className="h-4 w-4 flex-none text-[var(--brand)]" />
-                <a href={telLink(c.contactPhone)}>{c.contactPhone}</a>
-              </div>
-            )}
-            {c.whatsapp && (
-              <div className="flex items-center gap-3 py-2 text-[13px]">
-                <MessageCircle className="h-4 w-4 flex-none text-[var(--brand)]" />
-                <a href={waLink(c.whatsapp)} target="_blank" rel="noreferrer">
-                  {c.whatsapp}
-                </a>
-              </div>
-            )}
-            {c.email && (
-              <div className="flex items-center gap-3 py-2 text-[13px]">
-                <Mail className="h-4 w-4 flex-none text-[var(--brand)]" />
-                <a href={`mailto:${c.email}`}>{c.email}</a>
-              </div>
-            )}
-            {c.website && (
-              <div className="flex items-center gap-3 py-2 text-[13px]">
-                <Globe className="h-4 w-4 flex-none text-[var(--brand)]" />
-                <a href={c.website} target="_blank" rel="noreferrer" className="break-all">
-                  {c.website}
-                </a>
-              </div>
-            )}
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {primaryLocation && (
+                <div className="flex min-w-0 items-start gap-2.5 rounded-xl border border-[var(--line-soft)] px-3 py-2.5 text-[13px]">
+                  <MapPin className="mt-0.5 h-4 w-4 flex-none text-[var(--brand)]" />
+                  <span className="min-w-0 break-words text-[var(--ink-mid)]">{primaryLocation}</span>
+                </div>
+              )}
+              {c.contactPhone && (
+                <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--line-soft)] px-3 py-2.5 text-[13px]">
+                  <Phone className="h-4 w-4 flex-none text-[var(--leaf)]" />
+                  <a
+                    href={telLink(c.contactPhone)}
+                    className="min-w-0 truncate text-[var(--ink)] hover:text-[var(--brand)]"
+                  >
+                    {c.contactPhone}
+                  </a>
+                </div>
+              )}
+              {c.whatsapp && (
+                <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--line-soft)] px-3 py-2.5 text-[13px]">
+                  <span className="flex-none text-[var(--wa)]">
+                    <WaIcon size={16} />
+                  </span>
+                  <a
+                    href={waLink(c.whatsapp)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-w-0 truncate text-[var(--ink)] hover:text-[var(--wa)]"
+                  >
+                    {c.whatsapp}
+                  </a>
+                </div>
+              )}
+              {c.email && (
+                <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--line-soft)] px-3 py-2.5 text-[13px]">
+                  <Mail className="h-4 w-4 flex-none text-[var(--info)]" />
+                  <a
+                    href={`mailto:${c.email}`}
+                    className="min-w-0 truncate text-[var(--ink)] hover:text-[var(--brand)]"
+                  >
+                    {c.email}
+                  </a>
+                </div>
+              )}
+              {c.website && (
+                <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--line-soft)] px-3 py-2.5 text-[13px]">
+                  <Globe className="h-4 w-4 flex-none text-[var(--info)]" />
+                  <a
+                    href={c.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-w-0 truncate text-[var(--ink)] hover:text-[var(--brand)]"
+                  >
+                    {c.website}
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -244,10 +286,10 @@ export function AboutClient({
                                   href={waLink(m.whatsapp)}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--info-tint)] text-[var(--info)]"
+                                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--wa)]/15 text-[var(--wa)]"
                                   aria-label={t("whatsapp")}
                                 >
-                                  <MessageCircle className="h-[17px] w-[17px]" strokeWidth={2} />
+                                  <WaIcon size={17} />
                                 </a>
                               )}
                             </div>

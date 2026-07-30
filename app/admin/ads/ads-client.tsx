@@ -1207,10 +1207,11 @@ export function AdsClient({
 
             {draft.type === "premium" && (
               <>
-                <AdminField label="Banner image" hint="1200 × 600 px (2:1) recommended">
+                <AdminField label="Banner image">
                   <AdminFilePicker
                     value={draft.imageUrl}
                     folder="ads"
+                    hint="1200 × 600 px (2:1) recommended"
                     onChange={(url) => setDraft((d) => ({ ...d, imageUrl: url }))}
                   />
                 </AdminField>
@@ -1434,6 +1435,7 @@ export function AdsClient({
                   <AdminFilePicker
                     value={modal.form.imageUrl}
                     folder="ads"
+                    hint="1200 × 600 px (2:1) recommended"
                     onChange={(url) => setEditForm((f) => ({ ...f, imageUrl: url }))}
                   />
                 </AdminField>

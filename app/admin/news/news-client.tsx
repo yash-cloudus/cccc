@@ -638,6 +638,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
               <AdminFilePicker
                 value={draft.imageUrl}
                 folder="news"
+                hint="1200 × 600 px (2:1) recommended"
                 onChange={(url) => setDraft((d) => (d ? { ...d, imageUrl: url } : d))}
               />
             </AdminField>

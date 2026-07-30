@@ -171,7 +171,7 @@ export function AdminField({
   children,
   className,
 }: {
-  label?: string;
+  label?: React.ReactNode;
   required?: boolean;
   hint?: string;
   error?: string | null;
@@ -203,6 +203,13 @@ export function AdminField({
  * Two-or-more mutually exclusive buttons — the prototype's Status
  * (Draft|Published), (Active|Hidden) and (Existing business|Create new) control.
  */
+/** Selected-state colour when an option opts in via `tone` (e.g. Active=success, Inactive=danger). */
+const SEGMENTED_TONE_ON: Record<"success" | "danger" | "warn", string> = {
+  success: "border-[var(--success)] bg-[var(--success-tint)] text-[var(--success)]",
+  danger: "border-[var(--danger)] bg-[var(--danger-tint)] text-[var(--danger)]",
+  warn: "border-[var(--warn)] bg-[var(--gold-tint)] text-[var(--warn)]",
+};
+
 export function AdminSegmented<T extends string>({
   value,
   onChange,
@@ -211,13 +218,16 @@ export function AdminSegmented<T extends string>({
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: { value: T; label: string }[];
+  options: { value: T; label: string; tone?: "success" | "danger" | "warn" }[];
   className?: string;
 }) {
   return (
     <div className={cn("grid gap-2", className)} style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0,1fr))` }}>
       {options.map((o) => {
         const on = o.value === value;
+        const onClass = o.tone
+          ? SEGMENTED_TONE_ON[o.tone]
+          : "border-[var(--brand)] bg-[var(--brand-tint)] text-[var(--brand)]";
         return (
           <button
             key={o.value}
@@ -225,9 +235,7 @@ export function AdminSegmented<T extends string>({
             onClick={() => onChange(o.value)}
             className={cn(
               "h-[42px] cursor-pointer rounded-[11px] border-[1.5px] text-[13px] font-bold transition",
-              on
-                ? "border-[var(--brand)] bg-[var(--brand-tint)] text-[var(--brand)]"
-                : "border-[var(--line-input)] bg-white text-[var(--ink-mid)]",
+              on ? onClass : "border-[var(--line-input)] bg-white text-[var(--ink-mid)]",
             )}
           >
             {o.label}
@@ -321,6 +329,7 @@ export function AdminFilePicker({
   folder = "community-app",
   label = "Choose image",
   preview = true,
+  hint,
 }: {
   value: string;
   onChange: (url: string) => void;
@@ -328,6 +337,8 @@ export function AdminFilePicker({
   folder?: string;
   label?: string;
   preview?: boolean;
+  /** Short note (e.g. recommended size) shown beside the button, in the row's empty space. */
+  hint?: string;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -376,6 +387,9 @@ export function AdminFilePicker({
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
           {label}
         </AdminBtn>
+        {hint && !value && (
+          <span className="text-[11px] text-[var(--faint)]">{hint}</span>
+        )}
         {value && (
           <button
             type="button"

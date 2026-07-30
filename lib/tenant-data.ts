@@ -282,9 +282,9 @@ export async function getAdPriceTiersForCommunity(communityId: string) {
 
 /* ============================ Community info ============================ */
 
-export async function getCommittees(communityId: string) {
+export async function getCommittees(communityId: string, activeOnly = false) {
   return prisma.committee.findMany({
-    where: { communityId },
+    where: { communityId, ...(activeOnly ? { isActive: true } : {}) },
     include: { _count: { select: { members: true } } },
     orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
   });
