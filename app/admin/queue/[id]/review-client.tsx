@@ -2,7 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronLeft, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronLeft,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   AdminBtn,
@@ -20,12 +26,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { FamilyDetailsFields, type NamedOption } from "@/components/forms/family-details-fields";
-import { MemberFields, type MemberFormValues, blankMemberForm } from "@/components/forms/member-fields";
+import {
+  FamilyDetailsFields,
+  type NamedOption,
+} from "@/components/forms/family-details-fields";
+import {
+  MemberFields,
+  type MemberFormValues,
+  blankMemberForm,
+} from "@/components/forms/member-fields";
 import { REJECT_REASONS } from "@/lib/constants";
 import { api } from "@/lib/http";
 import { useAdminPlaces } from "@/hooks/use-admin-places";
-import { familyPlaceFromHead, type FamilyDetailsValues } from "@/lib/family-form";
+import {
+  familyPlaceFromHead,
+  type FamilyDetailsValues,
+} from "@/lib/family-form";
 import { resolveCascadingOccupationForSave } from "@/lib/cascading-occupation";
 import type { OccupationTreeNode } from "@/lib/occupation-defaults";
 
@@ -43,7 +59,11 @@ import type { OccupationTreeNode } from "@/lib/occupation-defaults";
  * place comes from where the head lives.
  */
 
-export type EditMember = { id: string; isNew: boolean; isHead: boolean } & MemberFormValues;
+export type EditMember = {
+  id: string;
+  isNew: boolean;
+  isHead: boolean;
+} & MemberFormValues;
 
 export type EditFamily = {
   id: string;
@@ -134,9 +154,15 @@ export function ReviewClient({
     router.push(backHref);
   }
 
-  const { places, addPlace } = useAdminPlaces(communityType, villages, cities, setError);
+  const { places, addPlace } = useAdminPlaces(
+    communityType,
+    villages,
+    cities,
+    setError,
+  );
 
-  const patchFamily = (patch: Partial<EditFamily>) => setF((prev) => ({ ...prev, ...patch }));
+  const patchFamily = (patch: Partial<EditFamily>) =>
+    setF((prev) => ({ ...prev, ...patch }));
 
   const patchMember = (id: string, patch: Partial<EditMember>) =>
     setF((prev) => ({
@@ -145,7 +171,10 @@ export function ReviewClient({
     }));
 
   const removeMember = (id: string) =>
-    setF((prev) => ({ ...prev, members: prev.members.filter((m) => m.id !== id) }));
+    setF((prev) => ({
+      ...prev,
+      members: prev.members.filter((m) => m.id !== id),
+    }));
 
   const addMember = () => {
     // Monotonic, so a removed row's key can never be handed to a later one.
@@ -166,7 +195,10 @@ export function ReviewClient({
     }));
     // Scroll to the new card after React flushes the state update.
     setTimeout(() => {
-      newMemberRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      newMemberRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
     }, 50);
   };
 
@@ -182,7 +214,9 @@ export function ReviewClient({
 
   async function buildPayload() {
     const resolved = await Promise.all(
-      f.members.map((m) => resolveCascadingOccupationForSave(occupationTree, m)),
+      f.members.map((m) =>
+        resolveCascadingOccupationForSave(occupationTree, m),
+      ),
     );
     // The head answers the family's questions: their name is the family's name,
     // their place is the family's place. Same rule as the member wizard.
@@ -191,13 +225,18 @@ export function ReviewClient({
     return {
       headNameEn: head?.fullNameEn.trim() || f.headNameEn,
       headNameGu: head?.fullNameGu.trim() || null,
-      surnameEn: communityType === "PARIVAR" && lockedSurname ? lockedSurname.nameEn : f.surnameEn,
+      surnameEn:
+        communityType === "PARIVAR" && lockedSurname
+          ? lockedSurname.nameEn
+          : f.surnameEn,
       surnameGu:
         communityType === "PARIVAR" && lockedSurname
           ? lockedSurname.nameGu
           : f.surnameGu || null,
       surnameGroupId:
-        communityType === "PARIVAR" && lockedSurname ? lockedSurname.id : f.surnameGroupId,
+        communityType === "PARIVAR" && lockedSurname
+          ? lockedSurname.id
+          : f.surnameGroupId,
       addressEn: f.addressEn || null,
       addressGu: f.addressGu || null,
       city: place.city || null,
@@ -210,24 +249,31 @@ export function ReviewClient({
       nativeElderPhone: f.nativeElderPhone || null,
       latitude: f.latitude,
       longitude: f.longitude,
-      members: f.members.map((m, i) => ({
-        ...(m.isNew ? {} : { id: m.id }),
-        fullNameEn: m.fullNameEn,
-        fullNameGu: m.fullNameGu || null,
-        relation: m.isHead ? "Head" : m.relation || null,
-        gender: m.gender || null,
-        mobile: m.mobile || null,
-        dateOfBirth: m.dateOfBirth || null,
-        bloodGroup: m.bloodGroup || null,
-        currentlyAt: m.currentlyAt || null,
-        hasWhatsApp: m.hasWhatsApp,
-        whatsapp: m.hasWhatsApp ? null : m.whatsapp.trim() || null,
-        occupation: resolved[i].occupation || null,
-        occupationOther: resolved[i].occupationOther || null,
-        education: resolved[i].education || null,
-        course: resolved[i].course || null,
-        isHead: m.isHead,
-      })),
+      members: f.members.map((m, i) => {
+        // Always mark exactly one head. Sending `m.isHead` straight through
+        // left families where no row had the flag headless forever — and the
+        // families list reads the head's mobile, so it showed "—" even though
+        // the member had one.
+        const isHeadRow = head ? m.id === head.id : i === 0;
+        return {
+          ...(m.isNew ? {} : { id: m.id }),
+          fullNameEn: m.fullNameEn,
+          fullNameGu: m.fullNameGu || null,
+          relation: isHeadRow ? "Head" : m.relation || null,
+          gender: m.gender || null,
+          mobile: m.mobile || null,
+          dateOfBirth: m.dateOfBirth || null,
+          bloodGroup: m.bloodGroup || null,
+          currentlyAt: m.currentlyAt || null,
+          hasWhatsApp: m.hasWhatsApp,
+          whatsapp: m.hasWhatsApp ? null : m.whatsapp.trim() || null,
+          occupation: resolved[i].occupation || null,
+          occupationOther: resolved[i].occupationOther || null,
+          education: resolved[i].education || null,
+          course: resolved[i].course || null,
+          isHead: isHeadRow,
+        };
+      }),
     };
   }
 
@@ -242,7 +288,9 @@ export function ReviewClient({
     const unnamed = f.members.findIndex((m) => !m.fullNameEn.trim());
     if (unnamed >= 0) return `Member ${unnamed + 1} needs a name`;
     // Same rule as the member wizard: every non-head member needs a relation.
-    const unrelated = f.members.findIndex((m) => !m.isHead && !m.relation.trim());
+    const unrelated = f.members.findIndex(
+      (m) => !m.isHead && !m.relation.trim(),
+    );
     if (unrelated >= 0) return `Member ${unrelated + 1}: pick a relation`;
     // Families registered before gender existed are backfilled from relation
     // where it was implied, so this normally only catches the head.
@@ -277,7 +325,12 @@ export function ReviewClient({
     setNotice(null);
     const okSave = await persist(false);
     setBusy(null);
-    if (okSave) setNotice("Changes saved.");
+    if (!okSave) return;
+    // Back to the list the edit was opened from — staying on the form left the
+    // admin unsure whether it had saved, and the list still showing the old row.
+    toast.success("Changes saved.");
+    router.push(backHref);
+    router.refresh();
   }
 
   async function approve() {
@@ -288,7 +341,10 @@ export function ReviewClient({
       setBusy(null);
       return;
     }
-    const res = await api.patch(`/api/families`, { id: f.id, status: "APPROVED" });
+    const res = await api.patch(`/api/families`, {
+      id: f.id,
+      status: "APPROVED",
+    });
     setBusy(null);
     if (!res.ok) {
       setError(res.error);
@@ -346,18 +402,27 @@ export function ReviewClient({
             }
           >
             {isQueueReview ? "Review & edit" : "Edit"}:{" "}
-            {head?.fullNameGu || head?.fullNameEn || f.headNameEn} ({f.surnameGu || f.surnameEn})
+            {head?.fullNameGu || head?.fullNameEn || f.headNameEn} (
+            {f.surnameGu || f.surnameEn})
           </AdminH2>
         </div>
 
         <div className="flex flex-wrap gap-2.5">
           <AdminBtn onClick={save}>
-            {busy === "save" ? <Loader2 className="size-4 animate-spin" /> : "Save changes"}
+            {busy === "save" ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              "Save changes"
+            )}
           </AdminBtn>
           {isQueueReview && (
             <>
               <AdminBtn variant="success" onClick={approve}>
-                {busy === "approve" ? <Loader2 className="size-4 animate-spin" /> : "✓ Approve family"}
+                {busy === "approve" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  "✓ Approve family"
+                )}
               </AdminBtn>
               <AdminBtn
                 variant="ghost"
@@ -421,7 +486,13 @@ export function ReviewClient({
             return (
               <div
                 key={m.id}
-                ref={isLast ? (el) => { newMemberRef.current = el; } : undefined}
+                ref={
+                  isLast
+                    ? (el) => {
+                        newMemberRef.current = el;
+                      }
+                    : undefined
+                }
                 className="rounded-2xl border border-[var(--line-admin)] bg-white p-4 sm:p-5"
               >
                 <div className="mb-3 flex items-center justify-between gap-3">
@@ -456,8 +527,16 @@ export function ReviewClient({
         </section>
       </div>
 
-      {error && <p className="mt-4 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
-      {notice && <p className="mt-4 text-[13px] font-semibold text-[var(--success)]">{notice}</p>}
+      {error && (
+        <p className="mt-4 text-[13px] font-semibold text-[var(--danger)]">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="mt-4 text-[13px] font-semibold text-[var(--success)]">
+          {notice}
+        </p>
+      )}
 
       {/* Back / unsaved-changes confirmation */}
       <Dialog open={backConfirmOpen} onOpenChange={setBackConfirmOpen}>
@@ -472,11 +551,12 @@ export function ReviewClient({
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2.5 pt-1">
-            <AdminBtn
-              className="w-full justify-center"
-              onClick={saveAndLeave}
-            >
-              {busy === "save" ? <Loader2 className="size-4 animate-spin" /> : "✓ Save & leave"}
+            <AdminBtn className="w-full justify-center" onClick={saveAndLeave}>
+              {busy === "save" ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                "✓ Save & leave"
+              )}
             </AdminBtn>
             <AdminBtn
               variant="ghost"
@@ -503,12 +583,14 @@ export function ReviewClient({
               Reject registration
             </DialogTitle>
             <DialogDescription className="text-[12.5px] text-[var(--faint)]">
-              {head?.fullNameGu || head?.fullNameEn || f.headNameEn} — the family will be notified
-              with the reason.
+              {head?.fullNameGu || head?.fullNameEn || f.headNameEn} — the
+              family will be notified with the reason.
             </DialogDescription>
           </DialogHeader>
           <div>
-            <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">Reason *</div>
+            <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">
+              Reason *
+            </div>
             <div className="mb-3 flex flex-wrap gap-1.5">
               {REJECT_REASONS.map((reason) => (
                 <FilterChip
@@ -525,10 +607,22 @@ export function ReviewClient({
               placeholder="Add a note…"
               className="mb-2 min-h-[70px] resize-none border-[var(--line-field)] bg-[var(--field)] text-[13px]"
             />
-            {error && <p className="mb-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
+            {error && (
+              <p className="mb-2 text-[12.5px] font-semibold text-[var(--danger)]">
+                {error}
+              </p>
+            )}
             <div className="flex gap-2.5">
-              <AdminBtn variant="danger" className="flex-1 justify-center" onClick={reject}>
-                {busy === "reject" ? <Loader2 className="size-4 animate-spin" /> : "Confirm reject"}
+              <AdminBtn
+                variant="danger"
+                className="flex-1 justify-center"
+                onClick={reject}
+              >
+                {busy === "reject" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  "Confirm reject"
+                )}
               </AdminBtn>
               <AdminBtn
                 variant="ghost"

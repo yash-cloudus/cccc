@@ -6,6 +6,17 @@ import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/communit
 import { getActiveCommunityId, getSessionPayload, getWritableCommunityId } from "@/lib/tenant";
 import { COMMUNITY_ADMIN_ROLES } from "@/lib/constants";
 
+/**
+ * Outside production, put the real reason in the response so the toast says
+ * something actionable instead of a dead end. Production keeps the generic
+ * text — internal errors are not for end users.
+ */
+function detailedFailure(message: string, e: unknown) {
+  if (process.env.NODE_ENV === "production") return message;
+  const detail = (e as Error)?.message?.split("\n").filter(Boolean).pop()?.trim();
+  return detail ? `${message}: ${detail}` : message;
+}
+
 /** Percentage + felicitation eligibility from a marks pair (≥80% qualifies). */
 function scoreOf(total?: number | null, obtained?: number | null) {
   if (total == null || obtained == null || total <= 0) return {};
@@ -155,7 +166,10 @@ export async function POST(req: Request) {
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);
     if (e instanceof z.ZodError) return fromZod(e);
-    return fail("Failed to submit result", 500);
+    // Was silently swallowed, so a failed submit gave the user "Failed to
+    // submit result" and left nothing in the log to explain it.
+    console.error("POST /api/results", e);
+    return fail(detailedFailure("Failed to submit result", e), 500);
   }
 }
 
@@ -181,7 +195,10 @@ export async function PATCH(req: Request) {
         obtainedMarks: z.number().nonnegative().optional(),
         marksheetUrl: z.string().optional(),
         status: z.enum(["PENDING", "APPROVED", "REJECTED", "RESUBMIT"]).optional(),
-        rejectReason: z.string().optional(),
+        // Nullable, not just optional: approving and re-editing both send
+        // `rejectReason: null` to clear it, and `.optional()` alone rejects
+        // null outright — which surfaced as a bare "Validation failed".
+        rejectReason: z.string().nullable().optional(),
       })
       .parse(await req.json());
 
@@ -212,7 +229,15 @@ export async function PATCH(req: Request) {
         percentage,
         isEligible,
         status: body.status ?? existing.status,
-        rejectReason: body.rejectReason ?? (body.status === "APPROVED" ? null : existing.rejectReason),
+        // `??` would treat an explicit null as "not supplied" and keep the old
+        // reason, so a re-edited entry would still carry the rejection it was
+        // just fixed for. Only `undefined` means "leave it alone".
+        rejectReason:
+          body.rejectReason !== undefined
+            ? body.rejectReason
+            : body.status === "APPROVED"
+              ? null
+              : existing.rejectReason,
       },
     });
 
@@ -235,6 +260,7 @@ export async function PATCH(req: Request) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);
     if ((e as Error).message === "FORBIDDEN") return fail("Forbidden", 403);
     if (e instanceof z.ZodError) return fromZod(e);
-    return fail("Failed to update result", 500);
+    console.error("PATCH /api/results", e);
+    return fail(detailedFailure("Failed to update result", e), 500);
   }
 }

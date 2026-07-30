@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE `Family` ADD COLUMN `nativePlace` VARCHAR(191) NULL;
-ALTER TABLE `Family` ADD COLUMN `email` VARCHAR(191) NULL;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Award, ImagePlus, Loader2 } from "lucide-react";
+import { Award, FileText, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
@@ -10,6 +10,7 @@ import { PickerWithAdd } from "@/components/ui/picker-with-add";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
+import { HIGHER_STANDARDS, STREAM_STANDARDS, canonicalStream, isPdf } from "@/lib/result-drive";
 import { pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -50,9 +51,6 @@ export type TopperRow = {
 
 type Tab = "upload" | "mine" | "toppers";
 
-const HIGHER = new Set(["College", "Diploma"]);
-const STREAM_STANDARDS = new Set(["Std 11", "Std 12"]);
-
 const RANK_GRADIENTS = [
   "linear-gradient(150deg,#F0B33A,#D98A1E)",
   "linear-gradient(150deg,#C3C9D2,#9AA3AF)",
@@ -71,6 +69,14 @@ const eduLabel = (std: string, lang: "gu" | "en") =>
   lang === "gu"
     ? (EDUCATION_LEVELS.find((l) => l.nameEn === std)?.nameGu ?? std)
     : std;
+
+/** A stored stream shown in the reader's language, whichever it was saved in. */
+const streamLabel = (stream: string | null | undefined, lang: "gu" | "en") => {
+  const en = canonicalStream(stream);
+  if (!en) return "";
+  const hit = DEFAULT_STREAMS.find((s) => s.nameEn === en);
+  return lang === "gu" ? (hit?.nameGu ?? en) : en;
+};
 
 export function ResultsClient({
   drive,
@@ -157,7 +163,7 @@ export function ResultsClient({
         </div>
       </div>
 
-      <div className="px-4 py-4 pb-8 md:max-w-[680px] md:mx-auto">
+      <div className="px-4 py-4 pb-8">
         {tab === "upload" && (
           <UploadTab
             drive={drive}
@@ -212,7 +218,7 @@ function UploadTab({
   const [busy, setBusy] = useState(false);
 
   const selectedChild = childOptions.find((c) => c.id === memberId) ?? null;
-  const isHigher = HIGHER.has(standard);
+  const isHigher = HIGHER_STANDARDS.has(standard);
   const showStream = STREAM_STANDARDS.has(standard);
 
   const percentage = useMemo(() => {
@@ -328,7 +334,10 @@ function UploadTab({
             const child = childOptions.find((x) => x.id === v);
             const key = standardKey(child?.standard ?? null);
             if (key) setStandard(key);
-            if (child?.course && STREAM_STANDARDS.has(key)) setStream(child.course);
+            // The child's stream is stored in their own language ("વાણિજ્ય"),
+            // but the picker's options are keyed by English name — setting the
+            // raw value matched no option, so the field sat on "Select".
+            if (STREAM_STANDARDS.has(key)) setStream(canonicalStream(child?.course) ?? "");
           }}
           placeholder={T("બાળક પસંદ કરો…", "Select a child…")}
           options={childOptions.map((c) => ({
@@ -345,7 +354,9 @@ function UploadTab({
             {T("પરિવાર", "Family")}: {selectedChild.familyLabel}
             {" · "}
             {T("અભ્યાસ", "Education")}: {eduLabel(standardKey(selectedChild.standard) || standard || "—", lang)}
-            {selectedChild.course && STREAM_STANDARDS.has(standard) ? ` · ${selectedChild.course}` : null}
+            {selectedChild.course && STREAM_STANDARDS.has(standard)
+              ? ` · ${streamLabel(selectedChild.course, lang) || selectedChild.course}`
+              : null}
           </div>
         )}
 
@@ -355,7 +366,7 @@ function UploadTab({
           onChange={(v) => {
             setStandard(v);
             if (!STREAM_STANDARDS.has(v)) setStream("");
-            if (!HIGHER.has(v)) setCourseName("");
+            if (!HIGHER_STANDARDS.has(v)) setCourseName("");
           }}
           placeholder={T("પસંદ કરો", "Select")}
           options={STANDARDS.map((s) => ({
@@ -426,23 +437,48 @@ function UploadTab({
             e.target.value = "";
           }}
         />
+        {/* Show the uploaded file, not just a tick — a parent needs to see that
+            the right marksheet went up and that it is legible. */}
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="mt-3 flex h-[120px] w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[15px] border-[1.5px] border-dashed border-[var(--brand-line)] bg-[var(--brand-tint-soft)] text-[var(--brand)] disabled:opacity-60"
+          className="mt-3 flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[15px] border-[1.5px] border-dashed border-[var(--brand-line)] bg-[var(--brand-tint-soft)] p-2.5 text-[var(--brand)] disabled:opacity-60"
         >
           {uploading ? (
-            <Loader2 className="size-[30px] animate-spin" strokeWidth={1.6} />
+            <span className="flex h-[120px] flex-col items-center justify-center gap-1.5">
+              <Loader2 className="size-[30px] animate-spin" strokeWidth={1.6} />
+              <span className="text-[13.5px] font-bold">{T("અપલોડ થાય છે…", "Uploading…")}</span>
+            </span>
+          ) : marksheetUrl ? (
+            <>
+              {isPdf(marksheetUrl) ? (
+                <span className="flex h-[120px] w-full flex-col items-center justify-center gap-1.5 rounded-xl bg-white">
+                  <FileText className="size-8" strokeWidth={1.6} />
+                  <span className="text-[12.5px] font-bold">PDF</span>
+                </span>
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={marksheetUrl}
+                  alt={uploadLabel}
+                  className="max-h-52 w-full rounded-xl bg-white object-contain"
+                />
+              )}
+              <span className="text-[13px] font-bold">{uploadLabel} ✓</span>
+              <span className="text-[11.5px] text-[#C08A8F]">
+                {T("બદલવા tap કરો", "tap to replace")}
+              </span>
+            </>
           ) : (
-            <ImagePlus className="size-[30px]" strokeWidth={1.6} />
+            <span className="flex h-[120px] flex-col items-center justify-center gap-1.5">
+              <ImagePlus className="size-[30px]" strokeWidth={1.6} />
+              <span className="text-[13.5px] font-bold">{uploadLabel}</span>
+              <span className="text-[11.5px] text-[#C08A8F]">
+                {T("tap કરીને અપલોડ કરો", "tap to upload")}
+              </span>
+            </span>
           )}
-          <span className="text-[13.5px] font-bold">
-            {marksheetUrl ? `${uploadLabel} ✓` : uploadLabel}
-          </span>
-          <span className="text-[11.5px] text-[#C08A8F]">
-            {T("tap કરીને અપલોડ કરો", "tap to upload")}
-          </span>
         </button>
       </div>
 
@@ -450,7 +486,7 @@ function UploadTab({
         type="button"
         onClick={submit}
         disabled={busy}
-        className="mt-3 flex h-[52px] w-full cursor-pointer items-center justify-center rounded-2xl bg-[var(--brand-btn-gradient)] text-[15px] font-extrabold text-white shadow-[0_12px_24px_-10px_rgba(166,42,56,.6)] disabled:opacity-60"
+        className="samaj-btn mt-3 flex h-[52px] w-full cursor-pointer items-center justify-center text-[15px] disabled:opacity-60"
       >
         {busy ? (
           <Loader2 className="size-5 animate-spin" />

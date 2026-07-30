@@ -2,6 +2,12 @@ import { prisma } from "@/lib/prisma";
 import type { RegistrationStatus } from "@prisma/client";
 import { COMMUNITY_ADMIN_ROLES } from "@/lib/constants";
 import { getAdPriceTiers } from "@/lib/admin-settings";
+import { DEFAULT_STREAMS } from "@/lib/occupation-defaults";
+import {
+  HIGHER_STANDARDS,
+  canonicalStandard,
+  canonicalStream,
+} from "@/lib/result-drive";
 
 /* ============================ Admin dashboard ============================ */
 
@@ -413,13 +419,17 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
   const roster: import("@/lib/result-drive").RosterRow[] = [];
 
   for (const m of members) {
-    const std = m.education!;
+    // `education` is a display label (Gujarati where the option has one), but
+    // entries and every standard check use the English name — normalise once
+    // here so a student lands on one card, not two.
+    const std = canonicalStandard(m.education);
+    const memberStream = canonicalStream(m.course);
     let entry = byMember.get(m.id) ?? null;
     if (!entry) {
       entry =
         orphans.find(
           (e) =>
-            e.standard === std &&
+            canonicalStandard(e.standard) === std &&
             (e.studentName === (m.fullNameGu || m.fullNameEn) || e.studentName === m.fullNameEn),
         ) ?? null;
     }
@@ -432,8 +442,12 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       familyLabel: m.family.headNameGu || m.family.headNameEn,
       mobile: m.mobile,
       standard: std,
-      stream: entry?.stream ?? (["Science", "Commerce", "Arts"].includes(m.course || "") ? m.course : null),
-      course: entry?.course ?? (["College", "Diploma"].includes(std) ? m.course : null),
+      stream:
+        canonicalStream(entry?.stream) ??
+        (memberStream && DEFAULT_STREAMS.some((s) => s.nameEn === memberStream)
+          ? memberStream
+          : null),
+      course: entry?.course ?? (HIGHER_STANDARDS.has(std) ? m.course : null),
       schoolName: entry?.schoolName ?? m.currentlyAt,
       totalMarks: entry?.totalMarks ?? null,
       obtainedMarks: entry?.obtainedMarks ?? null,
@@ -455,8 +469,8 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       init: e.studentName.trim()[0]?.toUpperCase() || "?",
       familyLabel: "—",
       mobile: null,
-      standard: e.standard,
-      stream: e.stream,
+      standard: canonicalStandard(e.standard),
+      stream: canonicalStream(e.stream),
       course: e.course,
       schoolName: e.schoolName,
       totalMarks: e.totalMarks,

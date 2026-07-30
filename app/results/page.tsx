@@ -49,7 +49,11 @@ export default async function ResultsPage({
   const [familyMembers, myEntries, topperEntries] = await Promise.all([
     familyId
       ? prisma.familyMember.findMany({
-          where: { familyId, isDeceased: false },
+          // Only the students. Without the education filter every adult in the
+          // household appeared in the child picker with a blank standard ("· —"),
+          // and none of them can have a result uploaded. Same rule the admin
+          // result roster uses to decide who counts as a student.
+          where: { familyId, isDeceased: false, education: { not: null } },
           select: {
             id: true,
             fullNameEn: true,
@@ -79,13 +83,16 @@ export default async function ResultsPage({
       : [],
   ]);
 
-  const childOptions: ChildOption[] = familyMembers.map((m) => ({
-    id: m.id,
-    name: m.fullNameGu || m.fullNameEn,
-    standard: m.education,
-    familyLabel: m.family.headNameGu || m.family.headNameEn,
-    course: m.course,
-  }));
+  const childOptions: ChildOption[] = familyMembers
+    // `not: null` still lets an empty string through, which reads as "· —".
+    .filter((m) => m.education?.trim())
+    .map((m) => ({
+      id: m.id,
+      name: m.fullNameGu || m.fullNameEn,
+      standard: m.education,
+      familyLabel: m.family.headNameGu || m.family.headNameEn,
+      course: m.course,
+    }));
 
   const mine: MyEntry[] = myEntries.map((e) => ({
     id: e.id,

@@ -1,4 +1,44 @@
 -- CreateTable
+CREATE TABLE `Community` (
+    `id` VARCHAR(191) NOT NULL,
+    `slug` VARCHAR(191) NOT NULL,
+    `nameEn` VARCHAR(191) NOT NULL,
+    `nameGu` VARCHAR(191) NULL,
+    `logoText` VARCHAR(191) NULL,
+    `logoUrl` VARCHAR(191) NULL,
+    `bannerUrl` VARCHAR(191) NULL,
+    `type` ENUM('PARIVAR', 'GAM') NOT NULL DEFAULT 'PARIVAR',
+    `status` ENUM('DRAFT', 'LIVE', 'SUSPENDED') NOT NULL DEFAULT 'DRAFT',
+    `primaryColor` VARCHAR(191) NOT NULL DEFAULT '#A62A38',
+    `secondaryColor` VARCHAR(191) NOT NULL DEFAULT '#E8A33D',
+    `groupingLabel` VARCHAR(191) NULL,
+    `estd` VARCHAR(191) NULL,
+    `village` VARCHAR(191) NULL,
+    `addressEn` TEXT NULL,
+    `addressGu` TEXT NULL,
+    `taluka` VARCHAR(191) NULL,
+    `district` VARCHAR(191) NULL,
+    `state` VARCHAR(191) NULL,
+    `country` VARCHAR(191) NULL,
+    `pincode` VARCHAR(191) NULL,
+    `contactPhone` VARCHAR(191) NULL,
+    `whatsapp` VARCHAR(191) NULL,
+    `email` VARCHAR(191) NULL,
+    `website` VARCHAR(191) NULL,
+    `mapUrl` VARCHAR(191) NULL,
+    `descEn` TEXT NULL,
+    `descGu` TEXT NULL,
+    `settingsJson` LONGTEXT NULL,
+    `showDirectoryPhones` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `Community_slug_key`(`slug`),
+    INDEX `Community_status_idx`(`status`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `Role` (
     `id` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
@@ -34,19 +74,25 @@ CREATE TABLE `RolePermission` (
 -- CreateTable
 CREATE TABLE `User` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NULL,
     `mobile` VARCHAR(191) NOT NULL,
     `email` VARCHAR(191) NULL,
+    `username` VARCHAR(191) NULL,
     `passwordHash` VARCHAR(191) NULL,
+    `isPlatformAdmin` BOOLEAN NOT NULL DEFAULT false,
     `status` ENUM('PENDING', 'APPROVED', 'REJECTED', 'SUSPENDED') NOT NULL DEFAULT 'PENDING',
     `isEmailVerified` BOOLEAN NOT NULL DEFAULT false,
     `rememberToken` VARCHAR(191) NULL,
     `fcmToken` TEXT NULL,
+    `menusJson` TEXT NULL,
     `lastLoginAt` DATETIME(3) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `User_mobile_key`(`mobile`),
-    UNIQUE INDEX `User_email_key`(`email`),
+    INDEX `User_communityId_idx`(`communityId`),
+    UNIQUE INDEX `User_communityId_mobile_key`(`communityId`, `mobile`),
+    UNIQUE INDEX `User_communityId_username_key`(`communityId`, `username`),
+    UNIQUE INDEX `User_communityId_email_key`(`communityId`, `email`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -94,6 +140,7 @@ CREATE TABLE `Profile` (
 -- CreateTable
 CREATE TABLE `Family` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `surnameGroupId` VARCHAR(191) NOT NULL,
     `headUserId` VARCHAR(191) NULL,
     `headNameEn` VARCHAR(191) NOT NULL,
@@ -103,6 +150,8 @@ CREATE TABLE `Family` (
     `addressEn` TEXT NOT NULL,
     `addressGu` TEXT NULL,
     `city` VARCHAR(191) NULL,
+    `nativePlace` VARCHAR(191) NULL,
+    `email` VARCHAR(191) NULL,
     `villageAreaId` VARCHAR(191) NULL,
     `latitude` DOUBLE NULL,
     `longitude` DOUBLE NULL,
@@ -120,7 +169,7 @@ CREATE TABLE `Family` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `Family_headUserId_key`(`headUserId`),
-    INDEX `Family_status_idx`(`status`),
+    INDEX `Family_communityId_status_idx`(`communityId`, `status`),
     INDEX `Family_city_idx`(`city`),
     INDEX `Family_surnameGroupId_idx`(`surnameGroupId`),
     PRIMARY KEY (`id`)
@@ -133,14 +182,17 @@ CREATE TABLE `FamilyMember` (
     `fullNameEn` VARCHAR(191) NOT NULL,
     `fullNameGu` VARCHAR(191) NULL,
     `relation` VARCHAR(191) NULL,
+    `gender` ENUM('MALE', 'FEMALE') NULL,
     `mobile` VARCHAR(191) NULL,
     `dateOfBirth` DATETIME(3) NULL,
     `bloodGroup` ENUM('A_POS', 'A_NEG', 'B_POS', 'B_NEG', 'O_POS', 'O_NEG', 'AB_POS', 'AB_NEG') NULL,
     `occupation` VARCHAR(191) NULL,
     `occupationOther` VARCHAR(191) NULL,
     `education` VARCHAR(191) NULL,
+    `course` VARCHAR(191) NULL,
     `currentlyAt` VARCHAR(191) NULL,
     `hasWhatsApp` BOOLEAN NOT NULL DEFAULT true,
+    `whatsapp` VARCHAR(191) NULL,
     `showPhone` BOOLEAN NOT NULL DEFAULT true,
     `isHead` BOOLEAN NOT NULL DEFAULT false,
     `isVisible` BOOLEAN NOT NULL DEFAULT true,
@@ -175,6 +227,7 @@ CREATE TABLE `Address` (
 -- CreateTable
 CREATE TABLE `SurnameGroup` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NOT NULL,
     `needsReview` BOOLEAN NOT NULL DEFAULT false,
@@ -182,6 +235,7 @@ CREATE TABLE `SurnameGroup` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
+    INDEX `SurnameGroup_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -203,7 +257,9 @@ CREATE TABLE `SurnameCoordinator` (
 -- CreateTable
 CREATE TABLE `DropdownOption` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `type` VARCHAR(191) NOT NULL,
+    `parentId` VARCHAR(191) NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NOT NULL,
     `needsReview` BOOLEAN NOT NULL DEFAULT false,
@@ -212,56 +268,56 @@ CREATE TABLE `DropdownOption` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `DropdownOption_type_idx`(`type`),
+    INDEX `DropdownOption_communityId_type_parentId_idx`(`communityId`, `type`, `parentId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `VillageArea` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NOT NULL,
     `showPhones` BOOLEAN NOT NULL DEFAULT true,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- CreateTable
-CREATE TABLE `BusinessCategory` (
-    `id` VARCHAR(191) NOT NULL,
-    `nameEn` VARCHAR(191) NOT NULL,
-    `nameGu` VARCHAR(191) NOT NULL,
-    `slug` VARCHAR(191) NOT NULL,
-    `sortOrder` INTEGER NOT NULL DEFAULT 0,
-    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-    `updatedAt` DATETIME(3) NOT NULL,
-
-    UNIQUE INDEX `BusinessCategory_slug_key`(`slug`),
+    INDEX `VillageArea_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `Business` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `userId` VARCHAR(191) NULL,
     `familyId` VARCHAR(191) NULL,
     `categoryId` VARCHAR(191) NULL,
+    `memberId` VARCHAR(191) NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NULL,
     `description` TEXT NULL,
+    `descriptionGu` TEXT NULL,
     `phone` VARCHAR(191) NULL,
+    `whatsapp` VARCHAR(191) NULL,
+    `email` VARCHAR(191) NULL,
     `address` TEXT NULL,
+    `addressGu` TEXT NULL,
     `city` VARCHAR(191) NULL,
+    `estd` VARCHAR(191) NULL,
+    `mapUrl` TEXT NULL,
+    `logoUrl` TEXT NULL,
     `website` VARCHAR(191) NULL,
+    `instagram` VARCHAR(191) NULL,
+    `facebook` VARCHAR(191) NULL,
+    `youtube` VARCHAR(191) NULL,
     `isApproved` BOOLEAN NOT NULL DEFAULT false,
     `isVisible` BOOLEAN NOT NULL DEFAULT true,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
+    INDEX `Business_communityId_isApproved_isVisible_idx`(`communityId`, `isApproved`, `isVisible`),
     INDEX `Business_categoryId_idx`(`categoryId`),
-    INDEX `Business_isApproved_isVisible_idx`(`isApproved`, `isVisible`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -280,55 +336,91 @@ CREATE TABLE `BusinessGallery` (
 -- CreateTable
 CREATE TABLE `Committee` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NULL,
     `sortOrder` INTEGER NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
+    INDEX `Committee_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `CommitteeDesignation` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NOT NULL,
     `sortOrder` INTEGER NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
+    INDEX `CommitteeDesignation_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `CommitteeMember` (
     `id` VARCHAR(191) NOT NULL,
-    `committeeId` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
+    `committeeId` VARCHAR(191) NULL,
     `profileId` VARCHAR(191) NULL,
     `designationId` VARCHAR(191) NULL,
+    `roleEn` VARCHAR(191) NULL,
+    `roleGu` VARCHAR(191) NULL,
     `nameOverride` VARCHAR(191) NULL,
+    `nameGu` VARCHAR(191) NULL,
     `phoneOverride` VARCHAR(191) NULL,
+    `whatsapp` VARCHAR(191) NULL,
+    `email` VARCHAR(191) NULL,
+    `descGu` TEXT NULL,
+    `photoUrl` VARCHAR(191) NULL,
+    `showContact` BOOLEAN NOT NULL DEFAULT true,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
     `sortOrder` INTEGER NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
 
+    INDEX `CommitteeMember_communityId_idx`(`communityId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `InfoSection` (
+    `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
+    `titleEn` VARCHAR(191) NOT NULL,
+    `titleGu` VARCHAR(191) NULL,
+    `bodyEn` TEXT NULL,
+    `bodyGu` TEXT NULL,
+    `sortOrder` INTEGER NOT NULL DEFAULT 0,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `InfoSection_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `NewsCategory` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NULL,
     `slug` VARCHAR(191) NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    UNIQUE INDEX `NewsCategory_slug_key`(`slug`),
+    INDEX `NewsCategory_communityId_idx`(`communityId`),
+    UNIQUE INDEX `NewsCategory_communityId_slug_key`(`communityId`, `slug`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `News` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `categoryId` VARCHAR(191) NULL,
     `authorId` VARCHAR(191) NULL,
     `titleEn` VARCHAR(191) NOT NULL,
@@ -337,8 +429,10 @@ CREATE TABLE `News` (
     `contentGu` LONGTEXT NULL,
     `imageUrl` VARCHAR(191) NULL,
     `documentUrl` VARCHAR(191) NULL,
+    `documentName` VARCHAR(191) NULL,
     `linkUrl` VARCHAR(191) NULL,
     `linkInternal` VARCHAR(191) NULL,
+    `accent` VARCHAR(191) NULL,
     `publishedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `isPinned` BOOLEAN NOT NULL DEFAULT false,
     `notificationSent` BOOLEAN NOT NULL DEFAULT false,
@@ -346,7 +440,7 @@ CREATE TABLE `News` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `News_isPinned_publishedAt_idx`(`isPinned`, `publishedAt`),
+    INDEX `News_communityId_isPinned_publishedAt_idx`(`communityId`, `isPinned`, `publishedAt`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -382,15 +476,20 @@ CREATE TABLE `EventRegistration` (
 -- CreateTable
 CREATE TABLE `GalleryAlbum` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `titleEn` VARCHAR(191) NOT NULL,
     `titleGu` VARCHAR(191) NULL,
     `description` TEXT NULL,
     `coverUrl` VARCHAR(191) NULL,
-    `albumDate` DATETIME(3) NULL,
+    `accent` VARCHAR(191) NULL,
+    `startDate` DATETIME(3) NULL,
+    `endDate` DATETIME(3) NULL,
     `youtubeUrl` VARCHAR(191) NULL,
+    `isVisible` BOOLEAN NOT NULL DEFAULT true,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
+    INDEX `GalleryAlbum_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -447,23 +546,27 @@ CREATE TABLE `BloodDonor` (
 -- CreateTable
 CREATE TABLE `Institute` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NULL,
     `city` VARCHAR(191) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
+    INDEX `Institute_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `Education` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `nameEn` VARCHAR(191) NOT NULL,
     `nameGu` VARCHAR(191) NULL,
     `level` VARCHAR(191) NULL,
     `sortOrder` INTEGER NOT NULL DEFAULT 0,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
+    INDEX `Education_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -498,6 +601,7 @@ CREATE TABLE `Scholarship` (
 -- CreateTable
 CREATE TABLE `ResultDrive` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `titleEn` VARCHAR(191) NOT NULL,
     `titleGu` VARCHAR(191) NULL,
     `year` INTEGER NOT NULL,
@@ -506,6 +610,7 @@ CREATE TABLE `ResultDrive` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
+    INDEX `ResultDrive_communityId_idx`(`communityId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -514,8 +619,11 @@ CREATE TABLE `ResultEntry` (
     `id` VARCHAR(191) NOT NULL,
     `driveId` VARCHAR(191) NOT NULL,
     `userId` VARCHAR(191) NULL,
+    `memberId` VARCHAR(191) NULL,
     `studentName` VARCHAR(191) NOT NULL,
     `standard` VARCHAR(191) NOT NULL,
+    `stream` VARCHAR(191) NULL,
+    `course` VARCHAR(191) NULL,
     `schoolName` VARCHAR(191) NULL,
     `totalMarks` DOUBLE NULL,
     `obtainedMarks` DOUBLE NULL,
@@ -528,22 +636,31 @@ CREATE TABLE `ResultEntry` (
     `updatedAt` DATETIME(3) NOT NULL,
 
     INDEX `ResultEntry_driveId_standard_status_idx`(`driveId`, `standard`, `status`),
+    INDEX `ResultEntry_driveId_memberId_idx`(`driveId`, `memberId`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `Advertisement` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `ownerId` VARCHAR(191) NULL,
     `name` VARCHAR(191) NOT NULL,
     `pitch` TEXT NULL,
     `imageUrl` VARCHAR(191) NULL,
     `linkUrl` VARCHAR(191) NULL,
     `businessId` VARCHAR(191) NULL,
+    `ownerName` VARCHAR(191) NULL,
+    `ownerMobile` VARCHAR(191) NULL,
+    `category` VARCHAR(191) NULL,
+    `type` VARCHAR(191) NOT NULL DEFAULT 'general',
+    `source` VARCHAR(191) NOT NULL DEFAULT 'user',
+    `payStatus` VARCHAR(191) NOT NULL DEFAULT 'pending',
+    `rejectReason` TEXT NULL,
     `startDate` DATETIME(3) NOT NULL,
     `endDate` DATETIME(3) NOT NULL,
     `priority` INTEGER NOT NULL DEFAULT 0,
-    `status` ENUM('PENDING', 'ACTIVE', 'EXPIRED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    `status` ENUM('PENDING', 'ACTIVE', 'EXPIRED', 'REJECTED', 'DEACTIVATED', 'DRAFT') NOT NULL DEFAULT 'PENDING',
     `views` INTEGER NOT NULL DEFAULT 0,
     `clicks` INTEGER NOT NULL DEFAULT 0,
     `paymentProof` VARCHAR(191) NULL,
@@ -551,7 +668,7 @@ CREATE TABLE `Advertisement` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    INDEX `Advertisement_status_startDate_endDate_idx`(`status`, `startDate`, `endDate`),
+    INDEX `Advertisement_communityId_status_startDate_endDate_idx`(`communityId`, `status`, `startDate`, `endDate`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -671,13 +788,33 @@ CREATE TABLE `Download` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `ProfileUpdateRequest` (
+    `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
+    `familyId` VARCHAR(191) NULL,
+    `memberId` VARCHAR(191) NULL,
+    `requestedBy` VARCHAR(191) NULL,
+    `changes` LONGTEXT NOT NULL,
+    `status` ENUM('PENDING', 'APPROVED', 'REJECTED') NOT NULL DEFAULT 'PENDING',
+    `rejectReason` TEXT NULL,
+    `submittedAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `reviewedAt` DATETIME(3) NULL,
+    `reviewedBy` VARCHAR(191) NULL,
+
+    INDEX `ProfileUpdateRequest_communityId_status_submittedAt_idx`(`communityId`, `status`, `submittedAt`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `Setting` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `key` VARCHAR(191) NOT NULL,
     `value` LONGTEXT NOT NULL,
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `Setting_key_key`(`key`),
+    INDEX `Setting_communityId_idx`(`communityId`),
+    UNIQUE INDEX `Setting_communityId_key_key`(`communityId`, `key`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -696,6 +833,7 @@ CREATE TABLE `Contact` (
 -- CreateTable
 CREATE TABLE `CmsPage` (
     `id` VARCHAR(191) NOT NULL,
+    `communityId` VARCHAR(191) NOT NULL,
     `slug` VARCHAR(191) NOT NULL,
     `titleEn` VARCHAR(191) NOT NULL,
     `titleGu` VARCHAR(191) NULL,
@@ -707,7 +845,8 @@ CREATE TABLE `CmsPage` (
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
-    UNIQUE INDEX `CmsPage_slug_key`(`slug`),
+    INDEX `CmsPage_communityId_idx`(`communityId`),
+    UNIQUE INDEX `CmsPage_communityId_slug_key`(`communityId`, `slug`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -817,6 +956,9 @@ ALTER TABLE `RolePermission` ADD CONSTRAINT `RolePermission_roleId_fkey` FOREIGN
 ALTER TABLE `RolePermission` ADD CONSTRAINT `RolePermission_permissionId_fkey` FOREIGN KEY (`permissionId`) REFERENCES `Permission`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `User` ADD CONSTRAINT `User_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `UserRole` ADD CONSTRAINT `UserRole_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -827,6 +969,9 @@ ALTER TABLE `Profile` ADD CONSTRAINT `Profile_userId_fkey` FOREIGN KEY (`userId`
 
 -- AddForeignKey
 ALTER TABLE `Profile` ADD CONSTRAINT `Profile_familyId_fkey` FOREIGN KEY (`familyId`) REFERENCES `Family`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Family` ADD CONSTRAINT `Family_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Family` ADD CONSTRAINT `Family_surnameGroupId_fkey` FOREIGN KEY (`surnameGroupId`) REFERENCES `SurnameGroup`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -844,7 +989,22 @@ ALTER TABLE `FamilyMember` ADD CONSTRAINT `FamilyMember_familyId_fkey` FOREIGN K
 ALTER TABLE `Address` ADD CONSTRAINT `Address_profileId_fkey` FOREIGN KEY (`profileId`) REFERENCES `Profile`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `SurnameGroup` ADD CONSTRAINT `SurnameGroup_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `SurnameCoordinator` ADD CONSTRAINT `SurnameCoordinator_surnameGroupId_fkey` FOREIGN KEY (`surnameGroupId`) REFERENCES `SurnameGroup`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `DropdownOption` ADD CONSTRAINT `DropdownOption_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `DropdownOption` ADD CONSTRAINT `DropdownOption_parentId_fkey` FOREIGN KEY (`parentId`) REFERENCES `DropdownOption`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `VillageArea` ADD CONSTRAINT `VillageArea_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Business` ADD CONSTRAINT `Business_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Business` ADD CONSTRAINT `Business_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -853,19 +1013,37 @@ ALTER TABLE `Business` ADD CONSTRAINT `Business_userId_fkey` FOREIGN KEY (`userI
 ALTER TABLE `Business` ADD CONSTRAINT `Business_familyId_fkey` FOREIGN KEY (`familyId`) REFERENCES `Family`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `Business` ADD CONSTRAINT `Business_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `BusinessCategory`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `Business` ADD CONSTRAINT `Business_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `DropdownOption`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `BusinessGallery` ADD CONSTRAINT `BusinessGallery_businessId_fkey` FOREIGN KEY (`businessId`) REFERENCES `Business`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `CommitteeMember` ADD CONSTRAINT `CommitteeMember_committeeId_fkey` FOREIGN KEY (`committeeId`) REFERENCES `Committee`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `Committee` ADD CONSTRAINT `Committee_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CommitteeDesignation` ADD CONSTRAINT `CommitteeDesignation_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CommitteeMember` ADD CONSTRAINT `CommitteeMember_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CommitteeMember` ADD CONSTRAINT `CommitteeMember_committeeId_fkey` FOREIGN KEY (`committeeId`) REFERENCES `Committee`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `CommitteeMember` ADD CONSTRAINT `CommitteeMember_profileId_fkey` FOREIGN KEY (`profileId`) REFERENCES `Profile`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `CommitteeMember` ADD CONSTRAINT `CommitteeMember_designationId_fkey` FOREIGN KEY (`designationId`) REFERENCES `CommitteeDesignation`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `InfoSection` ADD CONSTRAINT `InfoSection_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `NewsCategory` ADD CONSTRAINT `NewsCategory_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `News` ADD CONSTRAINT `News_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `News` ADD CONSTRAINT `News_categoryId_fkey` FOREIGN KEY (`categoryId`) REFERENCES `NewsCategory`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -875,6 +1053,9 @@ ALTER TABLE `News` ADD CONSTRAINT `News_authorId_fkey` FOREIGN KEY (`authorId`) 
 
 -- AddForeignKey
 ALTER TABLE `EventRegistration` ADD CONSTRAINT `EventRegistration_eventId_fkey` FOREIGN KEY (`eventId`) REFERENCES `Event`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `GalleryAlbum` ADD CONSTRAINT `GalleryAlbum_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `GalleryImage` ADD CONSTRAINT `GalleryImage_albumId_fkey` FOREIGN KEY (`albumId`) REFERENCES `GalleryAlbum`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
@@ -889,6 +1070,12 @@ ALTER TABLE `BloodDonor` ADD CONSTRAINT `BloodDonor_profileId_fkey` FOREIGN KEY 
 ALTER TABLE `BloodDonor` ADD CONSTRAINT `BloodDonor_bloodGroupId_fkey` FOREIGN KEY (`bloodGroupId`) REFERENCES `BloodGroup`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `Institute` ADD CONSTRAINT `Institute_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Education` ADD CONSTRAINT `Education_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `Student` ADD CONSTRAINT `Student_profileId_fkey` FOREIGN KEY (`profileId`) REFERENCES `Profile`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -898,10 +1085,19 @@ ALTER TABLE `Student` ADD CONSTRAINT `Student_instituteId_fkey` FOREIGN KEY (`in
 ALTER TABLE `Student` ADD CONSTRAINT `Student_educationId_fkey` FOREIGN KEY (`educationId`) REFERENCES `Education`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `ResultDrive` ADD CONSTRAINT `ResultDrive_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `ResultEntry` ADD CONSTRAINT `ResultEntry_driveId_fkey` FOREIGN KEY (`driveId`) REFERENCES `ResultDrive`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `ResultEntry` ADD CONSTRAINT `ResultEntry_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ResultEntry` ADD CONSTRAINT `ResultEntry_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `FamilyMember`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Advertisement` ADD CONSTRAINT `Advertisement_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `Advertisement` ADD CONSTRAINT `Advertisement_ownerId_fkey` FOREIGN KEY (`ownerId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
@@ -934,6 +1130,21 @@ ALTER TABLE `Donation` ADD CONSTRAINT `Donation_userId_fkey` FOREIGN KEY (`userI
 ALTER TABLE `Donation` ADD CONSTRAINT `Donation_paymentId_fkey` FOREIGN KEY (`paymentId`) REFERENCES `Payment`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `ProfileUpdateRequest` ADD CONSTRAINT `ProfileUpdateRequest_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ProfileUpdateRequest` ADD CONSTRAINT `ProfileUpdateRequest_familyId_fkey` FOREIGN KEY (`familyId`) REFERENCES `Family`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `ProfileUpdateRequest` ADD CONSTRAINT `ProfileUpdateRequest_memberId_fkey` FOREIGN KEY (`memberId`) REFERENCES `FamilyMember`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `Setting` ADD CONSTRAINT `Setting_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `CmsPage` ADD CONSTRAINT `CmsPage_communityId_fkey` FOREIGN KEY (`communityId`) REFERENCES `Community`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `ActivityLog` ADD CONSTRAINT `ActivityLog_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -953,3 +1164,4 @@ ALTER TABLE `EmailVerification` ADD CONSTRAINT `EmailVerification_userId_fkey` F
 
 -- AddForeignKey
 ALTER TABLE `PasswordReset` ADD CONSTRAINT `PasswordReset_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+

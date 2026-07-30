@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { FileText, ImagePlus, Loader2 } from "lucide-react";
 import { AdminBtn, AdminInput, AdminLabel } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
@@ -9,6 +9,7 @@ import {
   REJECT_REASON_CHIPS,
   STREAM_STANDARDS,
   calcPct,
+  isPdf,
   rosterStatusMeta,
   streamColors,
   type RosterRow,
@@ -66,7 +67,7 @@ export function VerifyResultModal({
           <div className="grid grid-cols-1 gap-[18px] md:grid-cols-[1.1fr_1fr]">
             <div>
               {row.marksheetUrl ? (
-                row.marksheetUrl.toLowerCase().endsWith(".pdf") ? (
+                isPdf(row.marksheetUrl) ? (
                   <iframe
                     src={row.marksheetUrl}
                     title="Marksheet"
@@ -385,14 +386,42 @@ export function UploadResultModal({
               e.target.value = "";
             }}
           />
+          {/* Show what was actually uploaded — "Uploaded ✓" alone gave no way to
+              tell whether the right file went up, or whether it is readable. */}
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
-            className="mb-3 flex h-24 w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[13px] border-[1.5px] border-dashed border-[#E1BFC3] bg-[#FDF4F5] text-[#A62A38] disabled:opacity-60"
+            className="mb-3 flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[13px] border-[1.5px] border-dashed border-[#E1BFC3] bg-[#FDF4F5] p-2 text-[#A62A38] disabled:opacity-60"
           >
-            {uploading ? <Loader2 className="size-6 animate-spin" /> : <ImagePlus className="size-6" strokeWidth={1.6} />}
-            <span className="text-[13px] font-bold">{marksheetUrl ? "Uploaded ✓ — tap to replace" : "tap to upload / replace"}</span>
+            {uploading ? (
+              <span className="flex h-24 items-center justify-center gap-2">
+                <Loader2 className="size-6 animate-spin" />
+                <span className="text-[13px] font-bold">Uploading…</span>
+              </span>
+            ) : marksheetUrl ? (
+              <>
+                {isPdf(marksheetUrl) ? (
+                  <span className="flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-lg bg-white text-[#A62A38]">
+                    <FileText className="size-7" strokeWidth={1.6} />
+                    <span className="text-[12px] font-bold">PDF uploaded</span>
+                  </span>
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={marksheetUrl}
+                    alt="Uploaded marksheet"
+                    className="max-h-44 w-full rounded-lg bg-white object-contain"
+                  />
+                )}
+                <span className="text-[12.5px] font-bold">Uploaded ✓ — tap to replace</span>
+              </>
+            ) : (
+              <span className="flex h-24 flex-col items-center justify-center gap-1.5">
+                <ImagePlus className="size-6" strokeWidth={1.6} />
+                <span className="text-[13px] font-bold">tap to upload / replace</span>
+              </span>
+            )}
           </button>
 
           <AdminLabel>School / College</AdminLabel>

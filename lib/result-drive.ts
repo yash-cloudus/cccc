@@ -1,5 +1,7 @@
 /** Shared Result Drive helpers — roster rows, status labels, reject chips. */
 
+import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
+
 export type RosterStatus = "none" | "PENDING" | "APPROVED" | "REJECTED" | "RESUBMIT";
 
 export type RosterRow = {
@@ -25,12 +27,42 @@ export type RosterRow = {
 export const STREAM_STANDARDS = new Set(["Std 11", "Std 12"]);
 export const HIGHER_STANDARDS = new Set(["College", "Diploma"]);
 
+/**
+ * English name for a standard, whichever language it was stored in.
+ *
+ * A member's `education` is saved as its display label — Gujarati when the
+ * option has one ("ધોરણ 12"), English when it doesn't ("B.COM") — while result
+ * entries and every check in this file key off the English name. Without this,
+ * the same standard shows up as two separate cards: "Std 12" with nobody in it
+ * and "ધોરણ 12" holding the actual student.
+ *
+ * An unrecognised value passes through untouched, so community-specific levels
+ * still get their own card instead of vanishing.
+ */
+export function canonicalStandard(value: string | null | undefined): string {
+  const v = (value || "").trim();
+  if (!v) return "";
+  return EDUCATION_LEVELS.find((l) => l.nameEn === v || l.nameGu === v)?.nameEn ?? v;
+}
+
+/** Same idea for streams — "વાણિજ્ય" and "Commerce" are one thing. */
+export function canonicalStream(value: string | null | undefined): string | null {
+  const v = (value || "").trim();
+  if (!v) return null;
+  return DEFAULT_STREAMS.find((s) => s.nameEn === v || s.nameGu === v)?.nameEn ?? v;
+}
+
 export const REJECT_REASON_CHIPS = [
   "Blurry / unclear marksheet",
   "Wrong marksheet uploaded",
   "Marks do not match",
   "Incomplete document",
 ] as const;
+
+/** A marksheet stored as PDF needs an embed/icon; anything else renders as an image. */
+export function isPdf(url: string | null | undefined): boolean {
+  return (url || "").split("?")[0]!.toLowerCase().endsWith(".pdf");
+}
 
 export function nameInitial(name: string): string {
   const t = name.trim();
@@ -70,12 +102,49 @@ export function inferStream(entry: { stream?: string | null; schoolName?: string
   return null;
 }
 
-export function rankApproved(
-  rows: RosterRow[],
-  std: string,
-): Map<string, number> {
-  const ranked = rows
-    .filter((r) => r.standard === std && r.status === "APPROVED" && r.percentage != null)
-    .sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0));
-  return new Map(ranked.map((r, i) => [r.entryId ?? r.memberId ?? r.studentName, i + 1]));
+/** Stable identity for a roster row, used as the rank-map key. */
+export function rosterKey(r: RosterRow): string {
+  return r.entryId ?? r.memberId ?? r.studentName;
+}
+
+export type MeritGroup = { stream: string | null; rows: (RosterRow & { rank: number })[] };
+
+/**
+ * Approved students of one standard, ranked — split by stream for Std 11/12.
+ *
+ * Science, Commerce and Arts sit different exams, so a single ranking across
+ * them compares percentages that were never comparable: the Science topper and
+ * the Commerce topper are each #1, not #1 and #2. Every other standard gets one
+ * ungrouped list, exactly as before.
+ */
+export function meritGroups(rows: RosterRow[], std: string): MeritGroup[] {
+  const approved = rows.filter(
+    (r) => r.standard === std && r.status === "APPROVED" && r.percentage != null,
+  );
+  const ranked = (list: RosterRow[]) =>
+    [...list]
+      .sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0))
+      .map((r, i) => ({ ...r, rank: i + 1 }));
+
+  if (!STREAM_STANDARDS.has(std)) {
+    return approved.length ? [{ stream: null, rows: ranked(approved) }] : [];
+  }
+
+  const groups: MeritGroup[] = [];
+  for (const s of DEFAULT_STREAMS) {
+    const inStream = approved.filter((r) => canonicalStream(r.stream) === s.nameEn);
+    if (inStream.length) groups.push({ stream: s.nameEn, rows: ranked(inStream) });
+  }
+  // Approved before a stream was recorded — still has to appear somewhere.
+  const unassigned = approved.filter((r) => !canonicalStream(r.stream));
+  if (unassigned.length) groups.push({ stream: null, rows: ranked(unassigned) });
+  return groups;
+}
+
+export function rankApproved(rows: RosterRow[], std: string): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const group of meritGroups(rows, std)) {
+    for (const r of group.rows) map.set(rosterKey(r), r.rank);
+  }
+  return map;
 }

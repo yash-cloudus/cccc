@@ -1,1 +1,0 @@
-ALTER TABLE `FamilyMember` ADD COLUMN `whatsapp` VARCHAR(191) NULL;

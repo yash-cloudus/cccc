@@ -28,9 +28,12 @@ import { api } from "@/lib/http";
 import { EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 import {
   STREAM_STANDARDS,
+  meritGroups,
   rankApproved,
+  rosterKey,
   rosterStatusMeta,
   streamColors,
+  type MeritGroup,
   type RosterRow,
 } from "@/lib/result-drive";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
@@ -47,6 +50,48 @@ export type DriveInfo = {
 };
 
 const LEVELS = EDUCATION_LEVELS.map((l) => l.nameEn);
+
+/**
+ * Ranked merit tables — one per stream for Std 11/12, one overall otherwise.
+ * Shared by the per-standard merit list and the whole-drive final report so the
+ * two can never disagree about who ranked where.
+ */
+function MeritSections({ groups }: { groups: MeritGroup[] }) {
+  const split = groups.length > 1 || groups[0]?.stream != null;
+  return (
+    <>
+      {groups.map((g) => (
+        <section key={g.stream ?? "unassigned"} className={split ? "mb-4 last:mb-0" : undefined}>
+          {split && (
+            <div className="mb-1.5 text-[13px] font-extrabold text-[var(--ink)]">
+              {g.stream ?? "Stream not recorded"}
+            </div>
+          )}
+          <AdminTable bordered={false}>
+            <thead>
+              <tr>
+                <AdminTh>Rank</AdminTh>
+                <AdminTh>Student name</AdminTh>
+                <AdminTh>Percentage</AdminTh>
+                <AdminTh>School / College</AdminTh>
+              </tr>
+            </thead>
+            <tbody>
+              {g.rows.map((m) => (
+                <tr key={rosterKey(m)}>
+                  <AdminTd className="font-extrabold text-[var(--brand)]">{m.rank}</AdminTd>
+                  <AdminTd className="font-semibold text-[var(--ink)]">{m.studentName}</AdminTd>
+                  <AdminTd>{m.percentage?.toFixed(2)}%</AdminTd>
+                  <AdminTd>{m.schoolName || "—"}</AdminTd>
+                </tr>
+              ))}
+            </tbody>
+          </AdminTable>
+        </section>
+      ))}
+    </>
+  );
+}
 
 export function ResultsClient({
   drives,
@@ -152,14 +197,7 @@ export function ResultsClient({
     };
   }, [roster, activeStd]);
 
-  const meritOf = useCallback(
-    (std: string) =>
-      roster
-        .filter((r) => r.standard === std && r.status === "APPROVED" && r.percentage != null)
-        .sort((a, b) => (b.percentage ?? 0) - (a.percentage ?? 0))
-        .map((r, i) => ({ ...r, rank: i + 1 })),
-    [roster],
-  );
+  const meritOf = useCallback((std: string) => meritGroups(roster, std), [roster]);
 
   const finalStandards = useMemo(
     () => standards.map((s) => s.standard).filter((s) => meritOf(s).length > 0),
@@ -445,26 +483,7 @@ export function ResultsClient({
                       <h4 className="mb-1 rounded-[10px] bg-[#FBFAF7] px-3.5 py-2 text-[14px] font-extrabold text-[var(--ink)]">
                         {std}
                       </h4>
-                      <AdminTable bordered={false}>
-                        <thead>
-                          <tr>
-                            <AdminTh>Rank</AdminTh>
-                            <AdminTh>Student name</AdminTh>
-                            <AdminTh>Percentage</AdminTh>
-                            <AdminTh>School / College</AdminTh>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {meritOf(std).map((m) => (
-                            <tr key={m.entryId ?? m.memberId ?? m.studentName}>
-                              <AdminTd className="font-extrabold text-[var(--brand)]">{m.rank}</AdminTd>
-                              <AdminTd className="font-semibold text-[var(--ink)]">{m.studentName}</AdminTd>
-                              <AdminTd>{m.percentage?.toFixed(2)}%</AdminTd>
-                              <AdminTd>{m.schoolName || "—"}</AdminTd>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </AdminTable>
+                      <MeritSections groups={meritOf(std)} />
                     </section>
                   ))
                 )}
@@ -488,26 +507,7 @@ export function ResultsClient({
                 {merit.length === 0 ? (
                   <p className="py-6 text-center text-[13px] text-[var(--faint)]">No approved results yet.</p>
                 ) : (
-                  <AdminTable bordered={false}>
-                    <thead>
-                      <tr>
-                        <AdminTh>Rank</AdminTh>
-                        <AdminTh>Student name</AdminTh>
-                        <AdminTh>Percentage</AdminTh>
-                        <AdminTh>School / College</AdminTh>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {merit.map((m) => (
-                        <tr key={m.entryId ?? m.memberId ?? m.studentName}>
-                          <AdminTd className="font-extrabold text-[var(--brand)]">{m.rank}</AdminTd>
-                          <AdminTd className="font-semibold text-[var(--ink)]">{m.studentName}</AdminTd>
-                          <AdminTd>{m.percentage?.toFixed(2)}%</AdminTd>
-                          <AdminTd>{m.schoolName || "—"}</AdminTd>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </AdminTable>
+                  <MeritSections groups={merit} />
                 )}
               </div>
             </>
