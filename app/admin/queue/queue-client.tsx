@@ -11,6 +11,7 @@ import {
   AdminTable,
   AdminTd,
   AdminTh,
+  FilterButton,
   FilterChip,
   QStat,
   SearchInput,
@@ -24,6 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { storedOccupationPath } from "@/lib/cascading-occupation";
 import { REJECT_REASONS } from "@/lib/constants";
@@ -130,6 +132,7 @@ export function QueueClient({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<QueueRow["status"] | "all">("all");
   const [city, setCity] = useState<string>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [approveId, setApproveId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
@@ -241,67 +244,113 @@ export function QueueClient({
         </div>
       </div>
 
-      {/* Prototype tabs: New registrations / Update requests */}
-      <div className="mb-4 inline-flex gap-1 rounded-xl bg-[var(--surface-admin)] p-1">
-        {(
-          [
-            { key: "new" as const, label: `New registrations (${rows.length})` },
-            {
-              key: "updates" as const,
-              label: `Update requests (${updates.filter((u) => u.status === "PENDING").length})`,
-            },
-          ]
-        ).map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold",
-              tab === t.key
-                ? "bg-[var(--brand)] text-white"
-                : "text-[var(--ink-dim)] hover:text-[var(--ink)]",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Tabs (left) · search + filters (right, "New registrations" only) — one row */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex gap-1 rounded-xl bg-[var(--surface-admin)] p-1">
+          {(
+            [
+              { key: "new" as const, label: `New registrations (${rows.length})` },
+              {
+                key: "updates" as const,
+                label: `Update requests (${updates.filter((u) => u.status === "PENDING").length})`,
+              },
+            ]
+          ).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={cn(
+                "cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold",
+                tab === t.key
+                  ? "bg-[var(--brand)] text-white"
+                  : "text-[var(--ink-dim)] hover:text-[var(--ink)]",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "new" && (
+          <div className="flex w-full items-center gap-2.5 md:w-auto">
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Search family / surname / city…"
+              className="min-w-0 flex-1 md:w-[210px] md:flex-none"
+            />
+            <FilterButton
+              className="md:hidden"
+              active={Boolean(status !== "all" || city !== "all")}
+              onClick={() => setFiltersOpen(true)}
+            />
+            <div className="hidden items-center gap-2.5 md:flex">
+              <AdminSelect
+                value={status}
+                onChange={(v) => setStatus(v as "all" | QueueRow["status"])}
+                ariaLabel="Filter by status"
+                className="w-[140px] shrink-0"
+                options={[
+                  { value: "all", label: "All statuses" },
+                  { value: "PENDING", label: "Pending" },
+                  { value: "APPROVED", label: "Approved" },
+                  { value: "REJECTED", label: "Rejected" },
+                ]}
+              />
+              {cities.length > 0 && (
+                <AdminSelect
+                  value={city}
+                  onChange={setCity}
+                  ariaLabel="Filter by city"
+                  className="w-[160px] shrink-0"
+                  options={[
+                    { value: "all", label: "All cities" },
+                    ...cities.map((c) => ({ value: c, label: c })),
+                  ]}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {tab === "new" && (
       <>
-      <div className="mb-4 flex flex-wrap gap-2.5">
-        <SearchInput
-          value={query}
-          onChange={setQuery}
-          placeholder="Search family / surname / city…"
-          className="min-w-[200px] flex-1"
-        />
-        <AdminSelect
-          value={status}
-          onChange={(v) => setStatus(v as "all" | QueueRow["status"])}
-          ariaLabel="Filter by status"
-          className="w-[140px]"
-          options={[
-            { value: "all", label: "All statuses" },
-            { value: "PENDING", label: "Pending" },
-            { value: "APPROVED", label: "Approved" },
-            { value: "REJECTED", label: "Rejected" },
-          ]}
-        />
-        {cities.length > 0 && (
-          <AdminSelect
-            value={city}
-            onChange={setCity}
-            ariaLabel="Filter by city"
-            className="w-[160px]"
-            options={[
-              { value: "all", label: "All cities" },
-              ...cities.map((c) => ({ value: c, label: c })),
-            ]}
-          />
-        )}
-      </div>
+      {/* Mobile-only bottom sheet mirroring the desktop filters */}
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="md:hidden">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            <AdminSelect
+              value={status}
+              onChange={(v) => setStatus(v as "all" | QueueRow["status"])}
+              ariaLabel="Filter by status"
+              className="w-full"
+              options={[
+                { value: "all", label: "All statuses" },
+                { value: "PENDING", label: "Pending" },
+                { value: "APPROVED", label: "Approved" },
+                { value: "REJECTED", label: "Rejected" },
+              ]}
+            />
+            {cities.length > 0 && (
+              <AdminSelect
+                value={city}
+                onChange={setCity}
+                ariaLabel="Filter by city"
+                className="w-full"
+                options={[
+                  { value: "all", label: "All cities" },
+                  ...cities.map((c) => ({ value: c, label: c })),
+                ]}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <AdminTable>
         <thead>
