@@ -17,6 +17,7 @@ import { AppScreen } from "@/components/layout/app-screen";
 import { AppHeader } from "@/components/layout/app-header";
 import { useLang } from "@/providers/lang-provider";
 import { formatDate, pickText } from "@/lib/format";
+import { trackAdClick } from "@/lib/track-ad";
 
 export type AdRow = {
   id: string;
@@ -75,7 +76,7 @@ export function DashboardClient({
       <AppHeader />
       <div className="px-4 pb-4 pt-4 md:px-[30px] md:pb-[120px]">
         {ad && (
-          <Link href={ad.link}>
+          <Link href={ad.link} onClick={() => trackAdClick(ad.id)}>
             <motion.div
               key={ad.id}
               initial={{ opacity: 0.85 }}

@@ -9,6 +9,7 @@ import { useLang } from "@/providers/lang-provider";
 import { MAX_BANNERS_PER_MEMBER } from "@/lib/constants";
 import { AD_DURATIONS, AD_DURATION_MONTHS, adDurationLabel, type AdDuration } from "@/lib/admin-settings";
 import { cn } from "@/lib/utils";
+import { trackAdClick } from "@/lib/track-ad";
 
 export type AdRow = {
   id: string;
@@ -168,7 +169,12 @@ export function AdsClient({
             );
 
             return (
-              <Link key={ad.id} href={`/ads/${ad.id}`} className="block">
+              <Link
+                key={ad.id}
+                href={`/ads/${ad.id}`}
+                className="block"
+                onClick={() => trackAdClick(ad.id)}
+              >
                 {inner}
               </Link>
             );

@@ -10,6 +10,7 @@ import {
   RotateCw,
   Trash2,
   PauseCircle,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -468,7 +469,7 @@ export function AdsClient({
     }
     setBusy(true);
     setError(null);
-    const res = await api.patch("/api/admin/ads", {
+    const res = await api.patch<AdRow>("/api/admin/ads", {
       id: modal.ad.id,
       status: "REJECTED",
       rejectReason: reason,
@@ -478,9 +479,7 @@ export function AdsClient({
       setError(res.error || "Could not reject");
       return;
     }
-    setRows((rs) =>
-      rs.map((r) => (r.id === modal.ad.id ? { ...r, status: "REJECTED", rejectReason: reason } : r)),
-    );
+    setRows((rs) => rs.map((r) => (r.id === modal.ad.id ? { ...r, ...res.data } : r)));
     setModal(null);
     toast.success("Rejected");
   }
@@ -894,7 +893,7 @@ export function AdsClient({
             <AdminTh>Views</AdminTh>
             <AdminTh>Clicks</AdminTh>
             <AdminTh>Source</AdminTh>
-            <AdminTh className="text-right">Actions</AdminTh>
+            <AdminTh className="w-[1%] text-right whitespace-nowrap">Actions</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -932,16 +931,11 @@ export function AdsClient({
               <AdminTd>{a.views.toLocaleString()}</AdminTd>
               <AdminTd>{a.clicks.toLocaleString()}</AdminTd>
               <AdminTd className="capitalize">{a.source === "user" ? "User app" : "Admin"}</AdminTd>
-              <AdminTd className="text-right">
-                <span className="flex flex-wrap justify-end gap-1.5">
-                  <ActionBtn
-                    icon={Eye}
-                    label="View"
-                    onClick={() => {
-                      setError(null);
-                      setModal({ kind: "view", ad: a });
-                    }}
-                  />
+              <AdminTd className="w-[1%]">
+                {/* Buttons size to their own content — Approve/Reject, Activate,
+                    Deactivate and the Rejected badge all share one spot (exactly
+                    one applies per row); View/Delete stay constant on the right. */}
+                <div className="flex flex-nowrap items-center justify-end gap-1.5">
                   {a.status !== "PENDING" && a.status !== "REJECTED" && (
                     <ActionBtn
                       icon={Pencil}
@@ -979,27 +973,36 @@ export function AdsClient({
                       <span className="text-[var(--ink-mid)]">/</span>
                       <span className="text-[var(--danger)]">Reject</span>
                     </button>
-                  ) : (
-                    a.status !== "ACTIVE" &&
-                    a.status !== "REJECTED" && (
-                      <ActionBtn
-                        icon={CheckCircle2}
-                        label="Activate"
-                        tone="success"
-                        onClick={() => setStatusOf(a.id, "ACTIVE")}
-                      />
-                    )
-                  )}
-                  {a.status === "ACTIVE" && (
+                  ) : a.status === "ACTIVE" ? (
                     <ActionBtn
                       icon={PauseCircle}
                       label="Deactivate"
                       tone="warn"
                       onClick={() => setStatusOf(a.id, "DEACTIVATED")}
                     />
+                  ) : a.status === "REJECTED" ? (
+                    <span className="flex cursor-default items-center gap-1.5 rounded-lg border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap text-[var(--danger)]">
+                      <XCircle className="size-3.5" strokeWidth={2.3} />
+                      Rejected
+                    </span>
+                  ) : (
+                    <ActionBtn
+                      icon={CheckCircle2}
+                      label="Activate"
+                      tone="success"
+                      onClick={() => setStatusOf(a.id, "ACTIVE")}
+                    />
                   )}
+                  <ActionBtn
+                    icon={Eye}
+                    label="View"
+                    onClick={() => {
+                      setError(null);
+                      setModal({ kind: "view", ad: a });
+                    }}
+                  />
                   <ActionBtn icon={Trash2} label="Delete" tone="danger" onClick={() => remove(a.id)} />
-                </span>
+                </div>
               </AdminTd>
             </tr>
           ))}

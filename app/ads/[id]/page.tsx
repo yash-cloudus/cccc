@@ -33,9 +33,13 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
     addressGu: biz?.addressGu ?? null,
     city: biz?.city ?? null,
     website: biz?.website ?? ad.linkUrl,
+    // A linked business is the trusted source once it exists; the ad's own
+    // owner fields only fill in for standalone (non-business) banners.
+    contactName: biz ? null : ad.ownerName,
     phone: biz?.phone ?? ad.ownerMobile,
     whatsapp: biz?.whatsapp ?? null,
     mapUrl: biz?.mapUrl ?? null,
+    endDateISO: ad.endDate.toISOString(),
   };
 
   return <AdDetailClient ad={detail} />;

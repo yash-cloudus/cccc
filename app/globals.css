@@ -303,13 +303,17 @@ body {
   font-family: var(--font-manrope), var(--font-noto-sans-gujarati), sans-serif;
 }
 
-a {
-  color: var(--brand);
-  text-decoration: none;
-}
+/* Layered so Tailwind utility classes (text-white, etc.) can still win —
+   unlayered rules always beat @layer utilities regardless of specificity. */
+@layer base {
+  a {
+    color: var(--brand);
+    text-decoration: none;
+  }
 
-a:hover {
-  color: var(--brand-hover);
+  a:hover {
+    color: var(--brand-hover);
+  }
 }
 
 .admin-scroll::-webkit-scrollbar {
@@ -349,6 +353,14 @@ a:hover {
   border-radius: 15px;
   font-weight: 800;
   box-shadow: 0 12px 24px -10px rgba(18, 140, 67, 0.6);
+}
+
+.samaj-btn-leaf {
+  background: linear-gradient(135deg, var(--leaf), #3a5c33);
+  color: #fff;
+  border-radius: 15px;
+  font-weight: 800;
+  box-shadow: 0 12px 24px -10px rgba(78, 122, 69, 0.6);
 }
 
 .samaj-card {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { created, fail, fromZod, ok } from "@/lib/api";
+import { created, fail, fromZod, getClientIp, ok } from "@/lib/api";
 import { requireSession } from "@/lib/auth/session";
 import {
   getActiveCommunityId,
@@ -206,25 +206,38 @@ export async function PATCH(req: Request) {
   try {
     const communityId = await getActiveCommunityId();
     if (!communityId) return fail("Community not found", 404);
-    const body = z
-      .object({ id: z.string(), event: z.enum(["view", "click"]) })
-      .parse(await req.json());
+    const body = z.object({ id: z.string(), event: z.literal("click") }).parse(await req.json());
     // Only track events for ads owned by the active community.
     const target = await prisma.advertisement.findFirst({
       where: { id: body.id, communityId },
       select: { id: true },
     });
     if (!target) return fail("Ad not found", 404);
+
+    // Identify the visitor: signed-in members by user id, everyone else by IP —
+    // this is how a "view" is derived below (first click from a visitor) rather
+    // than tracked as a separate impression event.
+    const session = await getSessionPayload();
+    const ip = getClientIp(req);
+    const identity = session?.sub ? { userId: session.sub } : { userId: null, ip };
+
+    const seenBefore = await prisma.advertisementClick.findFirst({
+      where: { adId: body.id, ...identity },
+      select: { id: true },
+    });
+
+    // A visitor's first-ever click counts as both their view and their click;
+    // every click after that only adds to the click count, so `views` stays
+    // an approximation of unique visitors rather than growing unbounded.
     const ad = await prisma.advertisement.update({
       where: { id: body.id },
-      data:
-        body.event === "view"
-          ? { views: { increment: 1 } }
-          : { clicks: { increment: 1 } },
+      data: seenBefore
+        ? { clicks: { increment: 1 } }
+        : { views: { increment: 1 }, clicks: { increment: 1 } },
     });
-    if (body.event === "click") {
-      await prisma.advertisementClick.create({ data: { adId: ad.id } });
-    }
+    await prisma.advertisementClick.create({
+      data: { adId: body.id, userId: session?.sub ?? null, ip },
+    });
     return ok(ad);
   } catch (e) {
     if (e instanceof z.ZodError) return fromZod(e);

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { MapPin, Phone, ShieldCheck, Store } from "lucide-react";
+import { ShieldCheck, Store } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
+import { ContactActionsRow, ContactRow, DetailCardLabel } from "@/components/directory/contact-card";
 import { useLang } from "@/providers/lang-provider";
-import { pickText, telLink, waLink } from "@/lib/format";
+import { formatDate, pickText } from "@/lib/format";
 
 export type AdDetail = {
   id: string;
@@ -24,9 +25,12 @@ export type AdDetail = {
   addressGu: string | null;
   city: string | null;
   website: string | null;
+  /** Owner/contact name carried on standalone (non-business) banners only. */
+  contactName: string | null;
   phone: string | null;
   whatsapp: string | null;
   mapUrl: string | null;
+  endDateISO: string;
 };
 
 /** Same palette the home carousel uses, so an ad keeps its colour across screens. */
@@ -42,31 +46,6 @@ function hashIndex(key: string, mod: number) {
   let h = 0;
   for (let i = 0; i < key.length; i += 1) h = (h * 31 + key.charCodeAt(i)) >>> 0;
   return h % mod;
-}
-
-const WaIcon = () => (
-  <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-    <path d="M12 2.2A9.8 9.8 0 0 0 3.5 17L2.2 21.8l5-1.3A9.8 9.8 0 1 0 12 2.2Z" />
-  </svg>
-);
-
-/** Section heading inside a card — small, brand-coloured, letter-spaced. */
-function CardLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-2.5 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
-      {children}
-    </div>
-  );
-}
-
-/** One `label · value` line in the contact card. */
-function ContactRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex gap-3 py-1 text-[13px] text-[var(--ink-soft)]">
-      <b className="w-[72px] flex-none font-bold text-[var(--faint)]">{label}</b>
-      <span className="min-w-0 break-words">{children}</span>
-    </div>
-  );
 }
 
 export function AdDetailClient({ ad }: { ad: AdDetail }) {
@@ -144,7 +123,7 @@ export function AdDetailClient({ ad }: { ad: AdDetail }) {
 
         {description && (
           <div className="samaj-card mb-3 p-[15px]">
-            <CardLabel>{T("વર્ણન", "DESCRIPTION")}</CardLabel>
+            <DetailCardLabel>{T("વર્ણન", "DESCRIPTION")}</DetailCardLabel>
             <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
               {description}
             </p>
@@ -153,14 +132,17 @@ export function AdDetailClient({ ad }: { ad: AdDetail }) {
 
         {address && (
           <div className="samaj-card mb-3 p-[15px]">
-            <CardLabel>{T("સરનામું", "ADDRESS")}</CardLabel>
+            <DetailCardLabel>{T("સરનામું", "ADDRESS")}</DetailCardLabel>
             <p className="text-[13.5px] leading-relaxed text-[var(--ink-soft)]">{address}</p>
           </div>
         )}
 
-        {(ad.website || ad.phone || ad.whatsapp) && (
+        {(ad.website || ad.contactName || ad.phone || ad.whatsapp) && (
           <div className="samaj-card mb-3 p-[15px]">
-            <CardLabel>{T("સંપર્ક અને લિંક", "CONTACT & LINKS")}</CardLabel>
+            <DetailCardLabel>{T("સંપર્ક અને લિંક", "CONTACT & LINKS")}</DetailCardLabel>
+            {ad.contactName && (
+              <ContactRow label={T("સંપર્ક વ્યક્તિ", "Contact")}>{ad.contactName}</ContactRow>
+            )}
             {ad.website && (
               <ContactRow label={T("વેબસાઈટ", "Website")}>
                 <a
@@ -180,52 +162,28 @@ export function AdDetailClient({ ad }: { ad: AdDetail }) {
           </div>
         )}
 
-        {(ad.phone || mapHref) && (
-          <div className="mb-3 flex gap-2.5">
-            {ad.phone && (
-              <>
-                <a
-                  href={telLink(ad.phone)}
-                  className="flex h-[50px] flex-1 items-center justify-center gap-2 rounded-[15px] bg-gradient-to-br from-[var(--brand)] to-[var(--brand-dark)] text-sm font-extrabold text-white"
-                >
-                  <Phone className="size-[18px]" strokeWidth={1.9} />
-                  {T("કૉલ કરો", "Call")}
-                </a>
-                <a
-                  href={waLink(ad.whatsapp || ad.phone)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex h-[50px] flex-1 items-center justify-center gap-2 rounded-[15px] bg-gradient-to-br from-[var(--wa)] to-[var(--wa-dark)] text-sm font-extrabold text-white"
-                >
-                  <WaIcon />
-                  WhatsApp
-                </a>
-              </>
-            )}
-            {mapHref && (
-              <a
-                href={mapHref}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={T("નકશા પર જુઓ", "View on map")}
-                title={T("નકશા પર જુઓ", "View on map")}
-                className="flex size-[50px] flex-none items-center justify-center rounded-[15px] bg-[var(--leaf-tint)] text-[var(--leaf)]"
-              >
-                <MapPin className="size-5" strokeWidth={1.9} />
-              </a>
-            )}
-          </div>
-        )}
+        <ContactActionsRow
+          phone={ad.phone}
+          whatsapp={ad.whatsapp}
+          mapHref={mapHref}
+          callLabel={T("કૉલ કરો", "Call")}
+          waLabel="WhatsApp"
+          mapLabel={T("નકશા પર જુઓ", "View on map")}
+        />
 
         {ad.businessId && (
           <Link
             href={`/business/${ad.businessId}`}
-            className="flex h-[52px] items-center justify-center gap-2 rounded-2xl border-[1.5px] border-[var(--line-soft)] bg-white text-sm font-extrabold text-[var(--ink-mid)]"
+            className="mt-3 flex h-[52px] items-center justify-center gap-2 rounded-2xl border-[1.5px] border-[var(--line-soft)] bg-white text-sm font-extrabold text-[var(--ink-mid)]"
           >
             <Store className="size-[18px] text-[var(--brand)]" strokeWidth={1.9} />
             {T("ધંધાની સંપૂર્ણ માહિતી જુઓ", "Show business information")}
           </Link>
         )}
+
+        <p className="mt-4 text-center text-[11.5px] text-[var(--faint)]">
+          {T(`${formatDate(ad.endDateISO, lang)} સુધી માન્ય`, `Valid until ${formatDate(ad.endDateISO, lang)}`)}
+        </p>
       </div>
     </AppScreen>
   );

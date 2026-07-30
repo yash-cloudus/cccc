@@ -49,15 +49,17 @@ export async function notifyAdDecision(
   decision: "APPROVED" | "REJECTED",
   rejectReason?: string | null,
   /**
-   * True when a rejected premium ad fell back to its free listing. False for a
-   * premium ad on a business that was never approved — there the rejection ends
-   * the business submission too, so it must not be reported as banner-only.
+   * True when a rejected premium ad's business was already approved/live —
+   * only a paid banner upgrade was declined, so it must be reported as
+   * banner-only, not as the business itself being rejected. False for a
+   * premium ad on a business that was never approved — there the rejection
+   * ends the business submission too.
    */
-  keptListing = false,
+  businessWasLive = false,
 ) {
   if (!ad.ownerId) return;
   const isBusiness =
-    Boolean(ad.businessId) && (ad.type !== "premium" || (decision === "REJECTED" && !keptListing));
+    Boolean(ad.businessId) && (ad.type !== "premium" || (decision === "REJECTED" && !businessWasLive));
 
   const titleEn = isBusiness
     ? decision === "APPROVED"
@@ -82,7 +84,7 @@ export async function notifyAdDecision(
       ? `"${ad.name}" is now running on the home screen.`
       : `The payment for "${ad.name}" was not accepted, so the banner did not start.${
           rejectReason ? ` Reason: ${rejectReason}` : ""
-        } Your business listing is unaffected — you can submit the payment again.`;
+        } You can submit the payment again.`;
   const bodyGu = isBusiness
     ? decision === "APPROVED"
       ? `"${ad.name}" હવે ધંધા ડિરેક્ટરીમાં લાઇવ છે.`
@@ -91,9 +93,9 @@ export async function notifyAdDecision(
       ? `"${ad.name}" હવે હોમ સ્ક્રીન પર ચાલુ છે.`
       : `"${ad.name}" ની ચૂકવણી સ્વીકારાઈ નથી, તેથી બેનર શરૂ થયું નથી.${
           rejectReason ? ` કારણ: ${rejectReason}` : ""
-        } તમારા ધંધાની નોંધણી પર કોઈ અસર નથી — તમે ફરીથી ચૂકવણી મોકલી શકો છો.`;
+        } તમે ફરીથી ચૂકવણી મોકલી શકો છો.`;
 
-  const notification = await prisma.notification.create({
+  await prisma.notification.create({
     data: {
       titleEn,
       titleGu,
@@ -101,9 +103,7 @@ export async function notifyAdDecision(
       bodyGu,
       linkUrl: isBusiness ? "/business" : "/ads",
       channel: "IN_APP",
+      logs: { create: { userId: ad.ownerId } },
     },
-  });
-  await prisma.notificationLog.create({
-    data: { notificationId: notification.id, userId: ad.ownerId },
   });
 }
