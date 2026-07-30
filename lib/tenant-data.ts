@@ -377,6 +377,101 @@ export async function getResultDriveWithEntries(communityId: string, driveId?: s
   return { drive, entries };
 }
 
+/** Full per-student roster for admin Result Drive — members + their latest entry. */
+export async function getResultDriveRoster(communityId: string, driveId: string) {
+  const [members, entries] = await Promise.all([
+    prisma.familyMember.findMany({
+      where: { isDeceased: false, education: { not: null }, family: { communityId } },
+      select: {
+        id: true,
+        fullNameEn: true,
+        fullNameGu: true,
+        mobile: true,
+        education: true,
+        course: true,
+        currentlyAt: true,
+        family: { select: { headNameEn: true, headNameGu: true } },
+      },
+      orderBy: { fullNameEn: "asc" },
+    }),
+    prisma.resultEntry.findMany({
+      where: { driveId },
+      orderBy: { updatedAt: "desc" },
+    }),
+  ]);
+
+  const byMember = new Map<string, (typeof entries)[0]>();
+  const orphans: (typeof entries)[0][] = [];
+  for (const e of entries) {
+    if (e.memberId) {
+      if (!byMember.has(e.memberId)) byMember.set(e.memberId, e);
+    } else {
+      orphans.push(e);
+    }
+  }
+
+  const roster: import("@/lib/result-drive").RosterRow[] = [];
+
+  for (const m of members) {
+    const std = m.education!;
+    let entry = byMember.get(m.id) ?? null;
+    if (!entry) {
+      entry =
+        orphans.find(
+          (e) =>
+            e.standard === std &&
+            (e.studentName === (m.fullNameGu || m.fullNameEn) || e.studentName === m.fullNameEn),
+        ) ?? null;
+    }
+    const name = m.fullNameGu || m.fullNameEn;
+    roster.push({
+      memberId: m.id,
+      entryId: entry?.id ?? null,
+      studentName: name,
+      init: name.trim()[0]?.toUpperCase() || "?",
+      familyLabel: m.family.headNameGu || m.family.headNameEn,
+      mobile: m.mobile,
+      standard: std,
+      stream: entry?.stream ?? (["Science", "Commerce", "Arts"].includes(m.course || "") ? m.course : null),
+      course: entry?.course ?? (["College", "Diploma"].includes(std) ? m.course : null),
+      schoolName: entry?.schoolName ?? m.currentlyAt,
+      totalMarks: entry?.totalMarks ?? null,
+      obtainedMarks: entry?.obtainedMarks ?? null,
+      percentage: entry?.percentage ?? null,
+      marksheetUrl: entry?.marksheetUrl ?? null,
+      status: entry ? (entry.status as import("@/lib/result-drive").RosterStatus) : "none",
+      rejectReason: entry?.rejectReason ?? null,
+      updatedAt: entry?.updatedAt.toISOString() ?? null,
+    });
+  }
+
+  // Entries with no matching member (manual / legacy)
+  for (const e of orphans) {
+    if (roster.some((r) => r.entryId === e.id)) continue;
+    roster.push({
+      memberId: null,
+      entryId: e.id,
+      studentName: e.studentName,
+      init: e.studentName.trim()[0]?.toUpperCase() || "?",
+      familyLabel: "—",
+      mobile: null,
+      standard: e.standard,
+      stream: e.stream,
+      course: e.course,
+      schoolName: e.schoolName,
+      totalMarks: e.totalMarks,
+      obtainedMarks: e.obtainedMarks,
+      percentage: e.percentage,
+      marksheetUrl: e.marksheetUrl,
+      status: e.status as import("@/lib/result-drive").RosterRow["status"],
+      rejectReason: e.rejectReason,
+      updatedAt: e.updatedAt.toISOString(),
+    });
+  }
+
+  return roster;
+}
+
 /* ============================ Admins & roles ============================ */
 
 export async function getCommunityAdmins(communityId: string) {

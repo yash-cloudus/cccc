@@ -56,11 +56,14 @@ const AD_GRADIENTS = [
 export function DashboardClient({
   ads,
   featured,
+  resultEnabled = true,
 }: {
   ads: AdRow[];
   featured: FeaturedNews | null;
+  resultEnabled?: boolean;
 }) {
   const { t, lang } = useLang();
+  const visibleTiles = resultEnabled ? tileDefs : tileDefs.filter((t) => t.key !== "results");
   const [adIdx, setAdIdx] = useState(0);
 
   useEffect(() => {
@@ -129,6 +132,7 @@ export function DashboardClient({
 
         <div className="mt-4 md:grid md:grid-cols-[1.35fr_1fr] md:items-start md:gap-6">
           <div>
+            {resultEnabled && (
             <Link
               href="/results?focus=upload"
               className="flex items-center gap-3.5 rounded-[20px] border border-[var(--gold-border)] bg-gradient-to-r from-[var(--gold-tint)] to-[var(--surface)] p-[15px]"
@@ -147,6 +151,7 @@ export function DashboardClient({
                 <ChevronRight className="h-[18px] w-[18px]" strokeWidth={2.4} />
               </div>
             </Link>
+            )}
 
             {featured && (
               <>
@@ -187,7 +192,7 @@ export function DashboardClient({
               <div className="text-base font-extrabold text-[var(--ink)]">{t("services")}</div>
             </div>
             <div className="grid grid-cols-3 gap-[11px]">
-              {tileDefs.map(({ key, href, labelKey, bg, fg, Icon }) => (
+              {visibleTiles.map(({ key, href, labelKey, bg, fg, Icon }) => (
                 <Link key={key} href={href} className="samaj-card px-2 py-[15px] text-center transition hover:-translate-y-0.5 hover:border-[var(--gold-border)] hover:shadow-[0_12px_22px_-12px_rgb(var(--brand-rgb) / .4)]">
                   <div
                     className="mx-auto mb-2 flex h-[52px] w-[52px] items-center justify-center rounded-2xl"

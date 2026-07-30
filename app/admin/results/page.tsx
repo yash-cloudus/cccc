@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { getActiveCommunity } from "@/lib/tenant";
-import { getResultDrives, getResultDriveWithEntries } from "@/lib/tenant-data";
-import { ResultsClient, type DriveInfo, type EntryRow } from "./results-client";
+import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/community-settings";
+import { getResultDrives, getResultDriveWithEntries, getResultDriveRoster } from "@/lib/tenant-data";
+import { ResultsClient, type DriveInfo } from "./results-client";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +15,13 @@ export default async function ResultsPage({
   if (!community) notFound();
 
   const { drive: driveId } = await searchParams;
-  const [drives, current] = await Promise.all([
+  const [drives, current, settingsMap] = await Promise.all([
     getResultDrives(community.id),
     getResultDriveWithEntries(community.id, driveId),
+    getCommunitySettingsMap(community.id),
   ]);
+
+  const resultSettings = getResultModuleSettings(settingsMap);
 
   const driveList: DriveInfo[] = drives.map((d) => ({
     id: d.id,
@@ -41,18 +45,16 @@ export default async function ResultsPage({
       }
     : null;
 
-  const entries: EntryRow[] = current.entries.map((e) => ({
-    id: e.id,
-    studentName: e.studentName,
-    standard: e.standard,
-    schoolName: e.schoolName,
-    totalMarks: e.totalMarks,
-    obtainedMarks: e.obtainedMarks,
-    percentage: e.percentage,
-    isEligible: e.isEligible,
-    status: e.status,
-    marksheetUrl: e.marksheetUrl,
-  }));
+  const roster = currentDrive
+    ? await getResultDriveRoster(community.id, currentDrive.id)
+    : [];
 
-  return <ResultsClient drives={driveList} currentDrive={currentDrive} entries={entries} />;
+  return (
+    <ResultsClient
+      drives={driveList}
+      currentDrive={currentDrive}
+      roster={roster}
+      adminUploadEnabled={resultSettings.adminUpload}
+    />
+  );
 }

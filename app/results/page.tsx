@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/community-settings";
 import { getActiveCommunity, getMyFamilyId, getSessionPayload } from "@/lib/tenant";
 import { ResultsClient, type ChildOption, type MyEntry, type TopperRow } from "./results-client";
 
@@ -12,6 +13,9 @@ export default async function ResultsPage({
 }) {
   const community = await getActiveCommunity();
   if (!community) notFound();
+
+  const settings = getResultModuleSettings(await getCommunitySettingsMap(community.id));
+  if (!settings.enable) notFound();
 
   const { focus } = await searchParams;
   const uploadFocus = focus === "upload";
@@ -34,6 +38,8 @@ export default async function ResultsPage({
         toppers={[]}
         signedIn={false}
         uploadFocus={uploadFocus}
+        studentUploadEnabled={settings.studentUpload}
+        showMeritTab={settings.showMerit}
       />
     );
   }
@@ -114,6 +120,8 @@ export default async function ResultsPage({
       toppers={toppers}
       signedIn={Boolean(session?.sub)}
       uploadFocus={uploadFocus}
+      studentUploadEnabled={settings.studentUpload}
+      showMeritTab={settings.showMerit}
     />
   );
 }

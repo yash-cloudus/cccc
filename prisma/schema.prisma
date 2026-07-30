@@ -324,6 +324,7 @@ model FamilyMember {
   updatedAt       DateTime        @updatedAt
   family          Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
   updateRequests  ProfileUpdateRequest[]
+  resultEntries   ResultEntry[]
 
   @@index([familyId])
   @@index([mobile])
@@ -736,8 +737,11 @@ model ResultEntry {
   id            String       @id @default(cuid())
   driveId       String
   userId        String?
+  memberId      String?
   studentName   String
   standard      String
+  stream        String?
+  course        String?
   schoolName    String?
   totalMarks    Float?
   obtainedMarks Float?
@@ -750,8 +754,10 @@ model ResultEntry {
   updatedAt     DateTime     @updatedAt
   drive         ResultDrive  @relation(fields: [driveId], references: [id], onDelete: Cascade)
   user          User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  member        FamilyMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
   @@index([driveId, standard, status])
+  @@index([driveId, memberId])
 }
 
 model Advertisement {

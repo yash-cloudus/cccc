@@ -79,6 +79,8 @@ export function ResultsClient({
   toppers,
   signedIn,
   uploadFocus = false,
+  studentUploadEnabled = true,
+  showMeritTab = true,
 }: {
   drive: DriveInfo | null;
   childOptions: ChildOption[];
@@ -86,6 +88,8 @@ export function ResultsClient({
   toppers: TopperRow[];
   signedIn: boolean;
   uploadFocus?: boolean;
+  studentUploadEnabled?: boolean;
+  showMeritTab?: boolean;
 }) {
   const { lang } = useLang();
   const router = useRouter();
@@ -97,16 +101,17 @@ export function ResultsClient({
     ? `${pickText(drive.titleGu, drive.titleEn, lang)} ${drive.year}`
     : T("પરિણામ", "Results");
 
-  const tabs: { key: Tab; label: string }[] = uploadFocus
-    ? [
-        { key: "upload", label: T("અપલોડ", "Upload") },
-        { key: "mine", label: T("મારા અપલોડ", "My uploads") },
-      ]
-    : [
-        { key: "upload", label: T("અપલોડ", "Upload") },
-        { key: "mine", label: T("મારા અપલોડ", "My uploads") },
-        { key: "toppers", label: T("ટોપર્સ", "Toppers") },
-      ];
+  const tabs: { key: Tab; label: string }[] =
+    uploadFocus || !showMeritTab
+      ? [
+          { key: "upload", label: T("અપલોડ", "Upload") },
+          { key: "mine", label: T("મારા અપલોડ", "My uploads") },
+        ]
+      : [
+          { key: "upload", label: T("અપલોડ", "Upload") },
+          { key: "mine", label: T("મારા અપલોડ", "My uploads") },
+          { key: "toppers", label: T("ટોપર્સ", "Toppers") },
+        ];
 
   useEffect(() => {
     if (uploadFocus && tab === "toppers") setTab("upload");
@@ -158,6 +163,7 @@ export function ResultsClient({
             drive={drive}
             childOptions={childOptions}
             signedIn={signedIn}
+            studentUploadEnabled={studentUploadEnabled}
             onDone={() => {
               setTab("mine");
               router.refresh();
@@ -182,11 +188,13 @@ function UploadTab({
   drive,
   childOptions,
   signedIn,
+  studentUploadEnabled,
   onDone,
 }: {
   drive: DriveInfo;
   childOptions: ChildOption[];
   signedIn: boolean;
+  studentUploadEnabled: boolean;
   onDone: () => void;
 }) {
   const { lang } = useLang();
@@ -230,6 +238,14 @@ function UploadTab({
     );
   }
 
+  if (!studentUploadEnabled) {
+    return (
+      <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
+        {T("અપલોડ હાલ બંધ છે — એડમિન સંપર્ક કરો", "Uploads are currently disabled — contact admin")}
+      </p>
+    );
+  }
+
   async function pickFile(file: File) {
     setUploading(true);
     const body = new FormData();
@@ -266,7 +282,8 @@ function UploadTab({
       memberId: child.id,
       studentName: child.name,
       standard,
-      schoolName: isHigher ? courseName.trim() : stream || undefined,
+      stream: showStream ? stream : undefined,
+      course: isHigher ? courseName.trim() : undefined,
       ...(isHigher
         ? {}
         : {
