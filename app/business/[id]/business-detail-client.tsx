@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, Globe, MapPin, Phone } from "lucide-react";
+import { ExternalLink, Globe } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
+import { ContactActionsRow, DetailCardLabel } from "@/components/directory/contact-card";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
-import { pickText, telLink, waLink } from "@/lib/format";
+import { pickText } from "@/lib/format";
 
 export type GalleryImage = {
   id: string;
@@ -54,12 +55,6 @@ function initials(name: string) {
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.trim().slice(0, 2).toUpperCase();
 }
-
-const WaIcon = () => (
-  <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-    <path d="M12 2.2A9.8 9.8 0 0 0 3.5 17L2.2 21.8l5-1.3A9.8 9.8 0 1 0 12 2.2Z" />
-  </svg>
-);
 
 export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
   const { t, lang } = useLang();
@@ -114,14 +109,14 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
 
         {description && (
           <div className="samaj-card mb-4 p-4">
-            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{aboutLabel}</div>
+            <DetailCardLabel>{aboutLabel}</DetailCardLabel>
             <p className="whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">{description}</p>
           </div>
         )}
 
         {hasContactInfo && (
           <div className="samaj-card mb-4 p-4">
-            <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">{addressLabel}</div>
+            <DetailCardLabel>{addressLabel}</DetailCardLabel>
             {address && (
               <div className="mt-1 flex gap-3 py-1 text-[13px]">
                 <b className="min-w-[70px] font-bold text-[var(--faint)]">{addressLabel}</b>
@@ -139,46 +134,14 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
 
         {(biz.phone || biz.website || mapHref) && (
           <div className="space-y-2">
-            {biz.phone && (
-              <div className="flex gap-2">
-                <a
-                  href={telLink(biz.phone)}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--brand-tint)] py-3.5 text-sm font-bold text-[var(--brand)]"
-                >
-                  <Phone className="h-4 w-4" /> {t("call")}
-                </a>
-                <a
-                  href={waLink(biz.whatsapp || biz.phone)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[var(--success-tint)] py-3.5 text-sm font-bold text-[var(--success)]"
-                >
-                  <WaIcon /> {t("whatsapp")}
-                </a>
-                {mapHref && (
-                  <a
-                    href={mapHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={lang === "gu" ? "નકશામાં જુઓ" : "View on map"}
-                    title={lang === "gu" ? "નકશામાં જુઓ" : "View on map"}
-                    className="flex w-[54px] flex-none items-center justify-center rounded-2xl bg-[var(--leaf-tint)] text-[var(--leaf)]"
-                  >
-                    <MapPin className="h-[18px] w-[18px]" />
-                  </a>
-                )}
-              </div>
-            )}
-            {!biz.phone && mapHref && (
-              <a
-                href={mapHref}
-                target="_blank"
-                rel="noreferrer"
-                className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-[var(--leaf-tint)] text-sm font-bold text-[var(--leaf)]"
-              >
-                <MapPin className="h-4 w-4" /> {lang === "gu" ? "નકશામાં જુઓ" : "View on map"}
-              </a>
-            )}
+            <ContactActionsRow
+              phone={biz.phone}
+              whatsapp={biz.whatsapp}
+              mapHref={mapHref}
+              callLabel={t("call")}
+              waLabel={t("whatsapp")}
+              mapLabel={lang === "gu" ? "નકશામાં જુઓ" : "View on map"}
+            />
             {biz.website && (
               <a
                 href={biz.website}

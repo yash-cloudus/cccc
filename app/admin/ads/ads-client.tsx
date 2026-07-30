@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import {
   CheckCircle2,
   Eye,
+  Loader2,
   Pencil,
   Plus,
   RotateCw,
   Trash2,
-  XCircle,
   PauseCircle,
+  XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -41,6 +42,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import { WithTooltip } from "@/components/ui/tooltip";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
@@ -62,9 +65,11 @@ export type AdRow = {
   ownerName: string | null;
   ownerMobile: string | null;
   category: string | null;
+  rejectReason: string | null;
   type: "premium" | "general";
   source: "user" | "admin";
   payStatus: string;
+  paymentProof: string | null;
   status: AdStatus;
   priority: number;
   views: number;
@@ -194,7 +199,8 @@ type Modal =
   | { kind: "create"; draft: Draft }
   | { kind: "view"; ad: AdRow }
   | { kind: "edit"; ad: AdRow; form: EditForm }
-  | { kind: "renew"; ad: AdRow; dur: "6m" | "1y" };
+  | { kind: "renew"; ad: AdRow; dur: "6m" | "1y" }
+  | { kind: "review"; ad: AdRow; reason: string };
 
 const emptyDraft = (): Draft => {
   const start = new Date();
@@ -249,19 +255,23 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
   return (
     <div className="mb-4 rounded-[14px] border border-[var(--line-admin)] bg-[var(--surface-admin)] p-3.5">
       <div className="flex gap-3">
-        {ad.type === "premium" &&
-          (ad.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={ad.imageUrl}
-              alt=""
-              className="h-14 w-[88px] shrink-0 rounded-lg border border-[var(--line)] object-cover"
-            />
-          ) : (
-            <span className="flex h-14 w-[88px] shrink-0 items-center justify-center rounded-lg bg-white text-[10px] font-bold text-[var(--faint)]">
-              no banner
-            </span>
-          ))}
+        {ad.type === "premium" && (
+          <div className="flex w-[88px] shrink-0 flex-col items-center gap-1">
+            {ad.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={ad.imageUrl}
+                alt=""
+                className="h-14 w-[88px] rounded-lg border border-[var(--line)] object-cover"
+              />
+            ) : (
+              <span className="flex h-14 w-[88px] items-center justify-center rounded-lg bg-white text-[10px] font-bold text-[var(--faint)]">
+                no banner
+              </span>
+            )}
+            <span className="text-[10px] font-bold text-[var(--faint)]">Banner</span>
+          </div>
+        )}
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <b className="text-[15px] text-[var(--ink)]">{ad.name}</b>
@@ -287,6 +297,31 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
             )}
           </div>
         </div>
+        {ad.type === "premium" && (
+          <div className="flex w-[88px] shrink-0 flex-col items-center gap-1">
+            {ad.paymentProof ? (
+              <a
+                href={ad.paymentProof}
+                target="_blank"
+                rel="noreferrer"
+                title="View payment screenshot"
+                className="block h-14 w-[88px] overflow-hidden rounded-lg border border-[var(--line)]"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={ad.paymentProof}
+                  alt="Payment screenshot"
+                  className="h-full w-full object-cover"
+                />
+              </a>
+            ) : (
+              <span className="flex h-14 w-[88px] items-center justify-center rounded-lg bg-white px-1 text-center text-[10px] font-bold text-[var(--faint)]">
+                no proof
+              </span>
+            )}
+            <span className="text-[10px] font-bold text-[var(--faint)]">Payment proof</span>
+          </div>
+        )}
       </div>
       {ad.type === "premium" && (
         <div className="mt-3 flex gap-5 border-t border-[var(--line-soft)] pt-3 text-[12px] text-[var(--ink)]">
@@ -410,6 +445,45 @@ export function AdsClient({
     toast.success(`Advertisement ${STATUS_META[next].label.toLowerCase()}`);
   }
 
+  async function approveReviewed() {
+    if (!modal || modal.kind !== "review") return;
+    setBusy(true);
+    setError(null);
+    const res = await api.patch("/api/admin/ads", { id: modal.ad.id, status: "ACTIVE" });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error || "Could not approve");
+      return;
+    }
+    setRows((rs) => rs.map((r) => (r.id === modal.ad.id ? { ...r, status: "ACTIVE" } : r)));
+    setModal(null);
+    toast.success("Approved");
+  }
+
+  async function rejectReviewed() {
+    if (!modal || modal.kind !== "review") return;
+    const reason = modal.reason.trim();
+    if (!reason) {
+      setError("Reject reason is required");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const res = await api.patch<AdRow>("/api/admin/ads", {
+      id: modal.ad.id,
+      status: "REJECTED",
+      rejectReason: reason,
+    });
+    setBusy(false);
+    if (!res.ok) {
+      setError(res.error || "Could not reject");
+      return;
+    }
+    setRows((rs) => rs.map((r) => (r.id === modal.ad.id ? { ...r, ...res.data } : r)));
+    setModal(null);
+    toast.success("Rejected");
+  }
+
   async function remove(id: string) {
     const ok = await confirmDialog({
       title: "Delete this advertisement?",
@@ -498,9 +572,11 @@ export function AdsClient({
         ownerName: draft.ownerName || null,
         ownerMobile: draft.ownerMobile || null,
         category: draft.category || null,
+        rejectReason: null,
         type: draft.type,
         source: "admin",
         payStatus: draft.type === "premium" ? draft.payStatus : "notreq",
+        paymentProof: null,
         status: draft.status,
         priority: Number(draft.priority) || 0,
         views: 0,
@@ -619,9 +695,14 @@ export function AdsClient({
     });
   }
 
+  function setReviewReason(reason: string) {
+    setModal((m) => (m && m.kind === "review" ? { ...m, reason } : m));
+  }
+
   const draft = modal?.kind === "create" ? modal.draft : null;
   const renewPreview =
     modal?.kind === "renew" ? renewEndIso(modal.ad.endDate, modal.dur) : null;
+  const canReject = modal?.kind === "review" && modal.reason.trim().length > 0;
 
   const modalTitle =
     modal?.kind === "create"
@@ -630,11 +711,13 @@ export function AdsClient({
         : `New ${modal.draft.type} advertisement`
       : modal?.kind === "view"
         ? "View advertisement"
-        : modal?.kind === "edit"
-          ? "Edit advertisement"
-          : modal?.kind === "renew"
-            ? "Renew advertisement"
-            : "";
+        : modal?.kind === "review"
+          ? "Review submission"
+          : modal?.kind === "edit"
+            ? "Edit advertisement"
+            : modal?.kind === "renew"
+              ? "Renew advertisement"
+              : "";
 
   return (
     <>
@@ -810,7 +893,7 @@ export function AdsClient({
             <AdminTh>Views</AdminTh>
             <AdminTh>Clicks</AdminTh>
             <AdminTh>Source</AdminTh>
-            <AdminTh className="text-right">Actions</AdminTh>
+            <AdminTh className="w-[1%] text-right whitespace-nowrap">Actions</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -848,24 +931,21 @@ export function AdsClient({
               <AdminTd>{a.views.toLocaleString()}</AdminTd>
               <AdminTd>{a.clicks.toLocaleString()}</AdminTd>
               <AdminTd className="capitalize">{a.source === "user" ? "User app" : "Admin"}</AdminTd>
-              <AdminTd className="text-right">
-                <span className="flex flex-wrap justify-end gap-1.5">
-                  <ActionBtn
-                    icon={Eye}
-                    label="View"
-                    onClick={() => {
-                      setError(null);
-                      setModal({ kind: "view", ad: a });
-                    }}
-                  />
-                  <ActionBtn
-                    icon={Pencil}
-                    label="Edit"
-                    onClick={() => {
-                      setError(null);
-                      setModal({ kind: "edit", ad: a, form: editFormFrom(a) });
-                    }}
-                  />
+              <AdminTd className="w-[1%]">
+                {/* Buttons size to their own content — Approve/Reject, Activate,
+                    Deactivate and the Rejected badge all share one spot (exactly
+                    one applies per row); View/Delete stay constant on the right. */}
+                <div className="flex flex-nowrap items-center justify-end gap-1.5">
+                  {a.status !== "PENDING" && a.status !== "REJECTED" && (
+                    <ActionBtn
+                      icon={Pencil}
+                      label="Edit"
+                      onClick={() => {
+                        setError(null);
+                        setModal({ kind: "edit", ad: a, form: editFormFrom(a) });
+                      }}
+                    />
+                  )}
                   {a.type === "premium" && (a.status === "ACTIVE" || a.status === "EXPIRED") && (
                     <ActionBtn
                       icon={RotateCw}
@@ -877,7 +957,35 @@ export function AdsClient({
                       }}
                     />
                   )}
-                  {a.status !== "ACTIVE" && (
+                  {a.status === "PENDING" ? (
+                    <button
+                      type="button"
+                      title="Approve/Reject"
+                      aria-label="Approve/Reject"
+                      onClick={() => {
+                        setError(null);
+                        setModal({ kind: "review", ad: a, reason: "" });
+                      }}
+                      className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line-admin)] bg-white px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--surface-admin)]"
+                    >
+                      <CheckCircle2 className="size-3.5 text-[var(--success)]" strokeWidth={2.3} />
+                      <span className="text-[var(--success)]">Approve</span>
+                      <span className="text-[var(--ink-mid)]">/</span>
+                      <span className="text-[var(--danger)]">Reject</span>
+                    </button>
+                  ) : a.status === "ACTIVE" ? (
+                    <ActionBtn
+                      icon={PauseCircle}
+                      label="Deactivate"
+                      tone="warn"
+                      onClick={() => setStatusOf(a.id, "DEACTIVATED")}
+                    />
+                  ) : a.status === "REJECTED" ? (
+                    <span className="flex cursor-default items-center gap-1.5 rounded-lg border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap text-[var(--danger)]">
+                      <XCircle className="size-3.5" strokeWidth={2.3} />
+                      Rejected
+                    </span>
+                  ) : (
                     <ActionBtn
                       icon={CheckCircle2}
                       label="Activate"
@@ -885,24 +993,16 @@ export function AdsClient({
                       onClick={() => setStatusOf(a.id, "ACTIVE")}
                     />
                   )}
-                  {a.status === "ACTIVE" && (
-                    <ActionBtn
-                      icon={PauseCircle}
-                      label="Deactivate"
-                      tone="warn"
-                      onClick={() => setStatusOf(a.id, "DEACTIVATED")}
-                    />
-                  )}
-                  {a.status === "PENDING" && (
-                    <ActionBtn
-                      icon={XCircle}
-                      label="Reject"
-                      tone="danger"
-                      onClick={() => setStatusOf(a.id, "REJECTED")}
-                    />
-                  )}
+                  <ActionBtn
+                    icon={Eye}
+                    label="View"
+                    onClick={() => {
+                      setError(null);
+                      setModal({ kind: "view", ad: a });
+                    }}
+                  />
                   <ActionBtn icon={Trash2} label="Delete" tone="danger" onClick={() => remove(a.id)} />
-                </span>
+                </div>
               </AdminTd>
             </tr>
           ))}
@@ -951,6 +1051,35 @@ export function AdsClient({
             <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setModal(null)}>
               Close
             </AdminBtn>
+          ) : modal?.kind === "review" ? (
+            <>
+              <AdminBtn
+                variant="success"
+                className="flex-1 justify-center"
+                onClick={approveReviewed}
+                disabled={busy}
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" /> : "Approve"}
+              </AdminBtn>
+              <WithTooltip label="Add a reason to reject" disabled={canReject}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (canReject) void rejectReviewed();
+                  }}
+                  disabled={busy}
+                  className={cn(
+                    "inline-flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-[var(--danger)] to-[#8A1F28] px-[18px] py-[11px] text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-60",
+                    !canReject && "cursor-not-allowed opacity-50",
+                  )}
+                >
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : "Reject"}
+                </button>
+              </WithTooltip>
+              <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setModal(null)}>
+                Cancel
+              </AdminBtn>
+            </>
           ) : undefined
         }
       >
@@ -1214,6 +1343,80 @@ export function AdsClient({
                 )}
               </div>
             </div>
+            {modal.ad.status === "REJECTED" && modal.ad.rejectReason && (
+              <div className="mt-3.5 rounded-[11px] border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-3.5 py-2.5">
+                <div className="text-[11px] font-extrabold tracking-wide text-[var(--danger)] uppercase">
+                  Reject reason
+                </div>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--ink)]">
+                  {modal.ad.rejectReason}
+                </p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── Review (approve / reject a pending submission) ── */}
+        {modal?.kind === "review" && (
+          <>
+            <AdSummaryCard ad={modal.ad} />
+            <div className="rounded-[14px] border border-[var(--line-admin)] overflow-hidden">
+              <div className="border-b border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[11px] font-extrabold tracking-wide text-[var(--faint)] uppercase">
+                Advertisement details
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 p-3.5 text-[12px]">
+                <div>
+                  <span className="text-[var(--faint)]">Name</span>
+                  <br />
+                  <b className="text-[var(--ink)]">{modal.ad.name}</b>
+                </div>
+                <div>
+                  <span className="text-[var(--faint)]">Category</span>
+                  <br />
+                  <b className="text-[var(--ink)]">{modal.ad.category || "—"}</b>
+                </div>
+                <div>
+                  <span className="text-[var(--faint)]">Owner</span>
+                  <br />
+                  <b className="text-[var(--ink)]">{modal.ad.ownerName || "—"}</b>
+                </div>
+                <div>
+                  <span className="text-[var(--faint)]">Mobile</span>
+                  <br />
+                  <b className="text-[var(--ink)]">{modal.ad.ownerMobile || "—"}</b>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-[var(--faint)]">Description</span>
+                  <br />
+                  <span className="text-[var(--ink-soft)]">{modal.ad.pitch || "—"}</span>
+                </div>
+                {modal.ad.linkUrl && (
+                  <div className="col-span-2">
+                    <span className="text-[var(--faint)]">Link</span>
+                    <br />
+                    <b className="break-all text-[var(--ink)]">{modal.ad.linkUrl}</b>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <AdminField
+              label="Reject reason"
+              required
+              hint="Required to reject — the submitter sees this reason."
+              className="mt-3.5"
+            >
+              <Textarea
+                value={modal.reason}
+                onChange={(e) => setReviewReason(e.target.value)}
+                placeholder="Why is this being rejected…"
+                className="min-h-[70px] resize-none border-[var(--line-field)] bg-[var(--field)] text-[13px]"
+              />
+            </AdminField>
+
+            {error && (
+              <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>
+            )}
           </>
         )}
 

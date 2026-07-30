@@ -68,6 +68,7 @@ export function deleteBackwards(
 /**
  * Text input with a Gujarati keyboard button at its trailing edge.
  * Drop-in for a plain text input — same `value` / `onChange` contract.
+ * Pass `multiline` to render a `<textarea>` instead (e.g. for description fields).
  */
 export function GujaratiInput({
   value,
@@ -77,6 +78,8 @@ export function GujaratiInput({
   className,
   inputClassName,
   autoFocus,
+  multiline,
+  rows,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -85,8 +88,10 @@ export function GujaratiInput({
   className?: string;
   inputClassName?: string;
   autoFocus?: boolean;
+  multiline?: boolean;
+  rows?: number;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   // Caret is captured on every interaction so a key lands where the user was.
@@ -132,6 +137,22 @@ export function GujaratiInput({
 
   const backspace = () =>
     applyEdit(deleteBackwards(value, caret.current.start, caret.current.end));
+
+  const sharedProps = {
+    ref: inputRef,
+    value,
+    placeholder,
+    autoFocus,
+    onChange: (e: React.ChangeEvent<HTMLInputElement & HTMLTextAreaElement>) => {
+      rememberCaret();
+      onChange(e.target.value);
+    },
+    onBlur,
+    onKeyUp: rememberCaret,
+    onClick: rememberCaret,
+    onSelect: rememberCaret,
+    className: cn("pr-11", inputClassName),
+  };
 
   return (
     <div ref={wrapRef} className={cn("relative", className)}>

@@ -19,7 +19,9 @@ export default async function DashboardPage() {
     name: a.name,
     subtitle: a.pitch,
     imageUrl: a.imageUrl,
-    link: a.linkUrl ?? "/ads",
+    // Always the in-app detail screen — the advertiser's own site is reachable
+    // from the contact block there.
+    link: `/ads/${a.id}`,
   }));
 
   const featuredSrc = news.find((n) => n.isPinned) ?? news[0] ?? null;

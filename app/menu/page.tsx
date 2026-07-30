@@ -79,10 +79,10 @@ export default function MenuPage() {
             {meInit}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-base font-bold">{meName}</div>
+            <div className="text-base font-bold text-white">{meName}</div>
             <div className="mt-0.5 text-[12.5px] text-white/75">{t("myProfile")}</div>
           </div>
-          <ChevronRight className="h-5 w-5" />
+          <ChevronRight className="h-5 w-5 text-white" />
         </Link>
       </header>
 

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getActiveCommunity, getSessionPayload } from "@/lib/tenant";
-import { getAds } from "@/lib/tenant-data";
+import { getAdPriceTiersForCommunity, getAds } from "@/lib/tenant-data";
 import { AdsClient, type AdRow, type MyBanner } from "./ads-client";
 
 export const dynamic = "force-dynamic";
@@ -12,14 +12,18 @@ export default async function AdsPage() {
 
   const session = await getSessionPayload();
 
-  const [ads, myAds] = await Promise.all([
+  const [ads, myAds, { tiers }] = await Promise.all([
     getAds(community.id, true),
     session?.sub
       ? prisma.advertisement.findMany({
-          where: { communityId: community.id, ownerId: session.sub },
+          // Premium only — "તમારા બેનર" is the paid banner list. Every business
+          // also carries a free general ad, which is not a banner and must not
+          // count against MAX_BANNERS_PER_MEMBER.
+          where: { communityId: community.id, ownerId: session.sub, type: "premium" },
           orderBy: { createdAt: "desc" },
         })
       : [],
+    getAdPriceTiersForCommunity(community.id),
   ]);
 
   const rows: AdRow[] = ads.map((a) => ({
@@ -27,7 +31,6 @@ export default async function AdsPage() {
     name: a.name,
     pitch: a.pitch,
     imageUrl: a.imageUrl,
-    linkUrl: a.linkUrl,
     category: a.category,
   }));
 
@@ -42,5 +45,7 @@ export default async function AdsPage() {
     endDate: a.endDate.toISOString(),
   }));
 
-  return <AdsClient rows={rows} myBanners={mine} signedIn={Boolean(session?.sub)} />;
+  return (
+    <AdsClient rows={rows} myBanners={mine} signedIn={Boolean(session?.sub)} tiers={tiers} />
+  );
 }

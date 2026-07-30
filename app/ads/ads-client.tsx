@@ -1,19 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Megaphone, Plus } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
-import { BANNER_PRICE_INR, MAX_BANNERS_PER_MEMBER } from "@/lib/constants";
+import { MAX_BANNERS_PER_MEMBER } from "@/lib/constants";
+import { AD_DURATIONS, AD_DURATION_MONTHS, adDurationLabel, type AdDuration } from "@/lib/admin-settings";
 import { cn } from "@/lib/utils";
+import { trackAdClick } from "@/lib/track-ad";
 
 export type AdRow = {
   id: string;
   name: string;
   pitch: string | null;
   imageUrl: string | null;
-  linkUrl: string | null;
   category: string | null;
 };
 
@@ -41,10 +43,13 @@ export function AdsClient({
   rows,
   myBanners,
   signedIn,
+  tiers,
 }: {
   rows: AdRow[];
   myBanners: MyBanner[];
   signedIn: boolean;
+  /** Price for each plan, as currently configured in Admin → Settings. */
+  tiers: Record<AdDuration, number>;
 }) {
   const { lang } = useLang();
   const router = useRouter();
@@ -52,6 +57,9 @@ export function AdsClient({
 
   const liveCount = myBanners.filter((b) => b.status === "PENDING" || b.status === "ACTIVE").length;
   const canAdd = signedIn && liveCount < MAX_BANNERS_PER_MEMBER;
+  const priceText = AD_DURATIONS.map(
+    (d) => `₹${tiers[d].toLocaleString("en-IN")} / ${adDurationLabel(AD_DURATION_MONTHS[d], T)}`,
+  ).join(" · ");
 
   return (
     <AppScreen showNav={false}>
@@ -69,7 +77,7 @@ export function AdsClient({
         <dl className="mb-4 rounded-[16px] border border-[var(--line-soft)] bg-white p-3.5 text-[13px]">
           {(
             [
-              [T("ભાવ", "Price"), T(`₹${BANNER_PRICE_INR.toLocaleString("en-IN")} / બેનર (1 વર્ષ)`, `₹${BANNER_PRICE_INR.toLocaleString("en-IN")} / banner (1 year)`)],
+              [T("ભાવ", "Price"), priceText],
               [
                 T("મર્યાદા", "Limit"),
                 T(`ઓછામાં ઓછું 1, વધુમાં વધુ ${MAX_BANNERS_PER_MEMBER}`, `Minimum 1, maximum ${MAX_BANNERS_PER_MEMBER}`),
@@ -110,10 +118,7 @@ export function AdsClient({
               )}
             >
               <Plus className="size-[18px]" strokeWidth={2.3} />
-              {T(
-                `નવું બેનર ઉમેરો (₹${BANNER_PRICE_INR.toLocaleString("en-IN")})`,
-                `Add a new banner (₹${BANNER_PRICE_INR.toLocaleString("en-IN")})`,
-              )}
+              {T("નવું બેનર ઉમેરો", "Add a new banner")}
             </button>
 
             <p className="mb-5 rounded-[13px] border border-[var(--line-soft)] bg-[var(--surface)] px-3.5 py-2.5 text-[11.5px] leading-relaxed text-[var(--faint)]">
@@ -163,12 +168,15 @@ export function AdsClient({
               </div>
             );
 
-            return ad.linkUrl ? (
-              <a key={ad.id} href={ad.linkUrl} target="_blank" rel="noreferrer" className="block">
+            return (
+              <Link
+                key={ad.id}
+                href={`/ads/${ad.id}`}
+                className="block"
+                onClick={() => trackAdClick(ad.id)}
+              >
                 {inner}
-              </a>
-            ) : (
-              <div key={ad.id}>{inner}</div>
+              </Link>
             );
           })
         )}

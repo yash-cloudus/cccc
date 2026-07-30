@@ -16,6 +16,7 @@ export type BusinessRow = {
   description: string | null;
   phone: string | null;
   address: string | null;
+  addressGu: string | null;
   city: string | null;
   website: string | null;
   ownerEn: string | null;
@@ -136,7 +137,7 @@ export function BusinessClient({
                 b.categoryNameEn || b.categoryNameGu
                   ? pickText(b.categoryNameGu, b.categoryNameEn, lang)
                   : "";
-              const secondary = b.city || b.description || "";
+              const secondary = pickText(b.addressGu, b.address, lang) || b.city || "";
               return (
                 <Link
                   key={b.id}

@@ -85,32 +85,62 @@ export async function POST(req: Request) {
     const member = memberId
       ? await prisma.familyMember.findFirst({
           where: { id: memberId, family: { communityId } },
-          select: { id: true, familyId: true },
+          select: { id: true, familyId: true, fullNameEn: true, fullNameGu: true },
         })
       : null;
     if (memberId && !member) return fail("Member not found", 404);
 
-    if (body.categoryId) {
-      const category = await prisma.dropdownOption.findFirst({
-        where: { id: body.categoryId, communityId },
-        select: { id: true },
-      });
-      if (!category) return fail("Category not found", 404);
-    }
+    const category = body.categoryId
+      ? await prisma.dropdownOption.findFirst({
+          where: { id: body.categoryId, communityId },
+          select: { id: true, nameEn: true },
+        })
+      : null;
+    if (body.categoryId && !category) return fail("Category not found", 404);
 
-    const business = await prisma.business.create({
-      data: {
-        ...body,
-        // Blank optional strings are stored as NULL rather than "".
-        whatsapp: body.whatsapp || null,
-        email: body.email || null,
-        communityId,
-        userId: session.sub,
-        memberId: member?.id ?? null,
-        familyId: body.familyId ?? member?.familyId ?? null,
-        isApproved: false,
-      },
+    // A business only reaches the public directory once its linked "general"
+    // ad is approved in Admin > Advertisements — that approval is what flips
+    // `Business.isApproved`. See PATCH /api/admin/ads. Both writes happen
+    // together so a submitted business never ends up without its review ad.
+    const business = await prisma.$transaction(async (tx) => {
+      const business = await tx.business.create({
+        data: {
+          ...body,
+          // Blank optional strings are stored as NULL rather than "".
+          whatsapp: body.whatsapp || null,
+          email: body.email || null,
+          communityId,
+          userId: session.sub,
+          memberId: member?.id ?? null,
+          familyId: body.familyId ?? member?.familyId ?? null,
+          isApproved: false,
+        },
+      });
+
+      await tx.advertisement.create({
+        data: {
+          communityId,
+          ownerId: session.sub,
+          businessId: business.id,
+          name: business.nameGu || business.nameEn,
+          pitch: business.description || business.descriptionGu || undefined,
+          imageUrl: business.logoUrl || undefined,
+          linkUrl: business.mapUrl || undefined,
+          ownerName: member?.fullNameGu || member?.fullNameEn || undefined,
+          ownerMobile: business.phone,
+          category: category?.nameEn || undefined,
+          type: "general",
+          source: "user",
+          payStatus: "notreq",
+          status: "PENDING",
+          startDate: new Date(),
+          endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+        },
+      });
+
+      return business;
     });
+
     return created(business);
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);

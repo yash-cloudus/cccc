@@ -441,6 +441,10 @@ export function AdminLabel({ children }: { children: React.ReactNode }) {
 const ADMIN_INPUT_CLASS =
   "h-[42px] w-full rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)] outline-none";
 
+/** Hides the native up/down spinner buttons on `type="number"` inputs. */
+const NO_SPINNER_CLASS =
+  "[appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none";
+
 export function AdminInput({
   value,
   onChange,
@@ -498,7 +502,7 @@ export function AdminInput({
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
       min={min}
-      className={cn(ADMIN_INPUT_CLASS, className)}
+      className={cn(ADMIN_INPUT_CLASS, type === "number" && NO_SPINNER_CLASS, className)}
     />
   );
 }
