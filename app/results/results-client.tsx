@@ -6,6 +6,7 @@ import { Award, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
+import { PickerWithAdd } from "@/components/ui/picker-with-add";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { EDUCATION_LEVELS } from "@/lib/occupation-defaults";
@@ -503,20 +504,16 @@ function Select({
   placeholder: string;
   emptyText?: string;
 }) {
+  const blank = options.length === 0 ? (emptyText ?? placeholder) : placeholder;
   return (
-    <select
+    <PickerWithAdd
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={options.length === 0}
-      className={cn(FIELD, "disabled:opacity-60")}
-    >
-      <option value="">{options.length === 0 ? (emptyText ?? placeholder) : placeholder}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={[{ value: "", label: blank }, ...options]}
+      placeholder={blank}
+      // ponytail: pointer-events stands in for the old `disabled` attribute
+      className={options.length === 0 ? "pointer-events-none opacity-60" : undefined}
+    />
   );
 }
 

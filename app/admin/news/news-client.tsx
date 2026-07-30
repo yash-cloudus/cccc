@@ -51,6 +51,7 @@ import { cn } from "@/lib/utils";
 import { formatDateDMY } from "@/lib/format";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
+import { DateField } from "@/components/ui/date-field";
 
 /** Pill used for the Pinned/Notify columns — makes the current state and the
  * click action unambiguous (plain icon-only buttons read as decoration, not
@@ -580,8 +581,8 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
 
             <AdminFormRow>
               <AdminField label="Date">
-                <AdminInput
-                  type="date"
+                <DateField
+                  variant="admin"
                   value={draft.publishDate}
                   onChange={(v) => setDraft({ ...draft, publishDate: v })}
                 />

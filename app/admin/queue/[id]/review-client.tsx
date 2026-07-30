@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BLOOD_GROUPS, REJECT_REASONS } from "@/lib/constants";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { DateField } from "@/components/ui/date-field";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
 import {
   type CascadingOccupationValues,
@@ -440,8 +441,9 @@ export function ReviewClient({
                 </div>
                 <div>
                   <div className="mb-1 text-[10.5px] font-bold text-[var(--faint)]">Date of birth</div>
-                  <AdminCellInput
-                    type="date"
+                  <DateField
+                    dob
+                    variant="admin"
                     value={m.dateOfBirth}
                     onChange={(v) => setMember(m.id, "dateOfBirth", v)}
                   />

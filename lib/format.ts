@@ -24,6 +24,28 @@ export function formatDateDMY(iso: string | Date | null | undefined): string {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
+/**
+ * Parse a stored date value into a local-midnight Date — null when absent or
+ * unparseable. Takes plain `yyyy-mm-dd` or a full ISO timestamp from the API,
+ * and pins it to local midnight so a date never shifts a day across timezones.
+ */
+export function parseISODate(v: string | null | undefined): Date | null {
+  if (!v) return null;
+  const d = new Date(`${v.slice(0, 10)}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** True when `d` falls outside an ISO min/max range. Either bound may be absent. */
+export function outOfDateRange(
+  d: Date,
+  min?: string | null,
+  max?: string | null,
+): boolean {
+  const lo = parseISODate(min);
+  const hi = parseISODate(max);
+  return Boolean((lo && d < lo) || (hi && d > hi));
+}
+
 /** Format a start/end date pair as dd/mm/yyyy, or a single date when there's no end (or they match). */
 export function formatDateRangeDMY(
   startISO: string | Date | null | undefined,

@@ -5,9 +5,9 @@
  * hatch.
  *
  * Mirrors the prototype's CustomDropdown (Registration.dc.html): pick a saved
- * option, or add one without leaving the dropdown. Whatever is typed is saved
- * back into `DropdownOption` for this community, so the next person picks it
- * from the list instead of retyping it.
+ * option, or add one without leaving the dropdown. Whatever is typed is sent to
+ * `DropdownOption` for this community, where it waits for an admin to approve
+ * it before the next person can pick it from the list.
  *
  * The new option is created on save (not on keystroke) by `commitOtherValue`,
  * so abandoning the form never pollutes the masters list.
@@ -27,6 +27,7 @@ export function DropdownWithOther({
   required,
   value,
   otherValue,
+  otherValueGu,
   options,
   otherLabel,
   onChange,
@@ -42,6 +43,8 @@ export function DropdownWithOther({
   value: string;
   /** Typed-in value, only meaningful while `value === OTHER`. */
   otherValue: string;
+  /** Gujarati half of the typed-in value, so its row reads `En · Gu` like a saved option. */
+  otherValueGu?: string;
   options: DropdownChoice[];
   otherLabel?: string;
   /** Kept for call-site compatibility; the inline add-new supplies its own. */
@@ -54,6 +57,8 @@ export function DropdownWithOther({
   t?: (gu: string, en: string) => string;
 }) {
   const typed = otherValue.trim();
+  const typedGu = otherValueGu?.trim();
+  const typedLabel = typedGu && typedGu !== typed ? `${typed} · ${typedGu}` : typed;
   return (
     <AdminField
       label={label}
@@ -61,8 +66,8 @@ export function DropdownWithOther({
       hint={
         value === OTHER && typed
           ? t(
-              "નવું ઉમેરાશે — યાદીમાં સચવાશે અને ફરી વાપરી શકાશે.",
-              "Saved to Dropdown lists, so it can be reused next time.",
+              "તમારી વિગતમાં સચવાશે. એડમિન મંજૂરી આપે પછી બધાની યાદીમાં દેખાશે.",
+              "Saved on this record. It joins the shared list once an admin approves it.",
             )
           : undefined
       }
@@ -79,12 +84,16 @@ export function DropdownWithOther({
           ...options,
           // A typed-in value shows as its own row, so the trigger reads like
           // any other selection instead of the word "Other".
-          ...(typed ? [{ value: OTHER, label: typed }] : []),
+          ...(typed ? [{ value: OTHER, label: typedLabel }] : []),
         ]}
         onAddNew={({ nameEn, nameGu }) => {
+          // Select first, then fill in the text. Call sites clear the typed
+          // value inside `onChange` (picking a real option must drop it), so
+          // setting the text before the selection erased it and the field fell
+          // back to "—" with the new name nowhere in sight.
+          onChange(OTHER);
           onOtherChange(nameEn);
           onOtherGuChange?.(nameGu);
-          onChange(OTHER);
         }}
         t={t}
       />
@@ -115,7 +124,10 @@ export async function commitOtherValue(
   const existing = known.find((o) => o.label.toLowerCase() === text.toLowerCase());
   if (existing) return existing.value;
 
-  await api.post("/api/admin/dropdowns", {
+  // /api/dropdowns, not the admin route: registration and profile run this too
+  // and are not admin, so the admin route rejected them and the option was
+  // never created. That route flags member-added options for admin review.
+  await api.post("/api/dropdowns", {
     type,
     nameEn: text,
     nameGu: opts?.nameGu?.trim() || text,

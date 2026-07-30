@@ -29,6 +29,7 @@ export function AdminModal({
   onClose,
   title,
   subtitle,
+  icon,
   children,
   footer,
   width = "md",
@@ -37,11 +38,25 @@ export function AdminModal({
   onClose: () => void;
   title: string;
   subtitle?: string;
+  /** Pre-styled badge shown left of the title — confirms use one to carry their tone. */
+  icon?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: "sm" | "md" | "lg";
 }) {
   const max = { sm: "380px", md: "520px", lg: "680px" }[width];
+  const heading = (
+    <>
+      <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
+        {title}
+      </DialogTitle>
+      {subtitle && (
+        <DialogDescription className="text-[12.5px] text-[var(--faint)]">
+          {subtitle}
+        </DialogDescription>
+      )}
+    </>
+  );
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent
@@ -49,17 +64,17 @@ export function AdminModal({
         style={{ maxWidth: max }}
       >
         <DialogHeader>
-          <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
-            {title}
-          </DialogTitle>
-          {subtitle && (
-            <DialogDescription className="text-[12.5px] text-[var(--faint)]">
-              {subtitle}
-            </DialogDescription>
+          {icon ? (
+            <div className="flex items-center gap-3">
+              {icon}
+              <div className="flex flex-col gap-1">{heading}</div>
+            </div>
+          ) : (
+            heading
           )}
         </DialogHeader>
         <div>{children}</div>
-        {footer && <div className="mt-5 flex gap-2.5">{footer}</div>}
+        {footer && <div className="mt-5 flex flex-wrap gap-2.5">{footer}</div>}
       </DialogContent>
     </Dialog>
   );

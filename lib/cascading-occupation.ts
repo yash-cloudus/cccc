@@ -170,6 +170,49 @@ export function cascadingFromStored(
   return out;
 }
 
+/**
+ * The whole occupation path as one readable line — "Student · Std 12 · Science",
+ * "Vepar (Business) · Agro".
+ *
+ * For summaries drawn from a form that is still in cascading state, where a
+ * typed-in level holds the `OTHER` sentinel rather than its text. Printing the
+ * raw field put a literal `__other__` on the review screen; printing only the
+ * deepest one threw away the path that was just picked.
+ */
+export function cascadingOccupationSummary(values: CascadingOccupationValues): string {
+  const shown = (value: string, custom?: string, customGu?: string) =>
+    value === OTHER ? customGu?.trim() || custom?.trim() || "" : value.trim();
+
+  return [
+    shown(values.occupation, values.occupationCustom, values.occupationCustomGu),
+    shown(values.occupationOther, values.occupationOtherCustom, values.occupationOtherCustomGu),
+    shown(values.education, values.educationCustom, values.educationCustomGu),
+    shown(values.course, values.courseCustom, values.courseCustomGu),
+    shown(values.specialization, values.specializationCustom, values.specializationCustomGu),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * The same path, read off a saved record instead of a live form.
+ *
+ * Stored members keep the levels in separate columns and never hold the OTHER
+ * sentinel, so this is just the join — but admin screens showing one column
+ * ("Business": —) were hiding the flow the member actually picked.
+ */
+export function storedOccupationPath(m: {
+  occupation?: string | null;
+  occupationOther?: string | null;
+  education?: string | null;
+  course?: string | null;
+}): string {
+  return [m.occupation, m.occupationOther, m.education, m.course]
+    .map((s) => s?.trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
 export async function resolveCascadingOccupationForSave(
   tree: OccupationTreeNode[],
   values: CascadingOccupationValues,

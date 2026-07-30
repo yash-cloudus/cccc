@@ -20,6 +20,8 @@ export type MemberFormValues = {
   dateOfBirth: string;
   bloodGroup: string;
   hasWhatsApp: boolean;
+  /** Only used when hasWhatsApp is false — WhatsApp lives on a different number. */
+  whatsapp: string;
 } & CascadingOccupationValues;
 
 export const blankMemberForm = (isHead = false): MemberFormValues => ({
@@ -30,6 +32,7 @@ export const blankMemberForm = (isHead = false): MemberFormValues => ({
   dateOfBirth: "",
   bloodGroup: "",
   hasWhatsApp: true,
+  whatsapp: "",
   ...blankCascadingOccupation(),
 });
 
@@ -138,15 +141,42 @@ export function MemberFields({
         onChange={onChange}
       />
 
-      <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-[var(--ink-dim)]">
-        <input
-          type="checkbox"
-          checked={values.hasWhatsApp}
-          onChange={(e) => onChange({ hasWhatsApp: e.target.checked })}
-          className="size-4 accent-[var(--brand)]"
-        />
-        આ નંબર પર WhatsApp છે
-      </label>
+      {values.hasWhatsApp ? (
+        <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold text-[var(--ink-dim)]">
+          <input
+            type="checkbox"
+            checked={values.hasWhatsApp}
+            onChange={(e) => onChange({ hasWhatsApp: e.target.checked })}
+            className="size-4 accent-[var(--brand)]"
+          />
+          આ નંબર પર WhatsApp છે
+        </label>
+      ) : (
+        <div>
+          <AdminLabel>
+            <span className="flex items-center justify-between gap-2">
+              <span>WhatsApp number · WhatsApp નંબર</span>
+              <label className="flex cursor-pointer items-center gap-1.5 text-[11px] font-bold text-[var(--brand)]">
+                <input
+                  type="checkbox"
+                  checked={false}
+                  onChange={() => onChange({ hasWhatsApp: true, whatsapp: "" })}
+                  className="size-3.5 accent-[var(--brand)]"
+                />
+                same mobile
+              </label>
+            </span>
+          </AdminLabel>
+          {/* ponytail: type="tel" instead of inputMode="numeric" — AdminInput takes no
+              inputMode prop and admin-ui.tsx is out of scope; same numeric keypad. */}
+          <AdminInput
+            type="tel"
+            value={values.whatsapp}
+            onChange={(v) => onChange({ whatsapp: v.replace(/\D/g, "").slice(0, 10) })}
+            placeholder="98765 43210"
+          />
+        </div>
+      )}
     </div>
   );
 }

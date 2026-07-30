@@ -8,7 +8,7 @@ import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { bilingualLabel } from "@/components/forms/family-details-fields";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
-import { AppSelect } from "@/components/ui/app-select";
+import { PickerWithAdd } from "@/components/ui/picker-with-add";
 import { SpeechInput, SpeechTextarea } from "@/components/ui/speech-input";
 import { useLang } from "@/providers/lang-provider";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
@@ -355,7 +355,7 @@ export function AddBusinessClient({
         </Field>
 
         <Field label={`${T("કેટેગરી", "Category")} *`}>
-          <NativeSelect
+          <Picker
             value={form.categoryId}
             onChange={(v) => set("categoryId", v)}
             options={categories.map((c) => ({
@@ -367,7 +367,7 @@ export function AddBusinessClient({
         </Field>
 
         <Field label={T("ક્યારથી (સ્થાપના વર્ષ)", "Since (year established)")}>
-          <NativeSelect
+          <Picker
             value={form.estd}
             onChange={(v) => set("estd", v)}
             options={YEARS.map((y) => ({ value: y, label: y }))}
@@ -779,7 +779,7 @@ function Textarea({
   );
 }
 
-function NativeSelect({
+function Picker({
   value,
   onChange,
   options,
@@ -791,11 +791,13 @@ function NativeSelect({
   placeholder: string;
 }) {
   return (
-    <AppSelect
+    <PickerWithAdd
       value={value}
       onChange={onChange}
+      // Leading blank row stands in for the native `<option value="">`, so the
+      // field stays clearable.
       options={[{ value: "", label: placeholder }, ...options]}
-      className={FIELD}
+      placeholder={placeholder}
     />
   );
 }

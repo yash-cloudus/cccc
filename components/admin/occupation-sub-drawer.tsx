@@ -319,7 +319,12 @@ export function OccupationNestedPanel({
 
   async function toggleActive(node: OccupationTreeNode) {
     const next = !node.isActive;
-    const res = await api.patch("/api/admin/dropdowns", { id: node.id, isActive: next });
+    // Enabling a member's suggestion IS the approval — it stops being flagged.
+    const res = await api.patch("/api/admin/dropdowns", {
+      id: node.id,
+      isActive: next,
+      ...(next ? { needsReview: false } : {}),
+    });
     if (!res.ok) {
       toast.error(res.error || "Could not change status");
       return;

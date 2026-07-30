@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
+import { DateField } from "@/components/ui/date-field";
 import { FamilyDetailsFields } from "@/components/forms/family-details-fields";
 import { MemberPlacePicker } from "@/components/forms/member-place-picker";
 import { familyPlaceFromHead } from "@/lib/family-form";
@@ -115,6 +116,8 @@ export type MemberDraft = {
   dateOfBirth: string;
   bloodGroup: string;
   hasWhatsApp: boolean;
+  /** Only used when `hasWhatsApp` is false — WhatsApp lives on another number. */
+  whatsapp: string;
   /** Where this member currently lives — English name of a village / city. */
   place: string;
 } & CascadingOccupationValues;
@@ -128,6 +131,7 @@ function blankMemberDraft(place = ""): MemberDraft {
     dateOfBirth: "",
     bloodGroup: "",
     hasWhatsApp: true,
+    whatsapp: "",
     place,
     ...blankCascadingOccupation(),
   };
@@ -140,6 +144,7 @@ function blankForm() {
     headDateOfBirth: "",
     headBloodGroup: "",
     headHasWhatsApp: true,
+    headWhatsapp: "",
     /** The head's village / city — becomes the family's place of record. */
     headPlace: "",
     surnameEn: "",
@@ -163,6 +168,64 @@ function blankForm() {
     ...blankCascadingOccupation(),
     members: [] as MemberDraft[],
   };
+}
+
+/**
+ * Checked → just the "this number has WhatsApp" box. Unchecked → a field for
+ * the separate WhatsApp number, with a link back to "same as mobile".
+ * ponytail: AdminInput has no inputMode prop, so `type="tel"` carries the
+ * numeric keypad — add inputMode to AdminInput if other fields ever need it.
+ */
+function WhatsAppField({
+  hasWhatsApp,
+  whatsapp,
+  onChange,
+  className,
+}: {
+  hasWhatsApp: boolean;
+  whatsapp: string;
+  onChange: (next: { hasWhatsApp: boolean; whatsapp: string }) => void;
+  className?: string;
+}) {
+  if (hasWhatsApp) {
+    return (
+      <label
+        className={cn(
+          "flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-[var(--ink-mid)]",
+          className,
+        )}
+      >
+        <input
+          type="checkbox"
+          checked
+          onChange={() => onChange({ hasWhatsApp: false, whatsapp })}
+          className="size-4 accent-[var(--wa)]"
+        />
+        આ નંબર પર WhatsApp છે
+      </label>
+    );
+  }
+  return (
+    <div className={className}>
+      <AdminField label="WhatsApp number · WhatsApp નંબર" className="mb-1">
+        <AdminInput
+          type="tel"
+          value={whatsapp}
+          onChange={(v) =>
+            onChange({ hasWhatsApp: false, whatsapp: v.replace(/\D/g, "").slice(0, 10) })
+          }
+          placeholder="98765 43210"
+        />
+      </AdminField>
+      <button
+        type="button"
+        onClick={() => onChange({ hasWhatsApp: true, whatsapp: "" })}
+        className="mb-3 cursor-pointer text-[11.5px] font-bold text-[var(--brand)]"
+      >
+        Same as mobile
+      </button>
+    </div>
+  );
 }
 
 function matchGroup(groups: SurnameOption[], surnameEn: string) {
@@ -373,6 +436,7 @@ export function FamiliesClient({
           isHead: true,
           currentlyAt: form.headPlace.trim() || undefined,
           hasWhatsApp: form.headHasWhatsApp,
+          whatsapp: form.headWhatsapp.trim() || undefined,
         },
         ...keptMembers.map((m, i) => ({
           fullNameEn: m.fullNameEn.trim() || m.fullNameGu.trim(),
@@ -387,6 +451,7 @@ export function FamiliesClient({
           course: resolved[i].course || undefined,
           currentlyAt: m.place.trim() || form.headPlace.trim() || undefined,
           hasWhatsApp: m.hasWhatsApp,
+          whatsapp: m.whatsapp.trim() || undefined,
           isHead: false,
         })),
       ],
@@ -764,8 +829,9 @@ export function FamiliesClient({
 
           <AdminFormRow>
             <AdminField label="Birth date">
-              <AdminInput
-                type="date"
+              <DateField
+                dob
+                variant="admin"
                 value={form.headDateOfBirth}
                 onChange={(v) => setForm({ ...form, headDateOfBirth: v })}
               />
@@ -786,15 +852,18 @@ export function FamiliesClient({
             onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           />
 
-          <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-[var(--ink-mid)]">
-            <input
-              type="checkbox"
-              checked={form.headHasWhatsApp}
-              onChange={(e) => setForm({ ...form, headHasWhatsApp: e.target.checked })}
-              className="size-4 accent-[var(--wa)]"
-            />
-            આ નંબર પર WhatsApp છે
-          </label>
+          <WhatsAppField
+            className="mt-3"
+            hasWhatsApp={form.headHasWhatsApp}
+            whatsapp={form.headWhatsapp}
+            onChange={(next) =>
+              setForm((f) => ({
+                ...f,
+                headHasWhatsApp: next.hasWhatsApp,
+                headWhatsapp: next.whatsapp,
+              }))
+            }
+          />
         </div>
 
         {form.members.map((m, i) => (
@@ -881,8 +950,9 @@ export function FamiliesClient({
 
             <AdminFormRow>
               <AdminField label="Birth date">
-                <AdminInput
-                  type="date"
+                <DateField
+                  dob
+                  variant="admin"
                   value={m.dateOfBirth}
                   onChange={(v) => updateMemberDraft(i, { dateOfBirth: v })}
                 />
@@ -904,15 +974,11 @@ export function FamiliesClient({
               onChange={(patch) => updateMemberDraft(i, patch)}
             />
 
-            <label className="flex cursor-pointer items-center gap-2 text-[12.5px] font-semibold text-[var(--ink-mid)]">
-              <input
-                type="checkbox"
-                checked={m.hasWhatsApp}
-                onChange={(e) => updateMemberDraft(i, { hasWhatsApp: e.target.checked })}
-                className="size-4 accent-[var(--wa)]"
-              />
-              આ નંબર પર WhatsApp છે
-            </label>
+            <WhatsAppField
+              hasWhatsApp={m.hasWhatsApp}
+              whatsapp={m.whatsapp}
+              onChange={(next) => updateMemberDraft(i, next)}
+            />
           </div>
         ))}
 

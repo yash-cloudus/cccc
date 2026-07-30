@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { accentGradient, accentVarStyle, ALBUM_HOVER_SHADOW, formatDateDMY } from "@/lib/format";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
+import { DateField, todayISO } from "@/components/ui/date-field";
 
 export type AlbumImage = { imageUrl: string; caption: string | null };
 
@@ -452,18 +453,18 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
 
             <AdminFormRow>
               <AdminField label="Start date">
-                <AdminInput
-                  type="date"
+                <DateField
+                  variant="admin"
                   value={draft.startDate}
-                  min={draft.id ? undefined : new Date().toISOString().split("T")[0]}
+                  min={draft.id ? undefined : todayISO()}
                   onChange={(v) => setDraft({ ...draft, startDate: v })}
                 />
               </AdminField>
               <AdminField label="End date" hint="Album auto-deactivates after this date">
-                <AdminInput
-                  type="date"
+                <DateField
+                  variant="admin"
                   value={draft.endDate}
-                  min={draft.startDate || (draft.id ? undefined : new Date().toISOString().split("T")[0])}
+                  min={draft.startDate || (draft.id ? undefined : todayISO())}
                   onChange={(v) => setDraft({ ...draft, endDate: v })}
                 />
               </AdminField>

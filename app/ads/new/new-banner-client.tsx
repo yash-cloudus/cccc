@@ -11,9 +11,9 @@ import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { AD_DURATIONS, AD_DURATION_MONTHS, adDurationLabel, type AdDuration } from "@/lib/admin-settings";
 import { ImageUpload } from "@/app/business/add/add-business-client";
-import { AppSelect } from "@/components/ui/app-select";
 import { bilingualLabel } from "@/components/forms/family-details-fields";
 import { GooglePayIcon, PaytmIcon, PhonePeIcon } from "@/components/icons/payment-app-icons";
+import { PickerWithAdd } from "@/components/ui/picker-with-add";
 import { cn } from "@/lib/utils";
 
 export type BusinessOption = {
@@ -214,10 +214,10 @@ export function NewBannerClient({
               {T("પહેલા ધંધો ઉમેરો →", "Add a business first →")}
             </button>
           ) : (
-            <AppSelect
+            <PickerWithAdd
               value={businessId}
-              onChange={setBusinessId}
-              ariaLabel={T("ધંધો પસંદ કરો", "Pick your business")}
+              onChange={(v) => setBusinessId(v)}
+              t={T}
               options={[
                 { value: "", label: T("તમારો ધંધો પસંદ કરો", "Pick your business") },
                 ...businesses.map((b) => ({

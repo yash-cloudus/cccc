@@ -36,6 +36,9 @@ export type DropdownRow = {
   childCount?: number;
 };
 
+/** A member's suggestion: added from a member form, not yet enabled by an admin. */
+const isPending = (r: DropdownRow) => Boolean(r.needsReview && !r.isActive);
+
 type CategoryId =
   | "surname"
   | "city"
@@ -168,10 +171,14 @@ export function DropdownsClient({
   const visible = useMemo(() => {
     const list = rows[catId] ?? [];
     const needle = q.trim().toLowerCase();
-    if (!needle) return list;
-    return list.filter(
-      (r) => r.nameEn.toLowerCase().includes(needle) || r.nameGu.toLowerCase().includes(needle),
-    );
+    const found = needle
+      ? list.filter(
+          (r) => r.nameEn.toLowerCase().includes(needle) || r.nameGu.toLowerCase().includes(needle),
+        )
+      : list;
+    // Options a member added float to the top — buried among a hundred rows
+    // they would never get approved.
+    return [...found].sort((a, b) => Number(isPending(b)) - Number(isPending(a)));
   }, [rows, catId, q]);
 
   async function refreshChildTab(kind: "student" | "vepar") {
@@ -293,10 +300,22 @@ export function DropdownsClient({
 
   async function toggleActive(row: DropdownRow) {
     const next = !row.isActive;
-    patchRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, isActive: next } : r)));
-    const res = await api.patch("/api/admin/dropdowns", { id: row.id, isActive: next });
+    // Enabling a member's suggestion IS the approval — it stops being flagged.
+    const reviewed = next ? { needsReview: false } : {};
+    patchRows((prev) =>
+      prev.map((r) => (r.id === row.id ? { ...r, isActive: next, ...reviewed } : r)),
+    );
+    const res = await api.patch("/api/admin/dropdowns", {
+      id: row.id,
+      isActive: next,
+      ...reviewed,
+    });
     if (!res.ok) {
-      patchRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, isActive: !next } : r)));
+      patchRows((prev) =>
+        prev.map((r) =>
+          r.id === row.id ? { ...r, isActive: !next, needsReview: row.needsReview } : r,
+        ),
+      );
       toast.error(res.error || "Could not change status");
     }
   }
@@ -475,7 +494,11 @@ export function DropdownsClient({
                   )}
                   <AdminTd>
                     <span className="font-semibold text-[var(--ink)]">{row.nameEn}</span>
-                    {row.needsReview && <PillWarning>flagged</PillWarning>}
+                    {row.needsReview && (
+                      <PillWarning>
+                        {isPending(row) ? "pending approval" : "flagged"}
+                      </PillWarning>
+                    )}
                     {row.inUse > 0 && (
                       <span className="ml-1.5 text-[11px] text-[var(--faint)]">({row.inUse})</span>
                     )}

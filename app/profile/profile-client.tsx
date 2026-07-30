@@ -25,6 +25,8 @@ import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { SpeechInput } from "@/components/ui/speech-input";
+import { PickerWithAdd } from "@/components/ui/picker-with-add";
+import { DateField } from "@/components/ui/date-field";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
 import {
   type CascadingOccupationValues,
@@ -414,26 +416,24 @@ export function ProfileClient({
 
           <div className="mb-3.5 grid grid-cols-2 gap-2.5">
             <EditField label={T("જન્મ તારીખ", "Date of birth")}>
-              <input
-                type="date"
-                className="samaj-fld"
+              <DateField
+                dob
                 value={editForm.dateOfBirth}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, dateOfBirth: e.target.value }))}
+                onChange={(v) => setEditForm((prev) => ({ ...prev, dateOfBirth: v }))}
+                t={T}
               />
             </EditField>
             <EditField label={T("બ્લડ ગ્રુપ", "Blood group")}>
-              <select
-                className="samaj-fld"
+              <PickerWithAdd
                 value={editForm.blood}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, blood: e.target.value }))}
-              >
-                <option value="">—</option>
-                {BLOOD.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setEditForm((prev) => ({ ...prev, blood: v }))}
+                options={[
+                  { value: "", label: "—" },
+                  ...BLOOD.map((b) => ({ value: b, label: b })),
+                ]}
+                placeholder="—"
+                t={T}
+              />
             </EditField>
           </div>
 

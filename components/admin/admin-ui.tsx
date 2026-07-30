@@ -466,7 +466,8 @@ export function AdminInput({
   /** Adds an English dictation mic — ignored when `gujarati` already brings one. */
   speech?: boolean;
   onBlur?: () => void;
-  min?: string;
+  /** Minimum value for `type="number"` inputs. */
+  min?: number | string;
 }) {
   if (gujarati) {
     return (

@@ -14,6 +14,7 @@ import {
   SearchInput,
   StatusPill,
 } from "@/components/admin/admin-ui";
+import { AdminModal } from "@/components/admin/admin-form";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { storedOccupationPath } from "@/lib/cascading-occupation";
 import { REJECT_REASONS } from "@/lib/constants";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
@@ -68,6 +70,10 @@ type FamilyDetail = {
     relation: string | null;
     mobile: string | null;
     isHead: boolean;
+    occupation: string | null;
+    occupationOther: string | null;
+    education: string | null;
+    course: string | null;
   }[];
 };
 
@@ -151,6 +157,11 @@ export function QueueClient({
   }, [rows, query, status, city]);
 
   const approveRow = approveId ? rows.find((f) => f.id === approveId) : null;
+  // The family's "business" is whatever the head does — registration collects it
+  // per member now, so the old family-level column is usually empty.
+  const headOccupation = storedOccupationPath(
+    detail?.familyMembers.find((m) => m.isHead) ?? {},
+  );
   const rejectRow = rejectId ? rows.find((f) => f.id === rejectId) : null;
 
   async function openApprove(id: string) {
@@ -510,127 +521,121 @@ export function QueueClient({
       </Dialog>
 
       {/* Approve modal */}
-      <Dialog
+      <AdminModal
         open={approveId !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setApproveId(null);
-            setDetail(null);
-            setError(null);
-          }
+        onClose={() => {
+          setApproveId(null);
+          setDetail(null);
+          setError(null);
         }}
+        title="Approve family?"
+        subtitle="Review all details before approving."
+        icon={
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--success-tint)] text-[var(--success)]">
+            <Check className="size-[22px]" strokeWidth={2.2} />
+          </span>
+        }
+        footer={
+          approveRow ? (
+            <>
+              <AdminBtn
+                variant="success"
+                className="flex-1 justify-center"
+                onClick={() => confirmApprove(false)}
+              >
+                {busy ? <Loader2 className="size-4 animate-spin" /> : "✓ Approve"}
+              </AdminBtn>
+              <AdminBtn
+                variant="success"
+                className="flex-1 justify-center"
+                onClick={() => confirmApprove(true)}
+              >
+                ✓ Approve &amp; Next
+              </AdminBtn>
+              <AdminBtn
+                variant="ghost"
+                className="text-[var(--danger)]! border-[var(--brand-border)]!"
+                onClick={() => {
+                  setRejectId(approveId);
+                  setApproveId(null);
+                  setRejectReason("");
+                }}
+              >
+                ✕ Reject
+              </AdminBtn>
+            </>
+          ) : undefined
+        }
       >
-        <DialogContent className="max-w-[440px] rounded-2xl p-0 sm:max-w-[440px]" showCloseButton={false}>
-          <div className="sticky top-0 flex items-center gap-3 border-b border-[var(--line-soft)] bg-white px-6 py-5">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--success-tint)] text-[var(--success)]">
-              <Check className="size-[22px]" strokeWidth={2.2} />
-            </span>
-            <div>
-              <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
-                Approve family?
-              </DialogTitle>
-              <DialogDescription className="text-xs text-[var(--faint)]">
-                Review all details before approving.
-              </DialogDescription>
-            </div>
-          </div>
+        {approveRow && (
+          <div>
+            <h4 className="mb-3 text-sm font-extrabold text-[var(--ink)]">
+              {approveRow.head} — {approveRow.surname}
+            </h4>
 
-          {approveRow && (
-            <div className="px-6 py-5">
-              <h4 className="mb-3 text-sm font-extrabold text-[var(--ink)]">
-                {approveRow.head} — {approveRow.surname}
-              </h4>
-
-              {loadingDetail ? (
-                <div className="flex items-center gap-2 py-6 text-[13px] text-[var(--faint)]">
-                  <Loader2 className="size-4 animate-spin" /> Loading details…
-                </div>
-              ) : detail ? (
-                <>
-                  <AdminTable className="mb-4">
-                    <tbody>
-                      <tr>
-                        <AdminTd className="w-[120px] text-[var(--faint)]">City</AdminTd>
-                        <AdminTd>{approveRow.city}</AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">Address</AdminTd>
-                        <AdminTd>{detail.addressGu || detail.addressEn || "—"}</AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">Business</AdminTd>
-                        <AdminTd>{detail.businessGu || "—"}</AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">Native elder</AdminTd>
-                        <AdminTd>
-                          {detail.nativeElderNameGu || detail.nativeElderNameEn || "—"}
-                          {detail.nativeElderPhone ? ` · ${detail.nativeElderPhone}` : ""}
-                        </AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">Submitted</AdminTd>
-                        <AdminTd>{approveRow.submitted}</AdminTd>
-                      </tr>
-                    </tbody>
-                  </AdminTable>
-
-                  <h4 className="mb-2 text-sm font-extrabold text-[var(--ink)]">
-                    Members ({detail.familyMembers.length})
-                  </h4>
-                  {detail.familyMembers.map((m) => {
-                    const name = m.fullNameGu || m.fullNameEn;
-                    return (
-                      <div key={m.id} className="flex items-center gap-3 border-t border-[var(--cream)] py-2">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-[var(--danger-tint)] text-sm font-extrabold text-[var(--danger)]">
-                          {name.trim()[0]}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13px] font-bold text-[var(--ink)]">{name}</div>
-                          <div className="text-[11.5px] text-[var(--faint)]">
-                            {m.isHead ? "Head" : m.relation || "Member"}
-                          </div>
-                        </div>
-                        <span className="text-xs text-[var(--ink-mid)]">{m.mobile || "— no login"}</span>
-                      </div>
-                    );
-                  })}
-                </>
-              ) : null}
-
-              {error && <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
-
-              <div className="mt-4 flex flex-wrap gap-2.5">
-                <AdminBtn
-                  variant="success"
-                  className="flex-1 justify-center"
-                  onClick={() => confirmApprove(false)}
-                >
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : "✓ Approve"}
-                </AdminBtn>
-                <AdminBtn
-                  variant="success"
-                  className="flex-1 justify-center"
-                  onClick={() => confirmApprove(true)}
-                >
-                  ✓ Approve &amp; Next
-                </AdminBtn>
-                <AdminBtn
-                  variant="ghost"
-                  className="text-[var(--danger)]! border-[var(--brand-border)]!"
-                  onClick={() => {
-                    setRejectId(approveId);
-                    setApproveId(null);
-                    setRejectReason("");
-                  }}
-                >
-                  ✕ Reject
-                </AdminBtn>
+            {loadingDetail ? (
+              <div className="flex items-center gap-2 py-6 text-[13px] text-[var(--faint)]">
+                <Loader2 className="size-4 animate-spin" /> Loading details…
               </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+            ) : detail ? (
+              <>
+                <AdminTable className="mb-4">
+                  <tbody>
+                    <tr>
+                      <AdminTd className="w-[120px] text-[var(--faint)]">City</AdminTd>
+                      <AdminTd>{approveRow.city}</AdminTd>
+                    </tr>
+                    <tr>
+                      <AdminTd className="text-[var(--faint)]">Address</AdminTd>
+                      <AdminTd>{detail.addressGu || detail.addressEn || "—"}</AdminTd>
+                    </tr>
+                    <tr>
+                      <AdminTd className="text-[var(--faint)]">Business</AdminTd>
+                      <AdminTd>{headOccupation || detail.businessGu || "—"}</AdminTd>
+                    </tr>
+                    <tr>
+                      <AdminTd className="text-[var(--faint)]">Native elder</AdminTd>
+                      <AdminTd>
+                        {detail.nativeElderNameGu || detail.nativeElderNameEn || "—"}
+                        {detail.nativeElderPhone ? ` · ${detail.nativeElderPhone}` : ""}
+                      </AdminTd>
+                    </tr>
+                    <tr>
+                      <AdminTd className="text-[var(--faint)]">Submitted</AdminTd>
+                      <AdminTd>{approveRow.submitted}</AdminTd>
+                    </tr>
+                  </tbody>
+                </AdminTable>
+
+                <h4 className="mb-2 text-sm font-extrabold text-[var(--ink)]">
+                  Members ({detail.familyMembers.length})
+                </h4>
+                {detail.familyMembers.map((m) => {
+                  const name = m.fullNameGu || m.fullNameEn;
+                  const work = storedOccupationPath(m);
+                  return (
+                    <div key={m.id} className="flex items-center gap-3 border-t border-[var(--cream)] py-2">
+                      <div className="flex size-9 shrink-0 items-center justify-center rounded-[11px] bg-[var(--danger-tint)] text-sm font-extrabold text-[var(--danger)]">
+                        {name.trim()[0]}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13px] font-bold text-[var(--ink)]">{name}</div>
+                        <div className="text-[11.5px] text-[var(--faint)]">
+                          {m.isHead ? "Head" : m.relation || "Member"}
+                          {work ? ` · ${work}` : ""}
+                        </div>
+                      </div>
+                      <span className="text-xs text-[var(--ink-mid)]">{m.mobile || "— no login"}</span>
+                    </div>
+                  );
+                })}
+              </>
+            ) : null}
+
+            {error && <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
+          </div>
+        )}
+      </AdminModal>
 
       {/* Reject modal */}
       <Dialog

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
+import { useFlipUp } from "@/hooks/use-flip-up";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +39,8 @@ export function PickerWithAdd({
   onChange: (v: string) => void;
   options: PickerOption[];
   placeholder?: string;
-  variant?: "member" | "admin";
+  /** `compact` is the small in-panel size — the month / year pickers in the calendar. */
+  variant?: "member" | "admin" | "compact";
   /** Omit to hide the add-new row entirely. */
   onAddNew?: (entry: NewEntry) => void | Promise<void>;
   addLabel?: string;
@@ -48,15 +50,28 @@ export function PickerWithAdd({
   t?: (gu: string, en: string) => string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  // The add-new form roughly doubles the popup's height.
+  const up = useFlipUp(open, wrapRef, adding ? 420 : 300);
   const [en, setEn] = useState("");
   const [gu, setGu] = useState("");
   const { fromEn, guInput } = useTranslitSync();
 
   const isAdmin = variant === "admin";
+  const isCompact = variant === "compact";
   const selected = options.find((o) => o.value === value);
   const label = selected?.label || placeholder || t("પસંદ કરો", "Select");
+
+  // Open on the current choice, not at the top: a year list is 120 rows long
+  // and scrolling to 1971 by hand is not a picker.
+  useEffect(() => {
+    if (!open) return;
+    listRef.current
+      ?.querySelector('[data-selected="true"]')
+      ?.scrollIntoView({ block: "center" });
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -92,9 +107,11 @@ export function PickerWithAdd({
         onClick={() => setOpen((o) => !o)}
         className={cn(
           "flex w-full cursor-pointer items-center justify-between gap-2",
-          isAdmin
-            ? "h-[42px] rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)]"
-            : "samaj-fld bg-[var(--field)]",
+          isCompact
+            ? "h-7 rounded-lg border border-[var(--line-field)] bg-[var(--field)] px-2 text-[12.5px] font-bold text-[var(--ink)]"
+            : isAdmin
+              ? "h-[42px] rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3 text-[13.5px] text-[var(--ink)]"
+              : "samaj-fld bg-[var(--field)]",
         )}
       >
         <span className={cn("truncate text-left", !selected && "text-[var(--faint-soft)]")}>
@@ -113,22 +130,29 @@ export function PickerWithAdd({
           className={cn(
             // No overflow clipping here — the Gujarati keyboard panel opens
             // out of the add-new row and must not be cut off.
-            "absolute inset-x-0 top-full z-40 mt-1 rounded-[13px] border bg-white shadow-lg",
+            "absolute inset-x-0 z-40 rounded-[13px] border bg-white shadow-lg",
+            up ? "bottom-full mb-1" : "top-full mt-1",
+            isCompact && "min-w-[7rem]",
             isAdmin ? "border-[var(--line-admin)]" : "border-[var(--line-field)]",
           )}
         >
-          <div className="max-h-56 overflow-y-auto rounded-t-[13px]">
+          <div
+            ref={listRef}
+            className="max-h-56 overflow-y-auto overscroll-contain rounded-t-[13px]"
+          >
             {options.map((o, i) => (
               <button
                 key={o.value || `blank-${i}`}
                 type="button"
+                data-selected={value === o.value}
                 onClick={() => {
                   onChange(o.value);
                   setOpen(false);
                   setAdding(false);
                 }}
                 className={cn(
-                  "block w-full px-3 py-2.5 text-left text-sm",
+                  "block w-full text-left",
+                  isCompact ? "px-2.5 py-1.5 text-[12.5px]" : "px-3 py-2.5 text-sm",
                   i > 0 && "border-t border-[var(--line-soft)]",
                   value === o.value && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
                 )}

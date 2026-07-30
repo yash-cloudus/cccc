@@ -4,7 +4,6 @@ import {
   DropdownWithOther,
   OTHER,
 } from "@/components/admin/dropdown-with-other";
-import { FilterChip } from "@/components/admin/admin-ui";
 import {
   type CascadingOccupationValues,
   childChoices,
@@ -67,7 +66,6 @@ export function CascadingOccupationFields({
   const courseChildren = childChoices(courseNode);
   const hasEduChildren = eduChildren.length > 0;
   const hasCourseChildren = courseChildren.length > 0;
-  const showStreamChips = eduNode && isStreamLevel(eduNode.nameEn) && hasEduChildren;
 
   const subLabel = rootNode
     ? isVeparOccupation(rootNode.nameEn)
@@ -83,6 +81,7 @@ export function CascadingOccupationFields({
         label="Occupation · વ્યવસાય"
         value={values.occupation}
         otherValue={values.occupationCustom}
+        otherValueGu={values.occupationCustomGu}
         options={occupationChoices(tree)}
         otherPlaceholder="e.g. Trade, Job, Farming…"
         onChange={(v) =>
@@ -109,6 +108,7 @@ export function CascadingOccupationFields({
           label={subLabel}
           value={values.occupationOther}
           otherValue={values.occupationOtherCustom}
+          otherValueGu={values.occupationOtherCustomGu}
           options={childChoices(rootNode)}
           otherPlaceholder="Type business or job…"
           onChange={(v) =>
@@ -126,6 +126,7 @@ export function CascadingOccupationFields({
             label="Education level · ધોરણ"
             value={values.education}
             otherValue={values.educationCustom}
+            otherValueGu={values.educationCustomGu}
             options={childChoices(rootNode)}
             otherPlaceholder="e.g. Std 10, College…"
             onChange={(v) =>
@@ -143,61 +144,15 @@ export function CascadingOccupationFields({
             t={t}
           />
 
-          {showStreamChips && (
-            <div>
-              <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">
-                Stream · પ્રવાહ *
-              </div>
-              <div className="mb-3 flex flex-wrap gap-2">
-                {eduChildren.map((o) => (
-                  <FilterChip
-                    key={o.value}
-                    label={o.label}
-                    active={values.course === o.value}
-                    onClick={() =>
-                      onChange({
-                        course: o.value,
-                        courseCustom: "",
-                        specialization: "",
-                        specializationCustom: "",
-                      })
-                    }
-                  />
-                ))}
-                <FilterChip
-                  label="＋ નવું ઉમેરો · Add new"
-                  active={values.course === OTHER}
-                  onClick={() =>
-                    onChange({
-                      course: OTHER,
-                      courseCustom: "",
-                      specialization: "",
-                      specializationCustom: "",
-                    })
-                  }
-                />
-              </div>
-              {values.course === OTHER && (
-                <DropdownWithOther
-                  label="Stream · પ્રવાહ"
-                  value={OTHER}
-                  otherValue={values.courseCustom}
-                  options={[]}
-                  onChange={() => {}}
-                  onOtherChange={(v) => onChange({ courseCustom: v })}
-                  onOtherGuChange={(v) => onChange({ courseCustomGu: v })}
-                  t={t}
-                />
-              )}
-            </div>
-          )}
-
-          {/* College / Diploma / any level with children — same cascade as masters Nested */}
-          {eduNode && hasEduChildren && !showStreamChips && (
+          {/* Stream / College / Diploma / any level with children — one shape for
+              every level, so "add new" always lives inside the dropdown it
+              belongs to instead of in a field of its own underneath. */}
+          {eduNode && hasEduChildren && (
             <DropdownWithOther
               label={courseFieldLabel(eduNode)}
               value={values.course}
               otherValue={values.courseCustom}
+              otherValueGu={values.courseCustomGu}
               options={eduChildren}
               otherPlaceholder="e.g. B.Tech, B.Com, IT…"
               onChange={(v) =>
@@ -219,6 +174,7 @@ export function CascadingOccupationFields({
               label={specializationLabel(courseNode)}
               value={values.specialization}
               otherValue={values.specializationCustom}
+              otherValueGu={values.specializationCustomGu}
               options={courseChildren}
               otherPlaceholder="e.g. IT, Mechanical…"
               onChange={(v) =>

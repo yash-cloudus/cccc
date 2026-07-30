@@ -47,6 +47,7 @@ import { WithTooltip } from "@/components/ui/tooltip";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
+import { DateField } from "@/components/ui/date-field";
 
 export type AdStatus =
   | "PENDING"
@@ -769,9 +770,9 @@ export function AdsClient({
 
         <div className="hidden flex-wrap items-center gap-2 text-[12px] font-bold text-[var(--muted)] md:flex">
           <span>From</span>
-          <AdminInput type="date" value={from} onChange={setFrom} className="w-[148px]" />
+          <DateField variant="admin" value={from} onChange={setFrom} className="w-[148px]" />
           <span>To</span>
-          <AdminInput type="date" value={to} onChange={setTo} className="w-[148px]" />
+          <DateField variant="admin" value={to} onChange={setTo} min={from} className="w-[148px]" />
           {(from || to) && (
             <LinkAction
               onClick={() => {
@@ -834,9 +835,9 @@ export function AdsClient({
             <div>
               <AdminLabel>Date range</AdminLabel>
               <div className="flex items-center gap-2">
-                <AdminInput type="date" value={from} onChange={setFrom} className="min-w-0 flex-1" />
+                <DateField variant="admin" value={from} onChange={setFrom} className="min-w-0 flex-1" />
                 <span className="text-[12px] font-bold text-[var(--muted)]">to</span>
-                <AdminInput type="date" value={to} onChange={setTo} className="min-w-0 flex-1" />
+                <DateField variant="admin" value={to} onChange={setTo} min={from} className="min-w-0 flex-1" />
               </div>
               {(from || to) && (
                 <LinkAction
@@ -1221,16 +1222,17 @@ export function AdsClient({
                 </AdminField>
                 <AdminFormRow>
                   <AdminField label="Start date" required>
-                    <AdminInput
-                      type="date"
+                    <DateField
+                      variant="admin"
                       value={draft.startDate}
                       onChange={(v) => setDraft({ ...draft, startDate: v })}
                     />
                   </AdminField>
                   <AdminField label="End date" required>
-                    <AdminInput
-                      type="date"
+                    <DateField
+                      variant="admin"
                       value={draft.endDate}
+                      min={draft.startDate}
                       onChange={(v) => setDraft({ ...draft, endDate: v })}
                     />
                   </AdminField>
@@ -1249,16 +1251,17 @@ export function AdsClient({
             {draft.type === "general" && (
               <AdminFormRow>
                 <AdminField label="Start date" required>
-                  <AdminInput
-                    type="date"
+                  <DateField
+                    variant="admin"
                     value={draft.startDate}
                     onChange={(v) => setDraft({ ...draft, startDate: v })}
                   />
                 </AdminField>
                 <AdminField label="End date" required>
-                  <AdminInput
-                    type="date"
+                  <DateField
+                    variant="admin"
                     value={draft.endDate}
+                    min={draft.startDate}
                     onChange={(v) => setDraft({ ...draft, endDate: v })}
                   />
                 </AdminField>
@@ -1436,16 +1439,17 @@ export function AdsClient({
                 </AdminField>
                 <AdminFormRow>
                   <AdminField label="Start date" required>
-                    <AdminInput
-                      type="date"
+                    <DateField
+                      variant="admin"
                       value={modal.form.startDate}
                       onChange={(v) => setEditForm({ ...modal.form, startDate: v })}
                     />
                   </AdminField>
                   <AdminField label="End date" required>
-                    <AdminInput
-                      type="date"
+                    <DateField
+                      variant="admin"
                       value={modal.form.endDate}
+                      min={modal.form.startDate}
                       onChange={(v) => setEditForm({ ...modal.form, endDate: v })}
                     />
                   </AdminField>

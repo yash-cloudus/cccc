@@ -13,12 +13,14 @@ import { api } from "@/lib/http";
 import { bloodToEnum, pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { DateField } from "@/components/ui/date-field";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { SpeechInput } from "@/components/ui/speech-input";
 import { toast } from "sonner";
 import {
   type CascadingOccupationValues,
   blankCascadingOccupation,
+  cascadingOccupationSummary,
   resolveCascadingOccupationForSave,
 } from "@/lib/cascading-occupation";
 import type { OccupationTreeNode } from "@/lib/occupation-defaults";
@@ -29,6 +31,7 @@ import {
 } from "@/lib/family-form";
 import { FamilyDetailsFields } from "@/components/forms/family-details-fields";
 import { MemberPlacePicker, labelForPlace } from "@/components/forms/member-place-picker";
+import { PickerWithAdd } from "@/components/ui/picker-with-add";
 
 type Group = { id: string; nameEn: string; nameGu: string | null };
 type Place = { id: string; nameEn: string; nameGu: string | null };
@@ -48,6 +51,7 @@ type Member = {
 } & CascadingOccupationValues;
 
 const BLOOD = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
+const BLOOD_OPTIONS = BLOOD.map((b) => ({ value: b, label: b }));
 
 function bilingualLabel(nameEn?: string | null, nameGu?: string | null) {
   const en = (nameEn || "").trim();
@@ -209,12 +213,6 @@ export function RegisterClient({
     return `${Number(d)}/${Number(m)}/${String(y).slice(-2)}`;
   };
 
-  const occupationLabel = (values: {
-    occupation?: string;
-    occupationOther?: string;
-    education?: string;
-    course?: string;
-  }) => values.occupationOther || values.course || values.education || values.occupation || "";
 
   const contactName = contactPerson
     ? pickText(contactPerson.nameGu, contactPerson.nameEn, lang)
@@ -585,25 +583,20 @@ export function RegisterClient({
           </Field>
           <div className="mb-3.5 grid grid-cols-2 gap-2.5">
             <Field label={T("જન્મ", "DOB")}>
-              <input
-                type="date"
-                className="samaj-fld"
+              <DateField
+                dob
                 value={newMember.dob}
-                onChange={(e) => setNewMember({ ...newMember, dob: e.target.value })}
+                onChange={(v) => setNewMember({ ...newMember, dob: v })}
+                t={T}
               />
             </Field>
             <Field label={T("બ્લડ", "Blood")}>
-              <select
-                className="samaj-fld"
+              <PickerWithAdd
                 value={newMember.blood}
-                onChange={(e) => setNewMember({ ...newMember, blood: e.target.value })}
-              >
-                {BLOOD.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
+                onChange={(v) => setNewMember({ ...newMember, blood: v })}
+                options={BLOOD_OPTIONS}
+                t={T}
+              />
             </Field>
           </div>
           <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
@@ -867,23 +860,20 @@ export function RegisterClient({
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
                   <Field label={T("જન્મ", "DOB")}>
-                    <input
-                      type="date"
-                      className="samaj-fld"
+                    <DateField
+                      dob
                       value={form.m1dob}
-                      onChange={(e) => setForm({ ...form, m1dob: e.target.value })}
+                      onChange={(v) => setForm({ ...form, m1dob: v })}
+                      t={T}
                     />
                   </Field>
                   <Field label={T("બ્લડ", "Blood")}>
-                    <select
-                      className="samaj-fld"
+                    <PickerWithAdd
                       value={form.m1blood}
-                      onChange={(e) => setForm({ ...form, m1blood: e.target.value })}
-                    >
-                      {BLOOD.map((b) => (
-                        <option key={b}>{b}</option>
-                      ))}
-                    </select>
+                      onChange={(v) => setForm({ ...form, m1blood: v })}
+                      options={BLOOD_OPTIONS}
+                      t={T}
+                    />
                   </Field>
                 </div>
                 <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
@@ -1078,7 +1068,7 @@ export function RegisterClient({
                     relation: "Head",
                     dob: form.m1dob,
                     blood: form.m1blood,
-                    occupation: occupationLabel(form),
+                    occupation: cascadingOccupationSummary(form),
                     place: form.m1place,
                   },
                   ...members.map((m) => ({
@@ -1087,7 +1077,7 @@ export function RegisterClient({
                     relation: m.relation,
                     dob: m.dob,
                     blood: m.blood,
-                    occupation: occupationLabel(m),
+                    occupation: cascadingOccupationSummary(m),
                     place: m.place,
                   })),
                 ].map((member, i) => {
