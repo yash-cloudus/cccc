@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, MapPin, Phone } from "lucide-react";
 import type { BloodGroupType } from "@prisma/client";
 import { AppScreen } from "@/components/layout/app-screen";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { useLang } from "@/providers/lang-provider";
 import { formatDate, pickText, telLink, waLink } from "@/lib/format";
 
@@ -109,7 +110,8 @@ export function FamilyClient({
           >
             <ChevronLeft className="h-[22px] w-[22px]" strokeWidth={2.2} />
           </button>
-          <div className="text-[15px] font-bold text-white/85">{lang === "gu" ? "પરિવાર" : "Family"}</div>
+          <div className="flex-1 text-[15px] font-bold text-white/85">{lang === "gu" ? "પરિવાર" : "Family"}</div>
+          <HeaderLangToggle />
         </div>
         <div className="relative z-2 flex items-center gap-3.5">
           <div className="flex h-[60px] w-[60px] flex-none items-center justify-center rounded-[19px] bg-white text-2xl font-extrabold text-[var(--brand)]">

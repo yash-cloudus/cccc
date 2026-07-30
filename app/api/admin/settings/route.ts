@@ -19,6 +19,8 @@ export async function GET() {
           descGu: true,
           logoUrl: true,
           bannerUrl: true,
+          primaryColor: true,
+          secondaryColor: true,
           nameEn: true,
           nameGu: true,
           estd: true,
@@ -54,6 +56,8 @@ const schema = z.object({
   // Branding images shown on the member app's Community Information screen.
   logoUrl: z.string().optional(),
   bannerUrl: z.string().optional(),
+  primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+  secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   // "Basic information" block of the Community info screen.
   nameEn: z.string().min(1).optional(),
   nameGu: z.string().optional(),

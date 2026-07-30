@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Bell } from "lucide-react";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 
@@ -52,16 +53,19 @@ export function AppHeader({
             {title || communityName}
           </div>
         </div>
-        {showBell && (
-          <Link
-            href="/notifications"
-            className="relative flex h-11 w-11 flex-none items-center justify-center rounded-[14px] bg-white/12 text-white hover:text-white"
-            aria-label="notifications"
-          >
-            <Bell className="h-[22px] w-[22px]" strokeWidth={1.9} />
-            <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--brand)] bg-[var(--gold)]" />
-          </Link>
-        )}
+        <div className="flex flex-none items-center gap-2">
+          <HeaderLangToggle />
+          {showBell && (
+            <Link
+              href="/notifications"
+              className="relative flex h-11 w-11 flex-none items-center justify-center rounded-[14px] bg-white/12 text-white hover:text-white"
+              aria-label="notifications"
+            >
+              <Bell className="h-[22px] w-[22px]" strokeWidth={1.9} />
+              <span className="absolute right-2.5 top-2.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--brand)] bg-[var(--gold)]" />
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

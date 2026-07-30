@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, ChevronLeft, Loader2 } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { formatTimeAgo, pickText } from "@/lib/format";
@@ -60,8 +61,11 @@ export default function NotificationsPage() {
             <ChevronLeft className="h-[22px] w-[22px]" strokeWidth={2.2} />
           </button>
           <div className="flex-1 font-[family-name:var(--font-noto-serif-gujarati)] text-xl font-bold">{title}</div>
-          <div className="flex h-[42px] w-[42px] items-center justify-center rounded-[13px] bg-white/12">
-            <Bell className="h-[21px] w-[21px]" strokeWidth={1.7} />
+          <div className="flex flex-none items-center gap-2">
+            <HeaderLangToggle />
+            <div className="flex h-[42px] w-[42px] items-center justify-center rounded-[13px] bg-white/12">
+              <Bell className="h-[21px] w-[21px]" strokeWidth={1.7} />
+            </div>
           </div>
         </div>
       </header>

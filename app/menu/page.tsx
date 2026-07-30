@@ -16,8 +16,8 @@ import {
   Plus,
 } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
+import { HeaderLangToggle, LangToggle } from "@/components/ui/lang-toggle";
 import { useLang } from "@/providers/lang-provider";
-import { LangToggle } from "@/components/ui/lang-toggle";
 import { api } from "@/lib/http";
 import { pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -68,8 +68,11 @@ export default function MenuPage() {
     <AppScreen>
       <header className="samaj-header relative flex-none overflow-hidden px-5 pb-5 pt-12 text-white">
         <div className="absolute -right-[30px] -top-10 h-[150px] w-[150px] rounded-full bg-white/5" />
-        <div className="relative z-2 mb-4 font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold">
-          {t("menu")}
+        <div className="relative z-2 mb-4 flex items-center justify-between gap-3">
+          <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold">
+            {t("menu")}
+          </div>
+          <HeaderLangToggle />
         </div>
         <Link
           href="/profile"

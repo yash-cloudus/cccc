@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
@@ -502,6 +503,7 @@ export function ProfileClient({
             <ChevronLeft className="h-[22px] w-[22px]" strokeWidth={2.2} />
           </button>
           <div className="flex-1 font-[family-name:var(--font-noto-serif-gujarati)] text-xl font-bold">{title}</div>
+          <HeaderLangToggle />
         </div>
         <div className="relative z-2 flex items-center gap-3.5">
           <div className="flex h-16 w-16 flex-none items-center justify-center rounded-[20px] bg-white text-[26px] font-extrabold text-[var(--brand)]">

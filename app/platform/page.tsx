@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, X } from "lucide-react";
-import { PRIMARY_COLORS, SECONDARY_COLORS, ROOT_DOMAIN } from "@/lib/constants";
+import { ROOT_DOMAIN } from "@/lib/constants";
+import { BrandColorsPicker } from "@/components/shared/brand-colors-picker";
 import { HostLabel } from "@/components/host-label";
 import {
   communityAdminUrl,
@@ -1100,44 +1101,15 @@ export default function PlatformPage() {
                 )}
 
                 <Section label="BRAND COLORS" />
-                <div className="mb-[18px] grid grid-cols-2 gap-3.5">
-                  <div>
-                    <div className="mb-1.5 text-xs font-bold text-[var(--platform-muted)]">Primary</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {PRIMARY_COLORS.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => setField("primary", c)}
-                          className="size-8 cursor-pointer rounded-[9px] border-[3px]"
-                          style={{
-                            background: c,
-                            borderColor: f.primary === c ? "#22252B" : "rgba(0,0,0,.08)",
-                            boxShadow: f.primary === c ? "0 0 0 2px #fff inset" : "none",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-1.5 text-xs font-bold text-[var(--platform-muted)]">Secondary</div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {SECONDARY_COLORS.map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => setField("secondary", c)}
-                          className="size-8 cursor-pointer rounded-[9px] border-[3px]"
-                          style={{
-                            background: c,
-                            borderColor: f.secondary === c ? "#22252B" : "rgba(0,0,0,.08)",
-                            boxShadow: f.secondary === c ? "0 0 0 2px #fff inset" : "none",
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <BrandColorsPicker
+                  variant="platform"
+                  primary={f.primary}
+                  secondary={f.secondary}
+                  onPrimaryChange={(c) => setField("primary", c)}
+                  onSecondaryChange={(c) => setField("secondary", c)}
+                  showPreview={false}
+                  className="mb-[18px]"
+                />
 
                 <Section label="DOMAIN" />
                 <div className="mb-2">

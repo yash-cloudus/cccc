@@ -130,7 +130,7 @@ export function DashboardClient({
         <div className="mt-4 md:grid md:grid-cols-[1.35fr_1fr] md:items-start md:gap-6">
           <div>
             <Link
-              href="/results"
+              href="/results?focus=upload"
               className="flex items-center gap-3.5 rounded-[20px] border border-[var(--gold-border)] bg-gradient-to-r from-[var(--gold-tint)] to-[var(--surface)] p-[15px]"
             >
               <div

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronLeft, Heart, Loader2, QrCode } from "lucide-react";
 import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { pickText, telLink } from "@/lib/format";
@@ -73,8 +74,11 @@ export function DonationClient({
           <div className="flex-1 font-[family-name:var(--font-noto-serif-gujarati)] text-xl font-bold">
             {T("દાન આપો", "Donate")}
           </div>
-          <div className="flex h-[42px] w-[42px] items-center justify-center rounded-[13px] bg-white/12">
-            <Heart className="h-[21px] w-[21px]" strokeWidth={1.7} />
+          <div className="flex flex-none items-center gap-2">
+            <HeaderLangToggle />
+            <div className="flex h-[42px] w-[42px] items-center justify-center rounded-[13px] bg-white/12">
+              <Heart className="h-[21px] w-[21px]" strokeWidth={1.7} />
+            </div>
           </div>
         </div>
       </header>

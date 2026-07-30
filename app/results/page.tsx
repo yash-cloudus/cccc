@@ -5,9 +5,16 @@ import { ResultsClient, type ChildOption, type MyEntry, type TopperRow } from ".
 
 export const dynamic = "force-dynamic";
 
-export default async function ResultsPage() {
+export default async function ResultsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ focus?: string }>;
+}) {
   const community = await getActiveCommunity();
   if (!community) notFound();
+
+  const { focus } = await searchParams;
+  const uploadFocus = focus === "upload";
 
   const session = await getSessionPayload();
 
@@ -19,7 +26,16 @@ export default async function ResultsPage() {
   });
 
   if (!drive) {
-    return <ResultsClient drive={null} childOptions={[]} myEntries={[]} toppers={[]} signedIn={false} />;
+    return (
+      <ResultsClient
+        drive={null}
+        childOptions={[]}
+        myEntries={[]}
+        toppers={[]}
+        signedIn={false}
+        uploadFocus={uploadFocus}
+      />
+    );
   }
 
   const familyId = session?.sub ? await getMyFamilyId(session.sub) : null;
@@ -28,7 +44,14 @@ export default async function ResultsPage() {
     familyId
       ? prisma.familyMember.findMany({
           where: { familyId, isDeceased: false },
-          select: { id: true, fullNameEn: true, fullNameGu: true, education: true },
+          select: {
+            id: true,
+            fullNameEn: true,
+            fullNameGu: true,
+            education: true,
+            course: true,
+            family: { select: { headNameEn: true, headNameGu: true } },
+          },
           orderBy: { fullNameEn: "asc" },
         })
       : [],
@@ -54,6 +77,8 @@ export default async function ResultsPage() {
     id: m.id,
     name: m.fullNameGu || m.fullNameEn,
     standard: m.education,
+    familyLabel: m.family.headNameGu || m.family.headNameEn,
+    course: m.course,
   }));
 
   const mine: MyEntry[] = myEntries.map((e) => ({
@@ -88,6 +113,7 @@ export default async function ResultsPage() {
       myEntries={mine}
       toppers={toppers}
       signedIn={Boolean(session?.sub)}
+      uploadFocus={uploadFocus}
     />
   );
 }

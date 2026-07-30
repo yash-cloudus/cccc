@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, MapPin } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
@@ -725,6 +726,7 @@ export function RegisterClient({
           <div className="flex-1 font-[family-name:var(--font-noto-serif-gujarati)] text-xl font-bold">
             {T("પરિવાર નોંધણી", "Family Registration")}
           </div>
+          <HeaderLangToggle />
         </div>
         <div className="relative z-2 mx-auto mt-4 flex w-full max-w-[680px] items-center gap-2">
           {steps.map((s, idx) => (

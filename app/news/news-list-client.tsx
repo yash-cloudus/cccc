@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChevronRight, Newspaper } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { useLang } from "@/providers/lang-provider";
 import { formatDateDMY, pickText } from "@/lib/format";
 
@@ -33,8 +34,11 @@ export function NewsListClient({ rows }: { rows: NewsRow[] }) {
             <div className="font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold">{t("news")}</div>
             <div className="mt-0.5 text-[12.5px] font-medium text-white/72">{sub}</div>
           </div>
-          <div className="flex h-[42px] w-[42px] items-center justify-center rounded-[13px] bg-white/12">
-            <Newspaper className="h-[21px] w-[21px]" strokeWidth={1.85} />
+          <div className="flex flex-none items-center gap-2">
+            <HeaderLangToggle />
+            <div className="flex h-[42px] w-[42px] items-center justify-center rounded-[13px] bg-white/12">
+              <Newspaper className="h-[21px] w-[21px]" strokeWidth={1.85} />
+            </div>
           </div>
         </div>
       </header>

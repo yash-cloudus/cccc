@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { cn } from "@/lib/utils";
 
 export function BackHeader({
@@ -44,7 +45,10 @@ export function BackHeader({
             <div className="mt-0.5 text-xs font-medium text-white/72">{subtitle}</div>
           )}
         </div>
-        {right}
+        <div className="flex flex-none items-center gap-2">
+          <HeaderLangToggle />
+          {right}
+        </div>
       </div>
     </header>
   );

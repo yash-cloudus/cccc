@@ -1,6 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { cn } from "@/lib/utils";
 
 export function SearchHeader({
@@ -23,11 +24,14 @@ export function SearchHeader({
         <div className="flex-1 font-[family-name:var(--font-noto-serif-gujarati)] text-[22px] font-bold">
           {title}
         </div>
-        {icon && (
-          <div className="flex h-[42px] w-[42px] flex-none items-center justify-center rounded-[13px] bg-white/12">
-            {icon}
-          </div>
-        )}
+        <div className="flex flex-none items-center gap-2">
+          <HeaderLangToggle />
+          {icon && (
+            <div className="flex h-[42px] w-[42px] flex-none items-center justify-center rounded-[13px] bg-white/12">
+              {icon}
+            </div>
+          )}
+        </div>
       </div>
       <div className="relative z-2 mt-4 flex h-12 items-center gap-2.5 rounded-[15px] bg-white px-3.5 shadow-[0_8px_20px_-10px_rgba(0,0,0,.35)]">
         <Search className="h-[19px] w-[19px] flex-none text-[var(--brand)]" strokeWidth={2.1} />

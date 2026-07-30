@@ -10,7 +10,7 @@ import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 import { mainAdminUrl, communityAdminUrl } from "@/lib/host";
 import { HostLabel } from "@/components/host-label";
-import { LangToggle } from "@/components/ui/lang-toggle";
+import { LangToggle, HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -80,6 +80,11 @@ export default function LoginPage() {
 
   return (
     <AppShell>
+      <div className="pointer-events-none fixed right-4 top-4 z-50 sm:right-6 sm:top-6">
+        <div className="pointer-events-auto">
+          <HeaderLangToggle tone="light" />
+        </div>
+      </div>
       <div
         className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[30px] py-[34px] text-center"
         style={{
