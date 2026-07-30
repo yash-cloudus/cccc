@@ -8,6 +8,7 @@ export type CommunityBrand = {
   nameGu: string | null;
   logoText: string | null;
   logoUrl: string | null;
+  bannerUrl: string | null;
   shortLogo: string;
   type: string;
   groupingLabel: string | null;
@@ -35,6 +36,7 @@ export const DEFAULT_BRAND: CommunityBrand = {
   nameGu: null,
   logoText: null,
   logoUrl: null,
+  bannerUrl: null,
   shortLogo: "C",
   type: "PARIVAR",
   groupingLabel: null,
@@ -118,6 +120,7 @@ export function toCommunityBrand(c: Community | null | undefined): CommunityBran
     nameGu: c.nameGu,
     logoText: c.logoText,
     logoUrl: c.logoUrl,
+    bannerUrl: c.bannerUrl,
     shortLogo: shortLogoOf(c),
     type: c.type,
     groupingLabel: c.groupingLabel,

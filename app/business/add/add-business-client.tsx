@@ -453,7 +453,7 @@ export function AddBusinessClient({
             onChange={(url) => set("logoUrl", url)}
             folder="business-logos"
             label={T("લોગો અપલોડ કરો", "Upload logo")}
-            hint={T("tap કરીને પસંદ કરો", "tap to choose")}
+            hint={T("512 × 512 px (1:1) ભલામણ", "512 × 512 px (1:1) recommended")}
             onError={(msg) => toast.error(msg)}
           />
         </Field>

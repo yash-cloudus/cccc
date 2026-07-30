@@ -138,7 +138,7 @@ export function GujaratiInput({
   const backspace = () =>
     applyEdit(deleteBackwards(value, caret.current.start, caret.current.end));
 
-  const sharedProps = {
+  const sharedFieldProps = {
     ref: inputRef,
     value,
     placeholder,
@@ -151,29 +151,23 @@ export function GujaratiInput({
     onKeyUp: rememberCaret,
     onClick: rememberCaret,
     onSelect: rememberCaret,
-    className: cn("pr-11", inputClassName),
   };
 
   return (
     <div ref={wrapRef} className={cn("relative", className)}>
-      <input
-        ref={inputRef}
-        value={value}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        onChange={(e) => {
-          rememberCaret();
-          onChange(e.target.value);
-        }}
-        onBlur={onBlur}
-        onKeyUp={rememberCaret}
-        onClick={rememberCaret}
-        onSelect={rememberCaret}
-        className={cn("pr-[76px]", inputClassName)}
-      />
+      {multiline ? (
+        <textarea {...sharedFieldProps} rows={rows} className={cn("pr-11", inputClassName)} />
+      ) : (
+        <input {...sharedFieldProps} className={cn("pr-[76px]", inputClassName)} />
+      )}
 
       {/* Dictation sits beside the keyboard — same field, two ways to type. */}
-      <div className="absolute top-1/2 right-1.5 flex -translate-y-1/2 items-center gap-0.5">
+      <div
+        className={cn(
+          "absolute flex items-center gap-0.5",
+          multiline ? "top-2 right-1.5" : "top-1/2 right-1.5 -translate-y-1/2",
+        )}
+      >
         <MicButton value={value} onChange={onChange} lang="gu-IN" />
         <button
           type="button"

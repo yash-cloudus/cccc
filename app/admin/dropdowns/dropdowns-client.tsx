@@ -1,23 +1,26 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Loader2, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, ListTree, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  ActionBtn,
   AdminBtn,
   AdminH2,
   AdminInput,
   AdminLabel,
+  AdminSelect,
   AdminTable,
   AdminTd,
   AdminTh,
   AdminToggle,
+  FilterButton,
   FilterChip,
-  LinkAction,
   PillWarning,
   SearchInput,
 } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { OccupationNestedPanel, OccupationSubDrawer } from "@/components/admin/occupation-sub-drawer";
 import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
@@ -160,6 +163,8 @@ export function DropdownsClient({
   const [rootIds, setRootIds] = useState(roots);
   const [catId, setCatId] = useState<CategoryId>(categories[0]?.id ?? "occupation");
   const [q, setQ] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [edit, setEdit] = useState<EditState>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,15 +176,20 @@ export function DropdownsClient({
   const visible = useMemo(() => {
     const list = rows[catId] ?? [];
     const needle = q.trim().toLowerCase();
-    const found = needle
-      ? list.filter(
-          (r) => r.nameEn.toLowerCase().includes(needle) || r.nameGu.toLowerCase().includes(needle),
-        )
-      : list;
+    const found = list.filter((r) => {
+      if (cat.hasStatus && statusFilter !== "all") {
+        if (statusFilter === "enabled" && !r.isActive) return false;
+        if (statusFilter === "disabled" && r.isActive) return false;
+      }
+      if (needle && !(r.nameEn.toLowerCase().includes(needle) || r.nameGu.toLowerCase().includes(needle))) {
+        return false;
+      }
+      return true;
+    });
     // Options a member added float to the top — buried among a hundred rows
     // they would never get approved.
     return [...found].sort((a, b) => Number(isPending(b)) - Number(isPending(a)));
-  }, [rows, catId, q]);
+  }, [rows, catId, q, statusFilter, cat.hasStatus]);
 
   async function refreshChildTab(kind: "student" | "vepar") {
     const root = kind === "student" ? rootIds.student : rootIds.vepar;
@@ -359,12 +369,14 @@ export function DropdownsClient({
         setCatId("student");
         setExpandedId(null);
         setQ("");
+        setStatusFilter("all");
         return;
       }
       if (isVeparOccupation(row.nameEn, row.nameGu)) {
         setCatId("vepar");
         setExpandedId(null);
         setQ("");
+        setStatusFilter("all");
         return;
       }
       setSubDrawer(row);
@@ -392,12 +404,20 @@ export function DropdownsClient({
         >
           Dropdown lists (masters)
         </AdminH2>
-        {cat.api && (
-          <AdminBtn onClick={() => openEdit()}>
-            <Plus className="size-4" />
-            Add {cat.noun}
-          </AdminBtn>
-        )}
+        <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
+          <SearchInput
+            value={q}
+            onChange={setQ}
+            placeholder="Search options…"
+            className="min-w-0 flex-1 sm:w-[220px] sm:flex-none"
+          />
+          {cat.api && (
+            <AdminBtn onClick={() => openEdit()}>
+              <Plus className="size-4" />
+              Add {cat.noun}
+            </AdminBtn>
+          )}
+        </div>
       </div>
 
       {lockedSurname && (
@@ -408,27 +428,70 @@ export function DropdownsClient({
         </p>
       )}
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {categories.map((c) => (
-          <FilterChip
-            key={c.id}
-            label={c.chip}
-            active={c.id === catId}
-            onClick={() => {
-              setCatId(c.id);
-              setExpandedId(null);
-              setQ("");
-            }}
-          />
-        ))}
+      {/* Category chips (left) · status filter (right) — one row */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {categories.map((c) => (
+            <FilterChip
+              key={c.id}
+              label={c.chip}
+              active={c.id === catId}
+              onClick={() => {
+                setCatId(c.id);
+                setExpandedId(null);
+                setQ("");
+                setStatusFilter("all");
+              }}
+            />
+          ))}
+        </div>
+
+        {cat.hasStatus && (
+          <div className="flex items-center gap-2.5">
+            <FilterButton
+              className="md:hidden"
+              active={statusFilter !== "all"}
+              onClick={() => setFiltersOpen(true)}
+            />
+            <div className="hidden items-center gap-2.5 md:flex">
+              <AdminSelect
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as "all" | "enabled" | "disabled")}
+                ariaLabel="Filter by status"
+                className="w-[140px] shrink-0"
+                options={[
+                  { value: "all", label: "All statuses" },
+                  { value: "enabled", label: "Enabled" },
+                  { value: "disabled", label: "Disabled" },
+                ]}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      <SearchInput
-        value={q}
-        onChange={setQ}
-        placeholder="Search options…"
-        className="mb-4 max-w-md"
-      />
+      {cat.hasStatus && (
+        <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+          <SheetContent side="bottom" className="md:hidden">
+            <SheetHeader>
+              <SheetTitle>Filters</SheetTitle>
+            </SheetHeader>
+            <div className="flex flex-col gap-3 px-4 pb-4">
+              <AdminSelect
+                value={statusFilter}
+                onChange={(v) => setStatusFilter(v as "all" | "enabled" | "disabled")}
+                ariaLabel="Filter by status"
+                className="w-full"
+                options={[
+                  { value: "all", label: "All statuses" },
+                  { value: "enabled", label: "Enabled" },
+                  { value: "disabled", label: "Disabled" },
+                ]}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
 
       {cat.readOnlyNote && (
         <p className="mb-4 rounded-xl border border-[var(--info)]/25 bg-[var(--info-tint)] px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--info)]">
@@ -535,24 +598,31 @@ export function DropdownsClient({
                   )}
                   <AdminTd className="text-right">
                     {cat.api ? (
-                      <span className="flex flex-wrap justify-end gap-2.5">
+                      <div className="flex flex-nowrap items-center justify-end gap-1.5">
                         {showNestedAction(row) && (
-                          <LinkAction onClick={() => openNested(row)}>
-                            {catId === "occupation"
-                              ? isStudentOccupation(row.nameEn, row.nameGu) ||
-                                isVeparOccupation(row.nameEn, row.nameGu)
-                                ? "Open tab"
-                                : "Sub-categories"
-                              : isOpen
-                                ? "Hide"
-                                : "Nested"}
-                          </LinkAction>
+                          <ActionBtn
+                            icon={ListTree}
+                            label={
+                              catId === "occupation"
+                                ? isStudentOccupation(row.nameEn, row.nameGu) ||
+                                  isVeparOccupation(row.nameEn, row.nameGu)
+                                  ? "Open tab"
+                                  : "Sub-categories"
+                                : isOpen
+                                  ? "Hide"
+                                  : "Nested"
+                            }
+                            onClick={() => openNested(row)}
+                          />
                         )}
-                        <LinkAction onClick={() => openEdit(row)}>edit</LinkAction>
-                        <LinkAction danger onClick={() => remove(row)}>
-                          delete
-                        </LinkAction>
-                      </span>
+                        <ActionBtn icon={Pencil} label="Edit" onClick={() => openEdit(row)} />
+                        <ActionBtn
+                          icon={Trash2}
+                          label="Delete"
+                          tone="danger"
+                          onClick={() => remove(row)}
+                        />
+                      </div>
                     ) : (
                       <span className="text-[12px] text-[var(--faint)]">read-only</span>
                     )}

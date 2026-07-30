@@ -12,6 +12,7 @@ import {
   AdminTable,
   AdminTd,
   AdminTh,
+  FilterButton,
   LinkAction,
   SearchInput,
 } from "@/components/admin/admin-ui";
@@ -23,6 +24,7 @@ import {
   AdminModalActions,
 } from "@/components/admin/admin-form";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
@@ -60,6 +62,13 @@ const FAMILY_STATUS_META: Record<FamilyStatus, { label: string; className: strin
   PENDING: { label: "Pending", className: "bg-[var(--gold-tint)] text-[var(--warn)]" },
   REJECTED: { label: "Deactivated", className: "bg-[var(--line-soft)] text-[var(--muted)]" },
 };
+
+const FAMILY_STATUS_FILTER_OPTIONS: { value: "all" | FamilyStatus; label: string }[] = [
+  { value: "all", label: "All statuses" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "PENDING", label: "Pending" },
+  { value: "REJECTED", label: "Deactivated" },
+];
 
 function FamilyStatusPill({ status }: { status: FamilyStatus }) {
   const meta = FAMILY_STATUS_META[status];
@@ -207,6 +216,9 @@ export function FamiliesClient({
   const [rows, setRows] = useState<FamilyRow[]>(initialRows);
   const [groups, setGroups] = useState<SurnameOption[]>(initialGroups);
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | FamilyStatus>("all");
+  const [cityFilter, setCityFilter] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const relationOptions = useMemo(() => {
     return relations.map((r) =>
@@ -287,16 +299,29 @@ export function FamiliesClient({
     setGroups(initialGroups);
   }, [initialGroups]);
 
+  const cityFilterOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) {
+      if (r.city && r.city !== "—") set.add(r.city);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b)).map((c) => ({ value: c, label: c }));
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter(
-      (f) =>
-        !q ||
-        (f.headEn + f.headGu + f.surnameEn + f.surnameGu + f.city + f.mobile)
+    return rows.filter((f) => {
+      if (statusFilter !== "all" && f.status !== statusFilter) return false;
+      if (cityFilter !== "all" && f.city !== cityFilter) return false;
+      if (
+        q &&
+        !(f.headEn + f.headGu + f.surnameEn + f.surnameGu + f.city + f.mobile)
           .toLowerCase()
-          .includes(q),
-    );
-  }, [rows, query]);
+          .includes(q)
+      )
+        return false;
+      return true;
+    });
+  }, [rows, query, statusFilter, cityFilter]);
 
   const matchedGroup = matchGroup(groups, form.surnameEn);
   function updateMemberDraft(index: number, patch: Partial<MemberDraft>) {
@@ -574,34 +599,85 @@ export function FamiliesClient({
         >
           Families &amp; Members
         </AdminH2>
-        <AdminBtn
-          onClick={() => {
-            setError(null);
-            const base = blankForm();
-            setForm(
-              lockedSurname
-                ? {
-                    ...base,
-                    surnameGroupId: lockedSurname.id,
-                    surnameEn: lockedSurname.nameEn,
-                    surnameGu: lockedSurname.nameGu,
-                  }
-                : base,
-            );
-            setAddOpen(true);
-          }}
-        >
-          <Plus className="size-4" />
-          Add family directly
-        </AdminBtn>
+        <div className="flex w-full flex-wrap items-center gap-2.5 md:w-auto">
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Search name / surname / city…"
+            className="min-w-0 flex-1 md:w-[200px] md:flex-none"
+          />
+          <FilterButton
+            className="md:hidden"
+            active={Boolean(statusFilter !== "all" || cityFilter !== "all")}
+            onClick={() => setFiltersOpen(true)}
+          />
+          <div className="hidden items-center gap-2.5 md:flex">
+            <AdminSelect
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as "all" | FamilyStatus)}
+              ariaLabel="Filter by status"
+              className="w-[150px] shrink-0"
+              options={FAMILY_STATUS_FILTER_OPTIONS}
+            />
+            {cityFilterOptions.length > 0 && (
+              <AdminSelect
+                value={cityFilter}
+                onChange={setCityFilter}
+                ariaLabel="Filter by city"
+                className="w-[160px] shrink-0"
+                options={[{ value: "all", label: "All cities" }, ...cityFilterOptions]}
+              />
+            )}
+          </div>
+          <AdminBtn
+            onClick={() => {
+              setError(null);
+              const base = blankForm();
+              setForm(
+                lockedSurname
+                  ? {
+                      ...base,
+                      surnameGroupId: lockedSurname.id,
+                      surnameEn: lockedSurname.nameEn,
+                      surnameGu: lockedSurname.nameGu,
+                    }
+                  : base,
+              );
+              setAddOpen(true);
+            }}
+          >
+            <Plus className="size-4" />
+            Add family directly
+          </AdminBtn>
+        </div>
       </div>
 
-      <SearchInput
-        value={query}
-        onChange={setQuery}
-        placeholder="Search name / surname / city…"
-        className="mb-[18px] max-w-[400px]"
-      />
+      {/* Mobile-only bottom sheet mirroring the desktop filters */}
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="md:hidden">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            <AdminSelect
+              value={statusFilter}
+              onChange={(v) => setStatusFilter(v as "all" | FamilyStatus)}
+              ariaLabel="Filter by status"
+              className="w-full"
+              options={FAMILY_STATUS_FILTER_OPTIONS}
+            />
+            {cityFilterOptions.length > 0 && (
+              <AdminSelect
+                value={cityFilter}
+                onChange={setCityFilter}
+                ariaLabel="Filter by city"
+                className="w-full"
+                options={[{ value: "all", label: "All cities" }, ...cityFilterOptions]}
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {error && !membersOf && !addOpen && (
         <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>

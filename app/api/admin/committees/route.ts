@@ -21,6 +21,7 @@ const createSchema = z.object({
   nameEn: z.string().min(1),
   nameGu: z.string().optional(),
   sortOrder: z.number().int().optional(),
+  isActive: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
@@ -33,6 +34,7 @@ export async function POST(req: Request) {
         nameEn: body.nameEn.trim(),
         nameGu: body.nameGu?.trim(),
         sortOrder: body.sortOrder ?? 0,
+        isActive: body.isActive ?? true,
       },
     });
     return created(item);
