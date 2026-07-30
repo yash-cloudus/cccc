@@ -1,9 +1,10 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Loader2, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, ListTree, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  ActionBtn,
   AdminBtn,
   AdminH2,
   AdminInput,
@@ -15,7 +16,6 @@ import {
   AdminToggle,
   FilterButton,
   FilterChip,
-  LinkAction,
   PillWarning,
   SearchInput,
 } from "@/components/admin/admin-ui";
@@ -598,24 +598,31 @@ export function DropdownsClient({
                   )}
                   <AdminTd className="text-right">
                     {cat.api ? (
-                      <span className="flex flex-wrap justify-end gap-2.5">
+                      <div className="flex flex-nowrap items-center justify-end gap-1.5">
                         {showNestedAction(row) && (
-                          <LinkAction onClick={() => openNested(row)}>
-                            {catId === "occupation"
-                              ? isStudentOccupation(row.nameEn, row.nameGu) ||
-                                isVeparOccupation(row.nameEn, row.nameGu)
-                                ? "Open tab"
-                                : "Sub-categories"
-                              : isOpen
-                                ? "Hide"
-                                : "Nested"}
-                          </LinkAction>
+                          <ActionBtn
+                            icon={ListTree}
+                            label={
+                              catId === "occupation"
+                                ? isStudentOccupation(row.nameEn, row.nameGu) ||
+                                  isVeparOccupation(row.nameEn, row.nameGu)
+                                  ? "Open tab"
+                                  : "Sub-categories"
+                                : isOpen
+                                  ? "Hide"
+                                  : "Nested"
+                            }
+                            onClick={() => openNested(row)}
+                          />
                         )}
-                        <LinkAction onClick={() => openEdit(row)}>edit</LinkAction>
-                        <LinkAction danger onClick={() => remove(row)}>
-                          delete
-                        </LinkAction>
-                      </span>
+                        <ActionBtn icon={Pencil} label="Edit" onClick={() => openEdit(row)} />
+                        <ActionBtn
+                          icon={Trash2}
+                          label="Delete"
+                          tone="danger"
+                          onClick={() => remove(row)}
+                        />
+                      </div>
                     ) : (
                       <span className="text-[12px] text-[var(--faint)]">read-only</span>
                     )}
