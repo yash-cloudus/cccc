@@ -30,7 +30,11 @@ export default async function RegistrationQueuePage() {
   const rows: QueueRow[] = families.map((f) => ({
     id: f.id,
     head: f.headNameGu || f.headNameEn,
+    headEn: f.headNameEn,
+    headGu: f.headNameGu || null,
     surname: f.surnameGu || f.surnameEn,
+    surnameEn: f.surnameEn,
+    surnameGu: f.surnameGu || null,
     city: f.city || "—",
     members: f._count.familyMembers,
     submitted: fmtDate(f.submittedAt),
@@ -45,15 +49,16 @@ export default async function RegistrationQueuePage() {
     } catch {
       /* malformed payload — show the row with an empty diff rather than crash */
     }
+    const memberEn = u.member?.fullNameEn || u.family?.headNameEn || "—";
+    const memberGu = u.member?.fullNameGu || u.family?.headNameGu || null;
     return {
       id: u.id,
-      member:
-        u.member?.fullNameGu ||
-        u.member?.fullNameEn ||
-        u.family?.headNameGu ||
-        u.family?.headNameEn ||
-        "—",
+      member: memberGu || memberEn,
+      memberEn,
+      memberGu,
       surname: u.family?.surnameGu || u.family?.surnameEn || "—",
+      surnameEn: u.family?.surnameEn || "—",
+      surnameGu: u.family?.surnameGu || null,
       changes,
       submitted: fmtDate(u.submittedAt),
       status: u.status,

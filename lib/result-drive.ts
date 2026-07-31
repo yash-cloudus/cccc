@@ -8,8 +8,12 @@ export type RosterRow = {
   memberId: string | null;
   entryId: string | null;
   studentName: string;
+  studentNameEn: string | null;
+  studentNameGu: string | null;
   init: string;
   familyLabel: string;
+  familyLabelEn: string | null;
+  familyLabelGu: string | null;
   mobile: string | null;
   standard: string;
   stream: string | null;
