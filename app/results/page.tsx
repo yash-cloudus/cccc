@@ -89,6 +89,8 @@ export default async function ResultsPage({
     .map((m) => ({
       id: m.id,
       name: m.fullNameGu || m.fullNameEn,
+      nameEn: m.fullNameEn,
+      nameGu: m.fullNameGu || null,
       standard: m.education,
       familyLabel: m.family.headNameGu || m.family.headNameEn,
       course: m.course,

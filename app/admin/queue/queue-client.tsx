@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { Check, Eye, Loader2, Pencil, X } from "lucide-react";
 import {
   ActionBtn,
@@ -35,7 +34,11 @@ import { cn } from "@/lib/utils";
 export type QueueRow = {
   id: string;
   head: string;
+  headEn: string;
+  headGu: string | null;
   surname: string;
+  surnameEn: string;
+  surnameGu: string | null;
   city: string;
   members: number;
   submitted: string;
@@ -52,7 +55,11 @@ export type FieldChange = {
 export type UpdateRequestRow = {
   id: string;
   member: string;
+  memberEn: string;
+  memberGu: string | null;
   surname: string;
+  surnameEn: string;
+  surnameGu: string | null;
   changes: FieldChange[];
   submitted: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
@@ -157,7 +164,10 @@ export function QueueClient({
       (f) =>
         (status === "all" || f.status === status) &&
         (city === "all" || f.city === city) &&
-        (!q || (f.head + f.surname + f.city).toLowerCase().includes(q)),
+        (!q ||
+          (f.headEn + (f.headGu ?? "") + f.surnameEn + (f.surnameGu ?? "") + f.city)
+            .toLowerCase()
+            .includes(q)),
     );
   }, [rows, query, status, city]);
 
@@ -368,9 +378,17 @@ export function QueueClient({
           {filtered.map((r) => (
             <tr key={r.id}>
               <AdminTd>
-                <b>{r.head}</b>
+                <b>{r.headEn}</b>
+                {r.headGu && r.headGu !== r.headEn ? (
+                  <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{r.headGu}</div>
+                ) : null}
               </AdminTd>
-              <AdminTd>{r.surname}</AdminTd>
+              <AdminTd>
+                {r.surnameEn}
+                {r.surnameGu && r.surnameGu !== r.surnameEn ? (
+                  <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{r.surnameGu}</div>
+                ) : null}
+              </AdminTd>
               <AdminTd>{r.city}</AdminTd>
               <AdminTd>{r.members}</AdminTd>
               <AdminTd>{r.submitted}</AdminTd>
@@ -439,8 +457,18 @@ export function QueueClient({
         <tbody>
           {updates.map((u) => (
             <tr key={u.id}>
-              <AdminTd className="font-semibold text-[var(--ink)]">{u.member}</AdminTd>
-              <AdminTd>{u.surname}</AdminTd>
+              <AdminTd className="font-semibold text-[var(--ink)]">
+                {u.memberEn}
+                {u.memberGu && u.memberGu !== u.memberEn ? (
+                  <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{u.memberGu}</div>
+                ) : null}
+              </AdminTd>
+              <AdminTd>
+                {u.surnameEn}
+                {u.surnameGu && u.surnameGu !== u.surnameEn ? (
+                  <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{u.surnameGu}</div>
+                ) : null}
+              </AdminTd>
               <AdminTd>{u.changes.length}</AdminTd>
               <AdminTd className="whitespace-nowrap">{u.submitted}</AdminTd>
               <AdminTd>
@@ -616,12 +644,13 @@ export function QueueClient({
               <h4 className="text-sm font-extrabold text-[var(--ink)]">
                 {approveRow.head} — {approveRow.surname}
               </h4>
-              <Link
-                href={`/admin/queue/${approveRow.id}`}
-                className="shrink-0 text-xs font-bold text-[#3D7BC4] underline"
-              >
-                View
-              </Link>
+              <ActionBtn
+                icon={Eye}
+                label="View"
+                onClick={() => {
+                  window.location.href = `/admin/queue/${approveRow.id}`;
+                }}
+              />
             </div>
 
             {loadingDetail ? (

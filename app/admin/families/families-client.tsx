@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2, UserPlus, Users, X, ZapOff, Zap } from "lucide-react";
+import { Eye, Loader2, Pencil, Plus, Trash2, UserPlus, Users, X, ZapOff, Zap } from "lucide-react";
 import {
   ActionBtn,
   AdminBtn,
@@ -92,6 +92,16 @@ type Member = {
   isHead: boolean;
   isVisible: boolean;
   isDeceased: boolean;
+};
+
+type FamilyExtra = {
+  addressEn: string;
+  addressGu: string | null;
+  nativePlace: string | null;
+  businessGu: string | null;
+  nativeElderNameEn: string | null;
+  nativeElderNameGu: string | null;
+  nativeElderPhone: string | null;
 };
 
 type CreatedFamily = {
@@ -288,6 +298,7 @@ export function FamiliesClient({
 
   const [membersOf, setMembersOf] = useState<FamilyRow | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [extra, setExtra] = useState<FamilyExtra | null>(null);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -501,10 +512,15 @@ export function FamiliesClient({
     setError(null);
     setLoadingMembers(true);
     setMembers([]);
-    const res = await api.get<{ familyMembers: Member[] }>(`/api/families/${row.id}`);
+    setExtra(null);
+    const res = await api.get<{ familyMembers: Member[] } & FamilyExtra>(`/api/families/${row.id}`);
     setLoadingMembers(false);
-    if (res.ok) setMembers(res.data.familyMembers);
-    else setError(res.error);
+    if (res.ok) {
+      setMembers(res.data.familyMembers);
+      setExtra(res.data);
+    } else {
+      setError(res.error);
+    }
   }
 
   async function toggleMember(m: Member, field: "isVisible" | "isDeceased") {
@@ -726,6 +742,11 @@ export function FamiliesClient({
               </AdminTd>
               <AdminTd className="text-right">
                 <div className="flex flex-wrap items-center justify-end gap-1.5">
+                  <ActionBtn
+                    icon={Eye}
+                    label="View"
+                    onClick={() => openMembers(f)}
+                  />
                   <ActionBtn
                     icon={Pencil}
                     label="Edit"
@@ -1069,7 +1090,7 @@ export function FamiliesClient({
                   : "Members"}
               </DialogTitle>
               <p className="mt-0.5 text-xs text-[var(--faint)]">
-                Manage members, visibility, login &amp; status.
+                Full family details — manage members, visibility, login &amp; status.
               </p>
             </div>
             <button
@@ -1089,6 +1110,44 @@ export function FamiliesClient({
             ) : (
               <>
                 {error && <p className="mb-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
+
+                {extra && membersOf && (
+                  <AdminTable className="mb-4">
+                    <tbody>
+                      <tr>
+                        <AdminTd className="w-[110px] text-[var(--faint)]">City</AdminTd>
+                        <AdminTd>{membersOf.city || "—"}</AdminTd>
+                      </tr>
+                      <tr>
+                        <AdminTd className="text-[var(--faint)]">Mobile</AdminTd>
+                        <AdminTd>{membersOf.mobile || "—"}</AdminTd>
+                      </tr>
+                      <tr>
+                        <AdminTd className="text-[var(--faint)]">Address</AdminTd>
+                        <AdminTd>{extra.addressGu || extra.addressEn || "—"}</AdminTd>
+                      </tr>
+                      <tr>
+                        <AdminTd className="text-[var(--faint)]">Native place</AdminTd>
+                        <AdminTd>{extra.nativePlace || "—"}</AdminTd>
+                      </tr>
+                      <tr>
+                        <AdminTd className="text-[var(--faint)]">Business</AdminTd>
+                        <AdminTd>{extra.businessGu || "—"}</AdminTd>
+                      </tr>
+                      <tr>
+                        <AdminTd className="text-[var(--faint)]">Native elder</AdminTd>
+                        <AdminTd>
+                          {extra.nativeElderNameGu || extra.nativeElderNameEn || "—"}
+                          {extra.nativeElderPhone ? ` · ${extra.nativeElderPhone}` : ""}
+                        </AdminTd>
+                      </tr>
+                    </tbody>
+                  </AdminTable>
+                )}
+
+                <h4 className="mb-2 text-sm font-extrabold text-[var(--ink)]">
+                  Members ({members.length})
+                </h4>
                 {members.map((m, i) => {
                   const col = MEMBER_COLORS[i % 5];
                   const name = m.fullNameGu || m.fullNameEn;

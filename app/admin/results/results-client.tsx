@@ -1,9 +1,22 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, Plus } from "lucide-react";
 import {
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  FileOutput,
+  Loader2,
+  Lock,
+  Pencil,
+  Plus,
+  RotateCw,
+  Unlock,
+  Upload,
+} from "lucide-react";
+import {
+  ActionBtn,
   AdminBtn,
   AdminH2,
   AdminH3,
@@ -13,6 +26,7 @@ import {
   AdminTable,
   AdminTd,
   AdminTh,
+  FilterButton,
   PillActive,
   PillExpired,
   SearchInput,
@@ -24,6 +38,12 @@ import {
   openWhatsAppNotify,
 } from "@/components/admin/result-drive-modals";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { api } from "@/lib/http";
 import { EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 import {
@@ -120,12 +140,24 @@ export function ResultsClient({
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [levelFilter, setLevelFilter] = useState("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const [stdSearch, setStdSearch] = useState("");
+  const [stdStatusFilter, setStdStatusFilter] = useState("all");
+  const [percentSort, setPercentSort] = useState<"none" | "high" | "low">("none");
+  const [stdFiltersOpen, setStdFiltersOpen] = useState(false);
 
   const params = useSearchParams();
   const activeStd = params.get("std");
   const viewParam = params.get("view");
   const view: "overview" | "standard" | "merit" | "final" =
     viewParam === "final" ? "final" : viewParam === "merit" ? "merit" : activeStd ? "standard" : "overview";
+
+  useEffect(() => {
+    setStdSearch("");
+    setStdStatusFilter("all");
+    setPercentSort("none");
+  }, [activeStd]);
 
   const go = useCallback(
     (next: Record<string, string | null>) => {
@@ -144,7 +176,19 @@ export function ResultsClient({
     () =>
       roster.filter((r) => {
         if (statusFilter !== "all" && r.status !== statusFilter) return false;
-        if (q && ![r.studentName, r.familyLabel, r.mobile, r.schoolName].some((v) => v?.toLowerCase().includes(q))) {
+        if (
+          q &&
+          ![
+            r.studentName,
+            r.studentNameEn,
+            r.studentNameGu,
+            r.familyLabel,
+            r.familyLabelEn,
+            r.familyLabelGu,
+            r.mobile,
+            r.schoolName,
+          ].some((v) => v?.toLowerCase().includes(q))
+        ) {
           return false;
         }
         return true;
@@ -180,6 +224,36 @@ export function ResultsClient({
     }
     return rows;
   }, [filtered, activeStd, streamFilter]);
+
+  const displayStdRows = useMemo(() => {
+    const sq = stdSearch.trim().toLowerCase();
+    let rows = stdRows.filter((r) => {
+      if (stdStatusFilter !== "all" && r.status !== stdStatusFilter) return false;
+      if (
+        sq &&
+        ![
+          r.studentName,
+          r.studentNameEn,
+          r.studentNameGu,
+          r.familyLabel,
+          r.familyLabelEn,
+          r.familyLabelGu,
+          r.mobile,
+        ].some((v) => v?.toLowerCase().includes(sq))
+      ) {
+        return false;
+      }
+      return true;
+    });
+    if (percentSort !== "none") {
+      rows = [...rows].sort((a, b) => {
+        const av = a.percentage ?? -1;
+        const bv = b.percentage ?? -1;
+        return percentSort === "high" ? bv - av : av - bv;
+      });
+    }
+    return rows;
+  }, [stdRows, stdSearch, stdStatusFilter, percentSort]);
 
   const ranks = useMemo(() => (activeStd ? rankApproved(roster, activeStd) : new Map()), [roster, activeStd]);
 
@@ -354,39 +428,118 @@ export function ResultsClient({
       </div>
 
       {currentDrive && view === "overview" && (
-        <div className="mb-5 flex flex-wrap items-center gap-2.5">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder="Search student / mobile / family…"
-            className="min-w-[240px] flex-1"
-          />
-          <AdminSelect
-            value={currentDrive.id}
-            onChange={(v) => router.push(`/admin/results?drive=${v}`)}
-            className="w-auto"
-            options={driveOptions}
-          />
-          <AdminSelect
-            value={statusFilter}
-            onChange={setStatusFilter}
-            className="w-auto"
-            options={[
-              { value: "all", label: "All status" },
-              { value: "none", label: "Not uploaded" },
-              { value: "PENDING", label: "Pending" },
-              { value: "APPROVED", label: "Approved" },
-              { value: "REJECTED", label: "Rejected" },
-            ]}
-          />
-          <AdminSelect
-            value={levelFilter}
-            onChange={setLevelFilter}
-            className="w-auto"
-            options={[{ value: "all", label: "All education levels" }, ...LEVELS.map((l) => ({ value: l, label: l }))]}
-          />
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            <AdminBtn
+              variant={currentDrive.isOpen ? "danger" : "success"}
+              onClick={() => toggleDrive("isOpen")}
+              className="whitespace-nowrap"
+            >
+              {currentDrive.isOpen ? (
+                <Lock className="size-4 shrink-0" />
+              ) : (
+                <Unlock className="size-4 shrink-0" />
+              )}
+              {currentDrive.isOpen ? "Close drive" : "Reopen drive"}
+            </AdminBtn>
+            <AdminBtn
+              variant={currentDrive.isPublished ? "danger" : "success"}
+              onClick={() => toggleDrive("isPublished")}
+              className="whitespace-nowrap"
+            >
+              {currentDrive.isPublished ? (
+                <EyeOff className="size-4 shrink-0" />
+              ) : (
+                <FileOutput className="size-4 shrink-0" />
+              )}
+              {currentDrive.isPublished ? "Unpublish toppers" : "Publish toppers"}
+            </AdminBtn>
+          </div>
+
+          <div className="flex w-full items-center gap-2.5 md:w-auto">
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Search student / mobile / family…"
+              className="min-w-0 flex-1 md:w-[220px] md:flex-none"
+            />
+            <FilterButton
+              className="md:hidden"
+              active={statusFilter !== "all" || levelFilter !== "all"}
+              onClick={() => setFiltersOpen(true)}
+            />
+            <div className="hidden items-center gap-2.5 md:flex">
+              <AdminSelect
+                value={currentDrive.id}
+                onChange={(v) => router.push(`/admin/results?drive=${v}`)}
+                ariaLabel="Select drive year"
+                className="w-[110px] shrink-0"
+                options={driveOptions}
+              />
+              <AdminSelect
+                value={statusFilter}
+                onChange={setStatusFilter}
+                ariaLabel="Filter by status"
+                className="w-[150px] shrink-0"
+                options={[
+                  { value: "all", label: "All status" },
+                  { value: "none", label: "Not uploaded" },
+                  { value: "PENDING", label: "Pending" },
+                  { value: "APPROVED", label: "Approved" },
+                  { value: "REJECTED", label: "Rejected" },
+                ]}
+              />
+              <AdminSelect
+                value={levelFilter}
+                onChange={setLevelFilter}
+                ariaLabel="Filter by education level"
+                className="w-[180px] shrink-0"
+                options={[{ value: "all", label: "All education levels" }, ...LEVELS.map((l) => ({ value: l, label: l }))]}
+              />
+            </div>
+          </div>
         </div>
       )}
+
+      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <SheetContent side="bottom" className="md:hidden">
+          <SheetHeader>
+            <SheetTitle>Filters</SheetTitle>
+          </SheetHeader>
+          <div className="flex flex-col gap-3 px-4 pb-4">
+            <div>
+              <AdminLabel>Drive year</AdminLabel>
+              <AdminSelect
+                value={currentDrive?.id ?? ""}
+                onChange={(v) => router.push(`/admin/results?drive=${v}`)}
+                ariaLabel="Select drive year"
+                className="w-full"
+                options={driveOptions}
+              />
+            </div>
+            <AdminSelect
+              value={statusFilter}
+              onChange={setStatusFilter}
+              ariaLabel="Filter by status"
+              className="w-full"
+              options={[
+                { value: "all", label: "All status" },
+                { value: "none", label: "Not uploaded" },
+                { value: "PENDING", label: "Pending" },
+                { value: "APPROVED", label: "Approved" },
+                { value: "REJECTED", label: "Rejected" },
+              ]}
+            />
+            <AdminSelect
+              value={levelFilter}
+              onChange={setLevelFilter}
+              ariaLabel="Filter by education level"
+              className="w-full"
+              options={[{ value: "all", label: "All education levels" }, ...LEVELS.map((l) => ({ value: l, label: l }))]}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
@@ -396,15 +549,6 @@ export function ResultsClient({
         </p>
       ) : (
         <>
-          <div className={view === "overview" ? "mb-5 flex flex-wrap gap-2" : "hidden"}>
-            <AdminBtn variant="ghost" onClick={() => toggleDrive("isOpen")}>
-              {currentDrive.isOpen ? "Close drive" : "Reopen drive"}
-            </AdminBtn>
-            <AdminBtn variant="ghost" onClick={() => toggleDrive("isPublished")}>
-              {currentDrive.isPublished ? "Unpublish toppers" : "Publish toppers"}
-            </AdminBtn>
-          </div>
-
           {view === "overview" && (
             <>
               <AdminH3>
@@ -550,8 +694,8 @@ export function ResultsClient({
                 ))}
               </div>
 
-              {streamTabs.length > 0 && (
-                <div className="mb-3.5 flex flex-wrap gap-2">
+              <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2">
                   {streamTabs.map((tb) => (
                     <button
                       key={tb.value}
@@ -568,10 +712,86 @@ export function ResultsClient({
                     </button>
                   ))}
                 </div>
-              )}
+
+                <div className="flex w-full items-center gap-2.5 md:w-auto">
+                  <SearchInput
+                    value={stdSearch}
+                    onChange={setStdSearch}
+                    placeholder="Search student / mobile / family…"
+                    className="min-w-0 flex-1 md:w-[220px] md:flex-none"
+                  />
+                  <FilterButton
+                    className="md:hidden"
+                    active={stdStatusFilter !== "all" || percentSort !== "none"}
+                    onClick={() => setStdFiltersOpen(true)}
+                  />
+                  <div className="hidden items-center gap-2.5 md:flex">
+                    <AdminSelect
+                      value={stdStatusFilter}
+                      onChange={setStdStatusFilter}
+                      ariaLabel="Filter by verification status"
+                      className="w-[150px] shrink-0"
+                      options={[
+                        { value: "all", label: "All status" },
+                        { value: "none", label: "Not uploaded" },
+                        { value: "PENDING", label: "Pending" },
+                        { value: "APPROVED", label: "Approved" },
+                        { value: "REJECTED", label: "Rejected" },
+                      ]}
+                    />
+                    <AdminSelect
+                      value={percentSort}
+                      onChange={(v) => setPercentSort(v as "none" | "high" | "low")}
+                      ariaLabel="Sort by percentage"
+                      className="w-[170px] shrink-0"
+                      options={[
+                        { value: "none", label: "Sort: default" },
+                        { value: "high", label: "% High to low" },
+                        { value: "low", label: "% Low to high" },
+                      ]}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Sheet open={stdFiltersOpen} onOpenChange={setStdFiltersOpen}>
+                <SheetContent side="bottom" className="md:hidden">
+                  <SheetHeader>
+                    <SheetTitle>Filters</SheetTitle>
+                  </SheetHeader>
+                  <div className="flex flex-col gap-3 px-4 pb-4">
+                    <AdminSelect
+                      value={stdStatusFilter}
+                      onChange={setStdStatusFilter}
+                      ariaLabel="Filter by verification status"
+                      className="w-full"
+                      options={[
+                        { value: "all", label: "All status" },
+                        { value: "none", label: "Not uploaded" },
+                        { value: "PENDING", label: "Pending" },
+                        { value: "APPROVED", label: "Approved" },
+                        { value: "REJECTED", label: "Rejected" },
+                      ]}
+                    />
+                    <AdminSelect
+                      value={percentSort}
+                      onChange={(v) => setPercentSort(v as "none" | "high" | "low")}
+                      ariaLabel="Sort by percentage"
+                      className="w-full"
+                      options={[
+                        { value: "none", label: "Sort: default" },
+                        { value: "high", label: "% High to low" },
+                        { value: "low", label: "% Low to high" },
+                      ]}
+                    />
+                  </div>
+                </SheetContent>
+              </Sheet>
 
               {stdRows.length === 0 ? (
                 <p className="py-6 text-[13px] text-[var(--faint)]">No students in this standard.</p>
+              ) : displayStdRows.length === 0 ? (
+                <p className="py-6 text-[13px] text-[var(--faint)]">No students match your search or filters.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <AdminTable>
@@ -586,11 +806,11 @@ export function ResultsClient({
                         <AdminTh>%</AdminTh>
                         <AdminTh>Rank</AdminTh>
                         <AdminTh>Updated</AdminTh>
-                        <AdminTh>Actions</AdminTh>
+                        <AdminTh className="text-right whitespace-nowrap">Actions</AdminTh>
                       </tr>
                     </thead>
                     <tbody>
-                      {stdRows.map((r) => {
+                      {displayStdRows.map((r) => {
                         const meta = rosterStatusMeta(r.status);
                         const sc = r.stream ? streamColors(r.stream) : null;
                         const rankKey = r.entryId ?? r.memberId ?? r.studentName;
@@ -598,9 +818,21 @@ export function ResultsClient({
                         return (
                           <tr key={`${r.memberId ?? r.entryId ?? r.studentName}`}>
                             <AdminTd>
-                              <b>{r.studentName}</b>
+                              <b>{r.studentNameEn || r.studentName}</b>
+                              {r.studentNameGu && r.studentNameGu !== (r.studentNameEn || r.studentName) ? (
+                                <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">
+                                  {r.studentNameGu}
+                                </div>
+                              ) : null}
                             </AdminTd>
-                            <AdminTd>{r.familyLabel}</AdminTd>
+                            <AdminTd>
+                              {r.familyLabelEn || r.familyLabel}
+                              {r.familyLabelGu && r.familyLabelGu !== (r.familyLabelEn || r.familyLabel) ? (
+                                <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">
+                                  {r.familyLabelGu}
+                                </div>
+                              ) : null}
+                            </AdminTd>
                             <AdminTd>{r.mobile || "—"}</AdminTd>
                             {STREAM_STANDARDS.has(activeStd) && (
                               <AdminTd>
@@ -644,54 +876,43 @@ export function ResultsClient({
                             <AdminTd className="whitespace-nowrap">
                               {r.status === "none" ? (
                                 adminUploadEnabled ? (
-                                  <button
-                                    type="button"
-                                    className="cursor-pointer font-bold text-[var(--brand)] underline"
-                                    onClick={() => setUploadRow(r)}
-                                  >
-                                    upload result
-                                  </button>
+                                  <div className="flex flex-nowrap items-center justify-end gap-1.5">
+                                    <ActionBtn
+                                      icon={Upload}
+                                      label="Upload result"
+                                      onClick={() => setUploadRow(r)}
+                                    />
+                                  </div>
                                 ) : (
                                   "—"
                                 )
                               ) : (
-                                <span className="text-[12px]">
-                                  <button
-                                    type="button"
-                                    className="cursor-pointer font-bold text-[#3D7BC4] underline"
+                                <div className="flex flex-nowrap items-center justify-end gap-1.5">
+                                  <ActionBtn
+                                    icon={Eye}
+                                    label="View"
                                     onClick={() => setVerify({ row: r, viewOnly: true })}
-                                  >
-                                    view
-                                  </button>
-                                  {" · "}
-                                  <button
-                                    type="button"
-                                    className="cursor-pointer font-bold text-[#1E7A44] underline"
+                                  />
+                                  <ActionBtn
+                                    icon={CheckCircle2}
+                                    label="Verify"
+                                    tone="success"
                                     onClick={() => setVerify({ row: r, viewOnly: false })}
-                                  >
-                                    verify
-                                  </button>
-                                  {" · "}
-                                  <button
-                                    type="button"
-                                    className="cursor-pointer font-bold text-[#3D7BC4] underline"
+                                  />
+                                  <ActionBtn
+                                    icon={Pencil}
+                                    label="Edit"
                                     onClick={() => setUploadRow(r)}
-                                  >
-                                    edit
-                                  </button>
+                                  />
                                   {(r.status === "REJECTED" || r.status === "RESUBMIT") && adminUploadEnabled && (
-                                    <>
-                                      {" · "}
-                                      <button
-                                        type="button"
-                                        className="cursor-pointer font-bold text-[#B0801E] underline"
-                                        onClick={() => setUploadRow(r)}
-                                      >
-                                        replace
-                                      </button>
-                                    </>
+                                    <ActionBtn
+                                      icon={RotateCw}
+                                      label="Replace"
+                                      tone="warn"
+                                      onClick={() => setUploadRow(r)}
+                                    />
                                   )}
-                                </span>
+                                </div>
                               )}
                             </AdminTd>
                           </tr>

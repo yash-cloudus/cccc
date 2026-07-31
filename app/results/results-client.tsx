@@ -26,6 +26,8 @@ export type DriveInfo = {
 export type ChildOption = {
   id: string;
   name: string;
+  nameEn: string;
+  nameGu: string | null;
   standard: string | null;
   familyLabel: string;
   course: string | null;
@@ -77,6 +79,9 @@ const streamLabel = (stream: string | null | undefined, lang: "gu" | "en") => {
   const hit = DEFAULT_STREAMS.find((s) => s.nameEn === en);
   return lang === "gu" ? (hit?.nameGu ?? en) : en;
 };
+
+const childName = (c: { name: string; nameEn: string; nameGu: string | null }, lang: "gu" | "en") =>
+  lang === "gu" ? c.nameGu || c.nameEn : c.nameEn || c.name;
 
 export function ResultsClient({
   drive,
@@ -342,14 +347,14 @@ function UploadTab({
           placeholder={T("બાળક પસંદ કરો…", "Select a child…")}
           options={childOptions.map((c) => ({
             value: c.id,
-            label: `${c.name} · ${eduLabel(standardKey(c.standard) || "—", lang)}`,
+            label: `${childName(c, lang)} · ${eduLabel(standardKey(c.standard) || "—", lang)}`,
           }))}
           emptyText={T("તમારા પરિવારમાં કોઈ સભ્ય નથી", "No members in your family")}
         />
 
         {selectedChild && (
           <div className="mb-3 rounded-[13px] border border-[#EDE4D4] bg-[#F6F3EC] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[#57524A]">
-            <b className="text-[var(--ink)]">{selectedChild.name}</b>
+            <b className="text-[var(--ink)]">{childName(selectedChild, lang)}</b>
             <br />
             {T("પરિવાર", "Family")}: {selectedChild.familyLabel}
             {" · "}
