@@ -123,7 +123,6 @@ export default async function ReviewRegistrationPage({
         .map((o) => ({ nameEn: o.nameEn, nameGu: o.nameGu }))}
       occupationTree={occupationTree}
       backHref={fromFamilies ? "/admin/families" : "/admin/queue"}
-      backLabel={fromFamilies ? "‹ Back to families" : "‹ Back to queue"}
       fromFamilies={fromFamilies}
       autoAddMember={add === "1"}
     />

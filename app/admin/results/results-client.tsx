@@ -45,7 +45,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { api } from "@/lib/http";
-import { EDUCATION_LEVELS } from "@/lib/occupation-defaults";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
+import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 import {
   STREAM_STANDARDS,
   meritGroups,
@@ -57,7 +58,7 @@ import {
   type RosterRow,
 } from "@/lib/result-drive";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
-import { formatDate } from "@/lib/format";
+import { formatDate, pickText } from "@/lib/format";
 
 export type DriveInfo = {
   id: string;
@@ -71,12 +72,32 @@ export type DriveInfo = {
 
 const LEVELS = EDUCATION_LEVELS.map((l) => l.nameEn);
 
+const STATUS_KEYS = {
+  none: "res.stNone",
+  PENDING: "res.stPending",
+  APPROVED: "res.stApproved",
+  REJECTED: "res.stRejected",
+  RESUBMIT: "res.stResubmit",
+} as const;
+
+/** Display name for a standard / stream — the seed lists carry both languages. */
+function levelLabel(value: string, lang: string): string {
+  const m = EDUCATION_LEVELS.find((l) => l.nameEn === value || l.nameGu === value);
+  return m ? (lang === "gu" ? m.nameGu : m.nameEn) : value;
+}
+
+function streamLabel(value: string, lang: string): string {
+  const m = DEFAULT_STREAMS.find((s) => s.nameEn === value || s.nameGu === value);
+  return m ? (lang === "gu" ? m.nameGu : m.nameEn) : value;
+}
+
 /**
  * Ranked merit tables — one per stream for Std 11/12, one overall otherwise.
  * Shared by the per-standard merit list and the whole-drive final report so the
  * two can never disagree about who ranked where.
  */
 function MeritSections({ groups }: { groups: MeritGroup[] }) {
+  const { t, lang } = useAdminT();
   const split = groups.length > 1 || groups[0]?.stream != null;
   return (
     <>
@@ -84,16 +105,16 @@ function MeritSections({ groups }: { groups: MeritGroup[] }) {
         <section key={g.stream ?? "unassigned"} className={split ? "mb-4 last:mb-0" : undefined}>
           {split && (
             <div className="mb-1.5 text-[13px] font-extrabold text-[var(--ink)]">
-              {g.stream ?? "Stream not recorded"}
+              {g.stream ? streamLabel(g.stream, lang) : t("res.streamNotRecorded")}
             </div>
           )}
           <AdminTable bordered={false}>
             <thead>
               <tr>
-                <AdminTh>Rank</AdminTh>
-                <AdminTh>Student name</AdminTh>
-                <AdminTh>Percentage</AdminTh>
-                <AdminTh>School / College</AdminTh>
+                <AdminTh>{t("res.thRank")}</AdminTh>
+                <AdminTh>{t("res.thStudentName")}</AdminTh>
+                <AdminTh>{t("res.thPercentage")}</AdminTh>
+                <AdminTh>{t("res.thSchool")}</AdminTh>
               </tr>
             </thead>
             <tbody>
@@ -125,6 +146,7 @@ export function ResultsClient({
   adminUploadEnabled: boolean;
 }) {
   const router = useRouter();
+  const { t, tf, lang } = useAdminT();
   const { fromEn, guInput } = useTranslitSync();
   const [roster, setRoster] = useState<RosterRow[]>(initialRoster);
   const [error, setError] = useState<string | null>(null);
@@ -288,9 +310,12 @@ export function ResultsClient({
       .sort((a, b) => b.year - a.year)
       .map((d) => ({
         value: d.id,
-        label: (perYear.get(d.year) ?? 0) > 1 ? `${d.year} — ${d.titleEn}` : String(d.year),
+        label:
+          (perYear.get(d.year) ?? 0) > 1
+            ? `${d.year} — ${pickText(d.titleGu, d.titleEn, lang)}`
+            : String(d.year),
       }));
-  }, [drives]);
+  }, [drives, lang]);
 
   function patchRoster(updated: RosterRow) {
     setRoster((prev) => {
@@ -370,7 +395,7 @@ export function ResultsClient({
   }
 
   async function createDrive() {
-    if (!draft.titleEn.trim()) return setError("Title is required");
+    if (!draft.titleEn.trim()) return setError(t("res.titleRequired"));
     setBusy(true);
     setError(null);
     const res = await api.post<{ id: string }>(`/api/admin/result-drives`, {
@@ -399,31 +424,35 @@ export function ResultsClient({
     if (!activeStd || !STREAM_STANDARDS.has(activeStd)) return [];
     return (["all", "Science", "Commerce"] as const).map((v) => ({
       value: v,
-      label: v === "all" ? "All" : v,
+      label: v === "all" ? t("res.tabAll") : streamLabel(v, lang),
       count: roster.filter(
         (r) => r.standard === activeStd && (v === "all" || (r.stream || "") === v),
       ).length,
     }));
-  }, [activeStd, roster]);
+  }, [activeStd, roster, t, lang]);
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <AdminH2 className="mb-0">
-          Result drive{" "}
+          {t("nav.results")}{" "}
           {currentDrive ? (
             <>
-              — {currentDrive.titleGu || currentDrive.titleEn}{" "}
-              {currentDrive.isOpen ? <PillActive>Open</PillActive> : <PillExpired>Closed</PillExpired>}
+              — {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)}{" "}
+              {currentDrive.isOpen ? (
+                <PillActive>{t("res.driveOpen")}</PillActive>
+              ) : (
+                <PillExpired>{t("res.driveClosed")}</PillExpired>
+              )}
             </>
           ) : null}
         </AdminH2>
         <span className="flex gap-2">
           <AdminBtn variant="ghost" onClick={() => { setNewOpen(true); setError(null); }}>
             <Plus className="size-4" />
-            New drive
+            {t("res.newDrive")}
           </AdminBtn>
-          <AdminBtn onClick={() => go({ view: "final", std: null })}>🏆 Final result</AdminBtn>
+          <AdminBtn onClick={() => go({ view: "final", std: null })}>🏆 {t("res.finalResult")}</AdminBtn>
         </span>
       </div>
 
@@ -440,7 +469,7 @@ export function ResultsClient({
               ) : (
                 <Unlock className="size-4 shrink-0" />
               )}
-              {currentDrive.isOpen ? "Close drive" : "Reopen drive"}
+              {currentDrive.isOpen ? t("res.closeDrive") : t("res.reopenDrive")}
             </AdminBtn>
             <AdminBtn
               variant={currentDrive.isPublished ? "danger" : "success"}
@@ -452,7 +481,7 @@ export function ResultsClient({
               ) : (
                 <FileOutput className="size-4 shrink-0" />
               )}
-              {currentDrive.isPublished ? "Unpublish toppers" : "Publish toppers"}
+              {currentDrive.isPublished ? t("res.unpublishToppers") : t("res.publishToppers")}
             </AdminBtn>
           </div>
 
@@ -460,7 +489,7 @@ export function ResultsClient({
             <SearchInput
               value={query}
               onChange={setQuery}
-              placeholder="Search student / mobile / family…"
+              placeholder={t("res.searchPlaceholder")}
               className="min-w-0 flex-1 md:w-[220px] md:flex-none"
             />
             <FilterButton
@@ -472,29 +501,32 @@ export function ResultsClient({
               <AdminSelect
                 value={currentDrive.id}
                 onChange={(v) => router.push(`/admin/results?drive=${v}`)}
-                ariaLabel="Select drive year"
+                ariaLabel={t("res.selectDriveYear")}
                 className="w-[110px] shrink-0"
                 options={driveOptions}
               />
               <AdminSelect
                 value={statusFilter}
                 onChange={setStatusFilter}
-                ariaLabel="Filter by status"
+                ariaLabel={t("res.filterByStatus")}
                 className="w-[150px] shrink-0"
                 options={[
-                  { value: "all", label: "All status" },
-                  { value: "none", label: "Not uploaded" },
-                  { value: "PENDING", label: "Pending" },
-                  { value: "APPROVED", label: "Approved" },
-                  { value: "REJECTED", label: "Rejected" },
+                  { value: "all", label: t("res.stAll") },
+                  { value: "none", label: t("res.stNone") },
+                  { value: "PENDING", label: t("res.stPending") },
+                  { value: "APPROVED", label: t("res.stApproved") },
+                  { value: "REJECTED", label: t("res.stRejected") },
                 ]}
               />
               <AdminSelect
                 value={levelFilter}
                 onChange={setLevelFilter}
-                ariaLabel="Filter by education level"
+                ariaLabel={t("res.filterByLevel")}
                 className="w-[180px] shrink-0"
-                options={[{ value: "all", label: "All education levels" }, ...LEVELS.map((l) => ({ value: l, label: l }))]}
+                options={[
+                  { value: "all", label: t("res.allLevels") },
+                  ...LEVELS.map((l) => ({ value: l, label: levelLabel(l, lang) })),
+                ]}
               />
             </div>
           </div>
@@ -504,15 +536,15 @@ export function ResultsClient({
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="md:hidden">
           <SheetHeader>
-            <SheetTitle>Filters</SheetTitle>
+            <SheetTitle>{t("res.filters")}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-3 px-4 pb-4">
             <div>
-              <AdminLabel>Drive year</AdminLabel>
+              <AdminLabel>{t("res.driveYear")}</AdminLabel>
               <AdminSelect
                 value={currentDrive?.id ?? ""}
                 onChange={(v) => router.push(`/admin/results?drive=${v}`)}
-                ariaLabel="Select drive year"
+                ariaLabel={t("res.selectDriveYear")}
                 className="w-full"
                 options={driveOptions}
               />
@@ -520,22 +552,25 @@ export function ResultsClient({
             <AdminSelect
               value={statusFilter}
               onChange={setStatusFilter}
-              ariaLabel="Filter by status"
+              ariaLabel={t("res.filterByStatus")}
               className="w-full"
               options={[
-                { value: "all", label: "All status" },
-                { value: "none", label: "Not uploaded" },
-                { value: "PENDING", label: "Pending" },
-                { value: "APPROVED", label: "Approved" },
-                { value: "REJECTED", label: "Rejected" },
+                { value: "all", label: t("res.stAll") },
+                { value: "none", label: t("res.stNone") },
+                { value: "PENDING", label: t("res.stPending") },
+                { value: "APPROVED", label: t("res.stApproved") },
+                { value: "REJECTED", label: t("res.stRejected") },
               ]}
             />
             <AdminSelect
               value={levelFilter}
               onChange={setLevelFilter}
-              ariaLabel="Filter by education level"
+              ariaLabel={t("res.filterByLevel")}
               className="w-full"
-              options={[{ value: "all", label: "All education levels" }, ...LEVELS.map((l) => ({ value: l, label: l }))]}
+              options={[
+                { value: "all", label: t("res.allLevels") },
+                ...LEVELS.map((l) => ({ value: l, label: levelLabel(l, lang) })),
+              ]}
             />
           </div>
         </SheetContent>
@@ -545,17 +580,20 @@ export function ResultsClient({
 
       {!currentDrive ? (
         <p className="py-8 text-center text-[13px] text-[var(--faint)]">
-          No result drive yet. Create one to start collecting student results.
+          {t("res.noDrive")}
         </p>
       ) : (
         <>
           {view === "overview" && (
             <>
               <AdminH3>
-                Standards — {pending} pending / {roster.filter((r) => r.status !== "none").length} uploaded
+                {tf("res.standardsSummary", {
+                  pending,
+                  uploaded: roster.filter((r) => r.status !== "none").length,
+                })}
               </AdminH3>
               {standards.length === 0 ? (
-                <p className="py-6 text-[13px] text-[var(--faint)]">No standards match your filters.</p>
+                <p className="py-6 text-[13px] text-[var(--faint)]">{t("res.noStandards")}</p>
               ) : (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3.5">
                   {standards.map((s) => {
@@ -570,9 +608,11 @@ export function ResultsClient({
                         className="cursor-pointer rounded-2xl border border-[var(--line-admin)] bg-white p-4 text-left hover:border-[var(--brand-border)]"
                       >
                         <div className="flex items-baseline justify-between">
-                          <span className="text-[15px] font-extrabold text-[var(--ink)]">{s.standard}</span>
+                          <span className="text-[15px] font-extrabold text-[var(--ink)]">
+                            {levelLabel(s.standard, lang)}
+                          </span>
                           <span className="text-[11.5px] font-semibold text-[var(--faint)]">
-                            {s.total} student{s.total === 1 ? "" : "s"}
+                            {tf(s.total === 1 ? "res.studentOne" : "res.studentMany", { n: s.total })}
                           </span>
                         </div>
                         <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] font-bold">
@@ -593,8 +633,8 @@ export function ResultsClient({
                           />
                         </div>
                         <div className="mt-1.5 flex items-center justify-between text-[11.5px] font-semibold text-[var(--faint)]">
-                          <span>{completion}% reviewed</span>
-                          <span className="text-[var(--brand)]">Open →</span>
+                          <span>{tf("res.pctReviewed", { n: completion })}</span>
+                          <span className="text-[var(--brand)]">{t("res.openCard")} →</span>
                         </div>
                       </button>
                     );
@@ -608,24 +648,24 @@ export function ResultsClient({
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <AdminBtn variant="ghost" onClick={() => go({ std: null, view: null })}>
-                  ‹ Back to dashboard
+                  ‹ {t("res.backToDashboard")}
                 </AdminBtn>
-                <AdminBtn onClick={() => window.print()}>🖨 Print final result</AdminBtn>
+                <AdminBtn onClick={() => window.print()}>🖨 {t("res.printFinal")}</AdminBtn>
               </div>
               <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-6">
                 <h3 className="text-center text-[18px] font-extrabold text-[var(--ink)]">
-                  Result Merit Report — {currentDrive.titleGu || currentDrive.titleEn}
+                  {t("res.meritReport")} — {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)}
                 </h3>
                 <p className="mb-4 text-center text-[12.5px] text-[var(--faint)]">
-                  Academic Year: {currentDrive.year}
+                  {tf("res.academicYearColon", { year: currentDrive.year })}
                 </p>
                 {finalStandards.length === 0 ? (
-                  <p className="py-6 text-center text-[13px] text-[var(--faint)]">No approved results yet.</p>
+                  <p className="py-6 text-center text-[13px] text-[var(--faint)]">{t("res.noApproved")}</p>
                 ) : (
                   finalStandards.map((std) => (
                     <section key={std} className="mb-5">
                       <h4 className="mb-1 rounded-[10px] bg-[#FBFAF7] px-3.5 py-2 text-[14px] font-extrabold text-[var(--ink)]">
-                        {std}
+                        {levelLabel(std, lang)}
                       </h4>
                       <MeritSections groups={meritOf(std)} />
                     </section>
@@ -639,17 +679,20 @@ export function ResultsClient({
             <>
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
                 <AdminBtn variant="ghost" onClick={() => go({ view: null })}>
-                  ‹ Back to {activeStd}
+                  ‹ {tf("res.backTo", { name: levelLabel(activeStd, lang) })}
                 </AdminBtn>
-                <AdminBtn onClick={() => window.print()}>🖨 Print / Download PDF</AdminBtn>
+                <AdminBtn onClick={() => window.print()}>🖨 {t("res.printPdf")}</AdminBtn>
               </div>
               <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-6">
-                <h3 className="text-center text-[18px] font-extrabold text-[var(--ink)]">Merit List — {activeStd}</h3>
+                <h3 className="text-center text-[18px] font-extrabold text-[var(--ink)]">
+                  {t("res.meritList")} — {levelLabel(activeStd, lang)}
+                </h3>
                 <p className="mb-4 text-center text-[12.5px] text-[var(--faint)]">
-                  {currentDrive.titleGu || currentDrive.titleEn} · Academic Year {currentDrive.year}
+                  {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)} ·{" "}
+                  {tf("res.academicYear", { year: currentDrive.year })}
                 </p>
                 {merit.length === 0 ? (
-                  <p className="py-6 text-center text-[13px] text-[var(--faint)]">No approved results yet.</p>
+                  <p className="py-6 text-center text-[13px] text-[var(--faint)]">{t("res.noApproved")}</p>
                 ) : (
                   <MeritSections groups={merit} />
                 )}
@@ -660,36 +703,36 @@ export function ResultsClient({
           {view === "standard" && activeStd && (
             <>
               <AdminBtn variant="ghost" className="mb-2.5" onClick={() => go({ std: null, view: null })}>
-                ‹ Back to dashboard
+                ‹ {t("res.backToDashboard")}
               </AdminBtn>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <AdminH3 className="mb-0">{activeStd}</AdminH3>
+                <AdminH3 className="mb-0">{levelLabel(activeStd, lang)}</AdminH3>
                 {stdSummary.allDone && (
-                  <AdminBtn onClick={() => go({ view: "merit" })}>🏅 View merit list</AdminBtn>
+                  <AdminBtn onClick={() => go({ view: "merit" })}>🏅 {t("res.viewMeritList")}</AdminBtn>
                 )}
               </div>
 
               {stdSummary.allDone && (
                 <div className="mb-4 rounded-xl border border-[#B7E6C6] bg-[#F0FBF3] px-4 py-3 text-[13px] font-bold text-[#1E7A44]">
-                  ✓ Result completed — merit list is ready.
+                  ✓ {t("res.resultCompleted")}
                 </div>
               )}
 
               <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
                 {(
                   [
-                    ["Students", stdSummary.total, "var(--ink)"],
-                    ["Uploaded", stdSummary.uploaded, "var(--info)"],
-                    ["Pending", stdSummary.pending, "var(--warn)"],
-                    ["Approved", stdSummary.approved, "var(--success)"],
-                    ["Rejected", stdSummary.rejected, "var(--danger)"],
+                    ["res.statStudents", stdSummary.total, "var(--ink)"],
+                    ["res.statUploaded", stdSummary.uploaded, "var(--info)"],
+                    ["res.stPending", stdSummary.pending, "var(--warn)"],
+                    ["res.stApproved", stdSummary.approved, "var(--success)"],
+                    ["res.stRejected", stdSummary.rejected, "var(--danger)"],
                   ] as const
                 ).map(([label, value, color]) => (
                   <div key={label} className="rounded-[14px] border border-[var(--line-admin)] bg-[#FBFAF7] p-3">
                     <div className="text-[22px] font-extrabold" style={{ color }}>
                       {value}
                     </div>
-                    <div className="text-[11.5px] text-[var(--faint)]">{label}</div>
+                    <div className="text-[11.5px] text-[var(--faint)]">{t(label)}</div>
                   </div>
                 ))}
               </div>
@@ -717,7 +760,7 @@ export function ResultsClient({
                   <SearchInput
                     value={stdSearch}
                     onChange={setStdSearch}
-                    placeholder="Search student / mobile / family…"
+                    placeholder={t("res.searchPlaceholder")}
                     className="min-w-0 flex-1 md:w-[220px] md:flex-none"
                   />
                   <FilterButton
@@ -729,25 +772,25 @@ export function ResultsClient({
                     <AdminSelect
                       value={stdStatusFilter}
                       onChange={setStdStatusFilter}
-                      ariaLabel="Filter by verification status"
+                      ariaLabel={t("res.filterByVerification")}
                       className="w-[150px] shrink-0"
                       options={[
-                        { value: "all", label: "All status" },
-                        { value: "none", label: "Not uploaded" },
-                        { value: "PENDING", label: "Pending" },
-                        { value: "APPROVED", label: "Approved" },
-                        { value: "REJECTED", label: "Rejected" },
+                        { value: "all", label: t("res.stAll") },
+                        { value: "none", label: t("res.stNone") },
+                        { value: "PENDING", label: t("res.stPending") },
+                        { value: "APPROVED", label: t("res.stApproved") },
+                        { value: "REJECTED", label: t("res.stRejected") },
                       ]}
                     />
                     <AdminSelect
                       value={percentSort}
                       onChange={(v) => setPercentSort(v as "none" | "high" | "low")}
-                      ariaLabel="Sort by percentage"
+                      ariaLabel={t("res.sortByPercent")}
                       className="w-[170px] shrink-0"
                       options={[
-                        { value: "none", label: "Sort: default" },
-                        { value: "high", label: "% High to low" },
-                        { value: "low", label: "% Low to high" },
+                        { value: "none", label: t("res.sortDefault") },
+                        { value: "high", label: t("res.sortHigh") },
+                        { value: "low", label: t("res.sortLow") },
                       ]}
                     />
                   </div>
@@ -757,31 +800,31 @@ export function ResultsClient({
               <Sheet open={stdFiltersOpen} onOpenChange={setStdFiltersOpen}>
                 <SheetContent side="bottom" className="md:hidden">
                   <SheetHeader>
-                    <SheetTitle>Filters</SheetTitle>
+                    <SheetTitle>{t("res.filters")}</SheetTitle>
                   </SheetHeader>
                   <div className="flex flex-col gap-3 px-4 pb-4">
                     <AdminSelect
                       value={stdStatusFilter}
                       onChange={setStdStatusFilter}
-                      ariaLabel="Filter by verification status"
+                      ariaLabel={t("res.filterByVerification")}
                       className="w-full"
                       options={[
-                        { value: "all", label: "All status" },
-                        { value: "none", label: "Not uploaded" },
-                        { value: "PENDING", label: "Pending" },
-                        { value: "APPROVED", label: "Approved" },
-                        { value: "REJECTED", label: "Rejected" },
+                        { value: "all", label: t("res.stAll") },
+                        { value: "none", label: t("res.stNone") },
+                        { value: "PENDING", label: t("res.stPending") },
+                        { value: "APPROVED", label: t("res.stApproved") },
+                        { value: "REJECTED", label: t("res.stRejected") },
                       ]}
                     />
                     <AdminSelect
                       value={percentSort}
                       onChange={(v) => setPercentSort(v as "none" | "high" | "low")}
-                      ariaLabel="Sort by percentage"
+                      ariaLabel={t("res.sortByPercent")}
                       className="w-full"
                       options={[
-                        { value: "none", label: "Sort: default" },
-                        { value: "high", label: "% High to low" },
-                        { value: "low", label: "% Low to high" },
+                        { value: "none", label: t("res.sortDefault") },
+                        { value: "high", label: t("res.sortHigh") },
+                        { value: "low", label: t("res.sortLow") },
                       ]}
                     />
                   </div>
@@ -789,24 +832,24 @@ export function ResultsClient({
               </Sheet>
 
               {stdRows.length === 0 ? (
-                <p className="py-6 text-[13px] text-[var(--faint)]">No students in this standard.</p>
+                <p className="py-6 text-[13px] text-[var(--faint)]">{t("res.noStudentsInStd")}</p>
               ) : displayStdRows.length === 0 ? (
-                <p className="py-6 text-[13px] text-[var(--faint)]">No students match your search or filters.</p>
+                <p className="py-6 text-[13px] text-[var(--faint)]">{t("res.noStudentsMatch")}</p>
               ) : (
                 <div className="overflow-x-auto">
                   <AdminTable>
                     <thead>
                       <tr>
-                        <AdminTh>Student</AdminTh>
-                        <AdminTh>Family</AdminTh>
-                        <AdminTh>Mobile</AdminTh>
-                        {STREAM_STANDARDS.has(activeStd) && <AdminTh>Stream</AdminTh>}
-                        <AdminTh>Upload</AdminTh>
-                        <AdminTh>Verification</AdminTh>
+                        <AdminTh>{t("res.thStudent")}</AdminTh>
+                        <AdminTh>{t("res.thFamily")}</AdminTh>
+                        <AdminTh>{t("res.thMobile")}</AdminTh>
+                        {STREAM_STANDARDS.has(activeStd) && <AdminTh>{t("res.thStream")}</AdminTh>}
+                        <AdminTh>{t("res.thUpload")}</AdminTh>
+                        <AdminTh>{t("res.thVerification")}</AdminTh>
                         <AdminTh>%</AdminTh>
-                        <AdminTh>Rank</AdminTh>
-                        <AdminTh>Updated</AdminTh>
-                        <AdminTh className="text-right whitespace-nowrap">Actions</AdminTh>
+                        <AdminTh>{t("res.thRank")}</AdminTh>
+                        <AdminTh>{t("res.thUpdated")}</AdminTh>
+                        <AdminTh className="text-right whitespace-nowrap">{t("res.thActions")}</AdminTh>
                       </tr>
                     </thead>
                     <tbody>
@@ -841,7 +884,7 @@ export function ResultsClient({
                                     className="inline-block rounded-full px-2.5 py-0.5 text-[10.5px] font-bold"
                                     style={{ background: sc.bg, color: sc.fg }}
                                   >
-                                    {r.stream}
+                                    {streamLabel(r.stream, lang)}
                                   </span>
                                 ) : null}
                               </AdminTd>
@@ -851,7 +894,7 @@ export function ResultsClient({
                                 className="font-bold"
                                 style={{ color: r.status === "none" ? "#B0303A" : "#1E9E52" }}
                               >
-                                {r.status === "none" ? "Not uploaded" : "Uploaded"}
+                                {r.status === "none" ? t("res.stNone") : t("res.uploaded")}
                               </span>
                             </AdminTd>
                             <AdminTd>
@@ -859,7 +902,7 @@ export function ResultsClient({
                                 className="inline-block rounded-full px-2.5 py-0.5 text-[10.5px] font-bold"
                                 style={{ background: meta.bg, color: meta.fg }}
                               >
-                                {meta.label}
+                                {t(STATUS_KEYS[r.status])}
                               </span>
                             </AdminTd>
                             <AdminTd>
@@ -872,14 +915,14 @@ export function ResultsClient({
                               )}
                             </AdminTd>
                             <AdminTd>{rank ? `#${rank}` : "—"}</AdminTd>
-                            <AdminTd>{r.updatedAt ? formatDate(r.updatedAt, "en") : "—"}</AdminTd>
+                            <AdminTd>{r.updatedAt ? formatDate(r.updatedAt, lang) : "—"}</AdminTd>
                             <AdminTd className="whitespace-nowrap">
                               {r.status === "none" ? (
                                 adminUploadEnabled ? (
                                   <div className="flex flex-nowrap items-center justify-end gap-1.5">
                                     <ActionBtn
                                       icon={Upload}
-                                      label="Upload result"
+                                      label={t("res.uploadResult")}
                                       onClick={() => setUploadRow(r)}
                                     />
                                   </div>
@@ -890,24 +933,24 @@ export function ResultsClient({
                                 <div className="flex flex-nowrap items-center justify-end gap-1.5">
                                   <ActionBtn
                                     icon={Eye}
-                                    label="View"
+                                    label={t("common.view")}
                                     onClick={() => setVerify({ row: r, viewOnly: true })}
                                   />
                                   <ActionBtn
                                     icon={CheckCircle2}
-                                    label="Verify"
+                                    label={t("res.verify")}
                                     tone="success"
                                     onClick={() => setVerify({ row: r, viewOnly: false })}
                                   />
                                   <ActionBtn
                                     icon={Pencil}
-                                    label="Edit"
+                                    label={t("common.edit")}
                                     onClick={() => setUploadRow(r)}
                                   />
                                   {(r.status === "REJECTED" || r.status === "RESUBMIT") && adminUploadEnabled && (
                                     <ActionBtn
                                       icon={RotateCw}
-                                      label="Replace"
+                                      label={t("res.replace")}
                                       tone="warn"
                                       onClick={() => setUploadRow(r)}
                                     />
@@ -970,10 +1013,10 @@ export function ResultsClient({
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-[380px] rounded-2xl sm:max-w-[380px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">New result drive</DialogTitle>
+            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">{t("res.newDriveTitle")}</DialogTitle>
           </DialogHeader>
           <div>
-            <AdminLabel>Title (English) *</AdminLabel>
+            <AdminLabel>{t("res.titleEn")}</AdminLabel>
             <AdminInput
               value={draft.titleEn}
               onChange={(v) => {
@@ -981,7 +1024,7 @@ export function ResultsClient({
                 fromEn(v, (gu) => setDraft((prev) => ({ ...prev, titleGu: gu })));
               }}
             />
-            <AdminLabel>Title (ગુજરાતી)</AdminLabel>
+            <AdminLabel>{t("res.titleGu")}</AdminLabel>
             <AdminInput
               gujarati
               value={draft.titleGu}
@@ -990,15 +1033,15 @@ export function ResultsClient({
                 guInput(v, (gu) => setDraft((prev) => ({ ...prev, titleGu: gu })), "gu");
               }}
             />
-            <AdminLabel>Year *</AdminLabel>
+            <AdminLabel>{t("res.year")}</AdminLabel>
             <AdminInput type="number" value={draft.year} onChange={(v) => setDraft({ ...draft, year: v })} />
             {error && <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
             <div className="mt-4 flex gap-2.5">
               <AdminBtn className="flex-1 justify-center" onClick={createDrive}>
-                {busy ? <Loader2 className="size-4 animate-spin" /> : "Create drive"}
+                {busy ? <Loader2 className="size-4 animate-spin" /> : t("res.createDrive")}
               </AdminBtn>
               <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setNewOpen(false)}>
-                Cancel
+                {t("common.cancel")}
               </AdminBtn>
             </div>
           </div>

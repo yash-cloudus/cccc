@@ -21,9 +21,23 @@ import {
   settingValue,
   type SettingSection,
 } from "@/lib/admin-settings";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { api } from "@/lib/http";
 
+/**
+ * Section / item copy lives in the dictionary, keyed off the same ids the
+ * `Setting` rows use — `set.<section>.title`, `set.<section>.<item>` and
+ * `set.<section>.<item>.help`.
+ */
+const sectionTitleKey = (id: string) => `set.${id}.title` as AdminKey;
+const sectionDescKey = (id: string) => `set.${id}.desc` as AdminKey;
+const itemLabelKey = (sectionId: string, itemKey: string) =>
+  `set.${sectionId}.${itemKey}` as AdminKey;
+const itemHelpKey = (sectionId: string, itemKey: string) =>
+  `set.${sectionId}.${itemKey}.help` as AdminKey;
+
 export function SettingsClient({ stored }: { stored: Record<string, string> }) {
+  const { t, tf } = useAdminT();
   // One flat map keyed `<section>.<item>` — mirrors the Setting table exactly.
   const initial = useMemo(() => {
     const map: Record<string, string> = {};
@@ -56,27 +70,19 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
     }
     const res = await api.patch("/api/admin/settings", { settings: payload });
     setSavingId(null);
+    const name = t(sectionTitleKey(section.id));
     if (!res.ok) {
-      toast.error(res.error || `Could not save ${section.title} settings`);
+      toast.error(res.error || tf("set.saveError", { section: name }));
       return;
     }
     // Keep the baseline in sync so the section stops reading as dirty.
     for (const key of Object.keys(payload)) initial[key] = payload[key];
-    toast.success(`${section.title} settings saved successfully`);
+    toast.success(tf("set.saveSuccess", { section: name }));
   }
 
   return (
     <>
-      <AdminH2
-        info={
-          <>
-            Control which features are enabled, disabled or visible in the Community Mobile App.
-            Changes apply only after you save each section.
-          </>
-        }
-      >
-        Settings
-      </AdminH2>
+      <AdminH2 info={<>{t("set.info")}</>}>{t("nav.settings")}</AdminH2>
 
       <div className="flex flex-col gap-5">
         {SETTINGS_SECTIONS.map((section) => (
@@ -84,22 +90,27 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
             key={section.id}
             className="rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4"
           >
-            <h3 className="text-base font-extrabold text-[var(--ink)]">{section.title}</h3>
-            <p className="mt-0.5 text-[12.5px] text-[var(--faint)]">{section.desc}</p>
+            <h3 className="text-base font-extrabold text-[var(--ink)]">
+              {t(sectionTitleKey(section.id))}
+            </h3>
+            <p className="mt-0.5 text-[12.5px] text-[var(--faint)]">
+              {t(sectionDescKey(section.id))}
+            </p>
 
             <div className="mt-4 flex flex-col">
               {section.items.map((item) => {
                 const k = settingKey(section.id, item.key);
                 const v = values[k] ?? "";
+                const label = t(itemLabelKey(section.id, item.key));
                 return (
                   <div
                     key={item.key}
                     className="flex items-center gap-4 border-t border-[var(--line-soft)] py-3.5 first:border-t-0 first:pt-1 max-md:flex-col max-md:items-start max-md:gap-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13.5px] font-bold text-[var(--ink)]">{item.label}</div>
+                      <div className="text-[13.5px] font-bold text-[var(--ink)]">{label}</div>
                       <div className="mt-0.5 text-[12px] leading-relaxed text-[var(--faint)]">
-                        {item.help}
+                        {t(itemHelpKey(section.id, item.key))}
                       </div>
                     </div>
 
@@ -113,7 +124,7 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
                     ) : item.type === "select" ? (
                       <AdminSelect
                         value={v}
-                        ariaLabel={item.label}
+                        ariaLabel={label}
                         onChange={(next) => set(k, next)}
                         options={(item.options ?? []).map((o) => ({ value: o, label: o }))}
                         className="w-[160px] max-md:w-full"

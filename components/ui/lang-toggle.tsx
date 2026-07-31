@@ -63,6 +63,62 @@ export function HeaderLangToggle({
   );
 }
 
+/**
+ * ગુ / EN switch for the admin sidebar footer. Collapses to a single square
+ * button that flips the language, so it stays usable at the 72px rail width.
+ */
+export function SidebarLangToggle({ collapsed = false }: { collapsed?: boolean }) {
+  const { lang, setLang } = useLang();
+
+  if (collapsed) {
+    const next = lang === "gu" ? "en" : "gu";
+    return (
+      <button
+        type="button"
+        onClick={() => setLang(next)}
+        title={next === "gu" ? "ગુજરાતી" : "English"}
+        aria-label={next === "gu" ? "Switch to Gujarati" : "Switch to English"}
+        className={cn(
+          "flex size-10 cursor-pointer items-center justify-center rounded-[10px] text-[11px] font-extrabold",
+          "text-[var(--ink-mid)] transition-colors hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",
+          lang === "gu" && "font-[family-name:var(--font-noto-sans-gujarati)]",
+        )}
+      >
+        {lang === "gu" ? "ગુ" : "EN"}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      role="group"
+      aria-label="Language"
+      className="flex w-full items-center gap-1 rounded-[10px] bg-[var(--brand-tint)]/60 p-1"
+    >
+      <Languages className="ml-1 size-3.5 shrink-0 text-[var(--faint)]" strokeWidth={2.2} aria-hidden />
+      {OPTIONS.map(({ key, label, title }) => (
+        <button
+          key={key}
+          type="button"
+          title={title}
+          aria-label={title}
+          aria-pressed={lang === key}
+          onClick={() => setLang(key)}
+          className={cn(
+            "flex-1 cursor-pointer rounded-[8px] px-1 py-1.5 text-[11px] font-extrabold leading-none transition-colors",
+            key === "gu" && "font-[family-name:var(--font-noto-sans-gujarati)]",
+            lang === key
+              ? "bg-white text-[var(--brand)] shadow-sm"
+              : "text-[var(--muted)] hover:text-[var(--ink)]",
+          )}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Full-width ગુજરાતી / English switch — settings & login footer. */
 export function LangToggle({ className }: { className?: string }) {
   const { lang, setLang } = useLang();

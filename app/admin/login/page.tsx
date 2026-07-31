@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 
 type Branding = {
   slug: string;
@@ -17,6 +18,7 @@ type Branding = {
 function AdminLoginForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const { t, lang } = useAdminT();
   const [brand, setBrand] = useState<Branding | null>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -46,13 +48,13 @@ function AdminLoginForm() {
       });
       const json = await res.json();
       if (!json.success) {
-        setError(json.error || "Login failed");
+        setError(json.error || t("login.failed"));
         return;
       }
       router.push(params.get("next") || "/admin");
       router.refresh();
     } catch {
-      setError("Network error. Please try again.");
+      setError(t("login.networkError"));
     } finally {
       setLoading(false);
     }
@@ -78,14 +80,16 @@ function AdminLoginForm() {
           </span>
           <div className="min-w-0">
             <div className="truncate text-[15px] font-extrabold text-[var(--ink)]">
-              {brand?.nameGu || brand?.nameEn || "Community Admin"}
+              {(lang === "en"
+                ? brand?.nameEn || brand?.nameGu
+                : brand?.nameGu || brand?.nameEn) || t("login.communityAdmin")}
             </div>
-            <div className="text-[11.5px] font-semibold text-[var(--faint)]">Community Admin Panel</div>
+            <div className="text-[11.5px] font-semibold text-[var(--faint)]">{t("login.panel")}</div>
           </div>
         </div>
 
-        <h1 className="text-xl font-extrabold text-[var(--ink)]">Admin sign in</h1>
-        <p className="mt-1 text-[13px] text-[var(--faint)]">Use the username &amp; password you were given.</p>
+        <h1 className="text-xl font-extrabold text-[var(--ink)]">{t("login.title")}</h1>
+        <p className="mt-1 text-[13px] text-[var(--faint)]">{t("login.subtitle")}</p>
 
         {error && (
           <div className="mt-4 rounded-[11px] border border-[var(--danger-line)] bg-[var(--danger-tint-soft)] px-3.5 py-2.5 text-[13px] font-semibold text-[var(--danger)]">
@@ -95,7 +99,9 @@ function AdminLoginForm() {
 
         <form onSubmit={submit} className="mt-5 space-y-3.5">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">Username</span>
+            <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">
+              {t("login.username")}
+            </span>
             <input
               className="mafld"
               value={username}
@@ -106,7 +112,9 @@ function AdminLoginForm() {
             />
           </label>
           <label className="block">
-            <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">Password</span>
+            <span className="mb-1.5 block text-xs font-bold text-[var(--muted)]">
+              {t("login.password")}
+            </span>
             <div className="relative">
               <input
                 className="mafld"
@@ -121,7 +129,7 @@ function AdminLoginForm() {
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-[var(--faint)]"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
                 tabIndex={-1}
               >
                 {showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
@@ -135,16 +143,16 @@ function AdminLoginForm() {
             style={{ background: `linear-gradient(135deg, ${primary}, ${secondary})` }}
           >
             {loading && <Loader2 className="size-[18px] animate-spin" />}
-            Sign in
+            {t("login.signIn")}
           </button>
         </form>
 
         <p className="mt-4 text-center text-[12px] text-[var(--faint)]">
-          Members sign in with mobile + OTP on the{" "}
+          {t("login.memberNote")}{" "}
           <a href="/login" className="font-bold" style={{ color: primary }}>
-            main app
+            {t("login.mainApp")}
           </a>
-          .
+          {t("login.memberNoteEnd")}
         </p>
       </div>
     </div>

@@ -26,6 +26,7 @@ import { api } from "@/lib/http";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { isStudentOccupation, isVeparOccupation } from "@/lib/occupation-defaults";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 
 export type DropdownRow = {
@@ -54,12 +55,12 @@ type CategoryId =
 
 type Category = {
   id: CategoryId;
-  chip: string;
-  noun: string;
+  chipKey: AdminKey;
+  nounKey: AdminKey;
   api: "surname-groups" | "dropdowns" | "villages" | null;
   hasStatus: boolean;
   occupationChild?: "student" | "vepar";
-  readOnlyNote?: string;
+  readOnlyNoteKey?: AdminKey;
   /** DropdownOption.type when api is dropdowns */
   optionType?: string;
 };
@@ -68,16 +69,16 @@ function categoriesForType(communityType: "PARIVAR" | "GAM"): Category[] {
   const shared: Category[] = [
     {
       id: "occupation",
-      chip: "Occupation · વ્યવસાય",
-      noun: "Occupation",
+      chipKey: "drop.catOccupation",
+      nounKey: "drop.catOccupation",
       api: "dropdowns",
       hasStatus: true,
       optionType: "occupation",
     },
     {
       id: "student",
-      chip: "Student · વિદ્યાર્થી",
-      noun: "Education level",
+      chipKey: "drop.catStudent",
+      nounKey: "drop.nounEducationLevel",
       api: "dropdowns",
       hasStatus: true,
       occupationChild: "student",
@@ -85,8 +86,8 @@ function categoriesForType(communityType: "PARIVAR" | "GAM"): Category[] {
     },
     {
       id: "vepar",
-      chip: "Vepar (Business) · વેપાર",
-      noun: "Business type",
+      chipKey: "drop.catVepar",
+      nounKey: "drop.nounBusinessType",
       api: "dropdowns",
       hasStatus: true,
       occupationChild: "vepar",
@@ -94,20 +95,19 @@ function categoriesForType(communityType: "PARIVAR" | "GAM"): Category[] {
     },
     {
       id: "relationship",
-      chip: "Relationship · સંબંધ",
-      noun: "Relationship",
+      chipKey: "drop.catRelationship",
+      nounKey: "drop.catRelationship",
       api: "dropdowns",
       hasStatus: true,
       optionType: "relationship",
     },
     {
       id: "blood",
-      chip: "Blood group · બ્લડ ગ્રુપ",
-      noun: "Blood group",
+      chipKey: "drop.catBlood",
+      nounKey: "drop.catBlood",
       api: null,
       hasStatus: false,
-      readOnlyNote:
-        "Blood groups are a fixed medical list shared by every community — they cannot be added, renamed or removed, because member records reference them directly.",
+      readOnlyNoteKey: "drop.bloodNote",
     },
   ];
 
@@ -115,8 +115,8 @@ function categoriesForType(communityType: "PARIVAR" | "GAM"): Category[] {
     return [
       {
         id: "city",
-        chip: "City · શહેર",
-        noun: "City",
+        chipKey: "drop.catCity",
+        nounKey: "drop.catCity",
         api: "dropdowns",
         hasStatus: true,
         optionType: "city",
@@ -128,15 +128,15 @@ function categoriesForType(communityType: "PARIVAR" | "GAM"): Category[] {
   return [
     {
       id: "surname",
-      chip: "Surname · અટક",
-      noun: "Surname",
+      chipKey: "drop.catSurname",
+      nounKey: "drop.catSurname",
       api: "surname-groups",
       hasStatus: false,
     },
     {
       id: "village",
-      chip: "Village · ગામ",
-      noun: "Village",
+      chipKey: "drop.catVillage",
+      nounKey: "drop.catVillage",
       api: "villages",
       hasStatus: false,
     },
@@ -157,6 +157,7 @@ export function DropdownsClient({
   initialRows: Record<string, DropdownRow[]>;
   roots: { student: DropdownRow | null; vepar: DropdownRow | null };
 }) {
+  const { t, tf, lang } = useAdminT();
   const categories = useMemo(() => categoriesForType(communityType), [communityType]);
   const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<Record<string, DropdownRow[]>>(initialRows);
@@ -172,6 +173,10 @@ export function DropdownsClient({
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const cat = categories.find((c) => c.id === catId) ?? categories[0]!;
+  const noun = t(cat.nounKey);
+  /** Row label in the reader's language — both halves live on every row. */
+  const rowName = (r: { nameEn: string; nameGu: string }) =>
+    (lang === "en" ? r.nameEn || r.nameGu : r.nameGu || r.nameEn);
   const usesExpandRows = catId === "student" || catId === "vepar";
   const visible = useMemo(() => {
     const list = rows[catId] ?? [];
@@ -244,7 +249,7 @@ export function DropdownsClient({
 
     const res = await api.post<DropdownRow>("/api/admin/dropdowns", payload);
     if (!res.ok) {
-      toast.error(res.error || `Could not create ${kind} occupation`);
+      toast.error(res.error || t("drop.errCreateOccupation"));
       return null;
     }
     const root = {
@@ -265,7 +270,7 @@ export function DropdownsClient({
   async function save() {
     if (!edit || !cat.api) return;
     if (!edit.nameEn.trim() || !edit.nameGu.trim()) {
-      setError("Both English and ગુજરાતી are required");
+      setError(t("drop.errBothRequired"));
       return;
     }
     setBusy(true);
@@ -305,7 +310,7 @@ export function DropdownsClient({
         : [...prev, { ...saved, isActive: true, inUse: 0, childCount: 0 }],
     );
     setEdit(null);
-    toast.success(`${cat.noun} ${edit.id ? "updated" : "added"}`);
+    toast.success(tf(edit.id ? "drop.toastUpdated" : "drop.toastAdded", { noun }));
   }
 
   async function toggleActive(row: DropdownRow) {
@@ -326,33 +331,33 @@ export function DropdownsClient({
           r.id === row.id ? { ...r, isActive: !next, needsReview: row.needsReview } : r,
         ),
       );
-      toast.error(res.error || "Could not change status");
+      toast.error(res.error || t("drop.errStatus"));
     }
   }
 
   async function remove(row: DropdownRow) {
     if (!cat.api) return;
     const ok = await confirmDialog({
-      title: `Delete “${row.nameEn}”?`,
+      title: tf("drop.confirmDeleteTitle", { name: rowName(row) }),
       description:
         row.inUse > 0
-          ? `This option is used by ${row.inUse} record(s). Deleting it won't change those records, but it will no longer appear in the app's dropdowns.`
+          ? tf("drop.confirmDeleteInUse", { n: row.inUse })
           : catId === "occupation" || cat.occupationChild
-            ? "Nested sub-categories under this option will also be removed."
+            ? t("drop.confirmDeleteNested")
             : undefined,
-      confirmLabel: "Delete",
+      confirmLabel: t("common.delete"),
       tone: "danger",
     });
     if (!ok) return;
 
     const res = await api.del(`/api/admin/${cat.api}?id=${row.id}`);
     if (!res.ok) {
-      toast.error(res.error || "Could not delete");
+      toast.error(res.error || t("drop.errDelete"));
       return;
     }
     if (expandedId === row.id) setExpandedId(null);
     patchRows((prev) => prev.filter((r) => r.id !== row.id));
-    toast.success(`${cat.noun} deleted`);
+    toast.success(tf("drop.toastDeleted", { noun }));
   }
 
   const showNestedAction = (row: DropdownRow) => {
@@ -396,25 +401,25 @@ export function DropdownsClient({
           className="mb-0"
           info={
             <>
-              Each option is saved in English + ગુજરાતી. Disabled options stay on old records but no
-              longer appear in the app’s dropdowns. Masters adapt to{" "}
-              <b>{communityType === "PARIVAR" ? "Parivar" : "Gam"}</b> community type.
+              {t("drop.infoA")}{" "}
+              <b>{communityType === "PARIVAR" ? t("drop.typeParivar") : t("drop.typeGam")}</b>{" "}
+              {t("drop.infoB")}
             </>
           }
         >
-          Dropdown lists (masters)
+          {t("drop.title")}
         </AdminH2>
         <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto">
           <SearchInput
             value={q}
             onChange={setQ}
-            placeholder="Search options…"
+            placeholder={t("drop.searchPh")}
             className="min-w-0 flex-1 sm:w-[220px] sm:flex-none"
           />
           {cat.api && (
             <AdminBtn onClick={() => openEdit()}>
               <Plus className="size-4" />
-              Add {cat.noun}
+              {tf("drop.addNoun", { noun })}
             </AdminBtn>
           )}
         </div>
@@ -422,9 +427,9 @@ export function DropdownsClient({
 
       {lockedSurname && (
         <p className="mb-4 rounded-xl border border-[var(--brand)]/25 bg-[var(--brand-tint)] px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--brand)]">
-          Community surname (locked): {lockedSurname.nameEn}
-          {lockedSurname.nameGu ? ` · ${lockedSurname.nameGu}` : ""}. Families can only use this
-          surname.
+          {tf("drop.lockedSurname", {
+            name: `${lockedSurname.nameEn}${lockedSurname.nameGu ? ` · ${lockedSurname.nameGu}` : ""}`,
+          })}
         </p>
       )}
 
@@ -434,7 +439,7 @@ export function DropdownsClient({
           {categories.map((c) => (
             <FilterChip
               key={c.id}
-              label={c.chip}
+              label={t(c.chipKey)}
               active={c.id === catId}
               onClick={() => {
                 setCatId(c.id);
@@ -457,12 +462,12 @@ export function DropdownsClient({
               <AdminSelect
                 value={statusFilter}
                 onChange={(v) => setStatusFilter(v as "all" | "enabled" | "disabled")}
-                ariaLabel="Filter by status"
+                ariaLabel={t("drop.filterByStatus")}
                 className="w-[140px] shrink-0"
                 options={[
-                  { value: "all", label: "All statuses" },
-                  { value: "enabled", label: "Enabled" },
-                  { value: "disabled", label: "Disabled" },
+                  { value: "all", label: t("drop.statusAll") },
+                  { value: "enabled", label: t("drop.enabled") },
+                  { value: "disabled", label: t("drop.disabled") },
                 ]}
               />
             </div>
@@ -474,18 +479,18 @@ export function DropdownsClient({
         <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
           <SheetContent side="bottom" className="md:hidden">
             <SheetHeader>
-              <SheetTitle>Filters</SheetTitle>
+              <SheetTitle>{t("drop.filters")}</SheetTitle>
             </SheetHeader>
             <div className="flex flex-col gap-3 px-4 pb-4">
               <AdminSelect
                 value={statusFilter}
                 onChange={(v) => setStatusFilter(v as "all" | "enabled" | "disabled")}
-                ariaLabel="Filter by status"
+                ariaLabel={t("drop.filterByStatus")}
                 className="w-full"
                 options={[
-                  { value: "all", label: "All statuses" },
-                  { value: "enabled", label: "Enabled" },
-                  { value: "disabled", label: "Disabled" },
+                  { value: "all", label: t("drop.statusAll") },
+                  { value: "enabled", label: t("drop.enabled") },
+                  { value: "disabled", label: t("drop.disabled") },
                 ]}
               />
             </div>
@@ -493,21 +498,19 @@ export function DropdownsClient({
         </Sheet>
       )}
 
-      {cat.readOnlyNote && (
+      {cat.readOnlyNoteKey && (
         <p className="mb-4 rounded-xl border border-[var(--info)]/25 bg-[var(--info-tint)] px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--info)]">
-          {cat.readOnlyNote}
+          {t(cat.readOnlyNoteKey)}
         </p>
       )}
 
       {cat.occupationChild && (
         <p className="mb-4 rounded-xl border border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[12.5px] text-[var(--ink-dim)]">
-          Linked to Occupation →{" "}
+          {t("drop.linkedToOccA")}{" "}
           <b className="text-[var(--ink)]">
-            {cat.occupationChild === "student"
-              ? "Student · વિદ્યાર્થી"
-              : "Vepar (Business) · વેપાર"}
+            {cat.occupationChild === "student" ? t("drop.catStudent") : t("drop.catVepar")}
           </b>
-          . Nested options expand under the row in this table.
+          {t("drop.linkedToOccB")}
         </p>
       )}
 
@@ -519,11 +522,11 @@ export function DropdownsClient({
         <thead>
           <tr>
             {usesExpandRows && <AdminTh className="w-10" />}
-            <AdminTh>English</AdminTh>
-            <AdminTh>ગુજરાતી</AdminTh>
-            <AdminTh>Status</AdminTh>
-            {usesExpandRows && <AdminTh>Subs</AdminTh>}
-            <AdminTh className="text-right">Actions</AdminTh>
+            <AdminTh>{t("drop.thEnglish")}</AdminTh>
+            <AdminTh>{t("drop.thGujarati")}</AdminTh>
+            <AdminTh>{t("drop.thStatus")}</AdminTh>
+            {usesExpandRows && <AdminTh>{t("drop.thSubs")}</AdminTh>}
+            <AdminTh className="text-right">{t("drop.thActions")}</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -540,7 +543,7 @@ export function DropdownsClient({
                       {hasSubs ? (
                         <button
                           type="button"
-                          aria-label={isOpen ? "Collapse" : "Expand"}
+                          aria-label={isOpen ? t("drop.collapse") : t("drop.expand")}
                           onClick={() => openNested(row)}
                           className="inline-flex size-7 cursor-pointer items-center justify-center rounded-lg text-[var(--ink-dim)] hover:bg-[var(--line-soft)]"
                         >
@@ -559,7 +562,7 @@ export function DropdownsClient({
                     <span className="font-semibold text-[var(--ink)]">{row.nameEn}</span>
                     {row.needsReview && (
                       <PillWarning>
-                        {isPending(row) ? "pending approval" : "flagged"}
+                        {isPending(row) ? t("drop.pillPending") : t("drop.pillFlagged")}
                       </PillWarning>
                     )}
                     {row.inUse > 0 && (
@@ -572,7 +575,7 @@ export function DropdownsClient({
                       <span className="flex items-center gap-2.5">
                         <AdminToggle
                           on={row.isActive}
-                          label={`${row.nameEn} enabled`}
+                          label={tf("drop.toggleAria", { name: rowName(row) })}
                           onChange={() => toggleActive(row)}
                         />
                         <span
@@ -582,11 +585,13 @@ export function DropdownsClient({
                               : "text-[12px] font-bold text-[var(--faint)]"
                           }
                         >
-                          {row.isActive ? "Enabled" : "Disabled"}
+                          {row.isActive ? t("drop.enabled") : t("drop.disabled")}
                         </span>
                       </span>
                     ) : (
-                      <span className="text-[12px] font-bold text-[var(--success)]">Enabled</span>
+                      <span className="text-[12px] font-bold text-[var(--success)]">
+                        {t("drop.enabled")}
+                      </span>
                     )}
                   </AdminTd>
                   {usesExpandRows && (
@@ -606,25 +611,29 @@ export function DropdownsClient({
                               catId === "occupation"
                                 ? isStudentOccupation(row.nameEn, row.nameGu) ||
                                   isVeparOccupation(row.nameEn, row.nameGu)
-                                  ? "Open tab"
-                                  : "Sub-categories"
+                                  ? t("drop.openTab")
+                                  : t("drop.subCategories")
                                 : isOpen
-                                  ? "Hide"
-                                  : "Nested"
+                                  ? t("drop.hide")
+                                  : t("drop.nested")
                             }
                             onClick={() => openNested(row)}
                           />
                         )}
-                        <ActionBtn icon={Pencil} label="Edit" onClick={() => openEdit(row)} />
+                        <ActionBtn
+                          icon={Pencil}
+                          label={t("common.edit")}
+                          onClick={() => openEdit(row)}
+                        />
                         <ActionBtn
                           icon={Trash2}
-                          label="Delete"
+                          label={t("common.delete")}
                           tone="danger"
                           onClick={() => remove(row)}
                         />
                       </div>
                     ) : (
-                      <span className="text-[12px] text-[var(--faint)]">read-only</span>
+                      <span className="text-[12px] text-[var(--faint)]">{t("drop.readOnly")}</span>
                     )}
                   </AdminTd>
                 </tr>
@@ -650,8 +659,8 @@ export function DropdownsClient({
             <tr>
               <AdminTd colSpan={colCount} className="py-8 text-center text-[var(--faint)]">
                 {q.trim()
-                  ? `No option matches “${q.trim()}”.`
-                  : `No ${cat.noun.toLowerCase()} options yet.`}
+                  ? tf("drop.noMatch", { q: q.trim() })
+                  : tf("drop.noOptions", { noun: noun.toLowerCase() })}
               </AdminTd>
             </tr>
           )}
@@ -676,12 +685,12 @@ export function DropdownsClient({
         <DialogContent className="max-w-[360px] rounded-2xl sm:max-w-[360px]">
           <DialogHeader>
             <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
-              {edit?.id ? "Edit" : "Add"} {cat.noun}
+              {tf(edit?.id ? "drop.editNoun" : "drop.addNoun", { noun })}
             </DialogTitle>
           </DialogHeader>
           {edit && (
             <div>
-              <AdminLabel>English *</AdminLabel>
+              <AdminLabel>{t("drop.thEnglish")} *</AdminLabel>
               <AdminInput
                 value={edit.nameEn}
                 onChange={(v) => {
@@ -689,7 +698,7 @@ export function DropdownsClient({
                   fromEn(v, (gu) => setEdit((prev) => (prev ? { ...prev, nameGu: gu } : prev)));
                 }}
               />
-              <AdminLabel>ગુજરાતી *</AdminLabel>
+              <AdminLabel>{t("drop.thGujarati")} *</AdminLabel>
               <AdminInput
                 gujarati
                 value={edit.nameGu}
@@ -703,14 +712,14 @@ export function DropdownsClient({
               )}
               <div className="mt-4 flex gap-2.5">
                 <AdminBtn className="flex-1 justify-center" onClick={save} disabled={busy}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : "Save"}
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
                 </AdminBtn>
                 <AdminBtn
                   variant="ghost"
                   className="flex-1 justify-center"
                   onClick={() => setEdit(null)}
                 >
-                  Cancel
+                  {t("common.cancel")}
                 </AdminBtn>
               </div>
             </div>

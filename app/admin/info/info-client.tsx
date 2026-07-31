@@ -41,6 +41,7 @@ import { telLink, waLink } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 
 type Committee = { id: string; nameEn: string; nameGu: string | null; isActive: boolean };
 type InfoSection = {
@@ -107,43 +108,6 @@ export type BasicInfo = {
 
 type Tab = "basic" | "committee" | "sections";
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "basic", label: "Community info" },
-  { key: "committee", label: "મુખ્ય સમિતિ · Committee" },
-  { key: "sections", label: "Sections" },
-];
-
-/** The "Basic information" grid, in the order the prototype lists them. */
-const BASIC_FIELDS: { key: keyof BasicInfo; label: string; gujarati?: boolean; speech?: boolean }[] = [
-  { key: "nameGu", label: "Community name (ગુજરાતી)", gujarati: true },
-  { key: "nameEn", label: "Community name (English)", speech: true },
-  { key: "estd", label: "Established year" },
-  { key: "village", label: "Village name", gujarati: true },
-  { key: "addressEn", label: "Address", gujarati: true },
-  { key: "taluka", label: "Taluka", gujarati: true },
-  { key: "district", label: "District", gujarati: true },
-  { key: "state", label: "State", gujarati: true },
-  { key: "country", label: "Country", gujarati: true },
-  { key: "pincode", label: "Pin code" },
-  { key: "contactPhone", label: "Contact number" },
-  { key: "whatsapp", label: "WhatsApp number" },
-  { key: "email", label: "Email address" },
-  { key: "website", label: "Website" },
-  { key: "mapUrl", label: "Google Map location (URL)" },
-];
-
-const SECTION_STATUS_OPTIONS = [
-  { value: "all", label: "All sections" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Hidden" },
-];
-
-const MEMBER_STATUS_OPTIONS: { value: "all" | "active" | "inactive"; label: string }[] = [
-  { value: "all", label: "All members" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
-
 type MemberDraft = {
   id: string | null;
   profileId: string | null;
@@ -182,7 +146,46 @@ export function InfoClient({
   villages: Village[];
   memberOptions: ProfileOption[];
 }) {
+  const { t, tf } = useAdminT();
   const { fromEn, guInput } = useTranslitSync();
+
+  const TABS: { key: Tab; label: string }[] = [
+    { key: "basic", label: t("nav.info") },
+    { key: "committee", label: t("info.tabCommittee") },
+    { key: "sections", label: t("info.tabSections") },
+  ];
+
+  /** The "Basic information" grid, in the order the prototype lists them. */
+  const BASIC_FIELDS: { key: keyof BasicInfo; label: string; gujarati?: boolean; speech?: boolean }[] = [
+    { key: "nameGu", label: t("info.fldNameGu"), gujarati: true },
+    { key: "nameEn", label: t("info.fldNameEn"), speech: true },
+    { key: "estd", label: t("info.fldEstd") },
+    { key: "village", label: t("info.fldVillage"), gujarati: true },
+    { key: "addressEn", label: t("info.fldAddress"), gujarati: true },
+    { key: "taluka", label: t("info.fldTaluka"), gujarati: true },
+    { key: "district", label: t("info.fldDistrict"), gujarati: true },
+    { key: "state", label: t("info.fldState"), gujarati: true },
+    { key: "country", label: t("info.fldCountry"), gujarati: true },
+    { key: "pincode", label: t("info.fldPincode") },
+    { key: "contactPhone", label: t("info.fldPhone") },
+    { key: "whatsapp", label: t("info.whatsapp") },
+    { key: "email", label: t("info.fldEmail") },
+    { key: "website", label: t("info.fldWebsite") },
+    { key: "mapUrl", label: t("info.fldMapUrl") },
+  ];
+
+  const SECTION_STATUS_OPTIONS = [
+    { value: "all", label: t("info.allSections") },
+    { value: "active", label: t("info.active") },
+    { value: "inactive", label: t("info.hidden") },
+  ];
+
+  const MEMBER_STATUS_OPTIONS: { value: "all" | "active" | "inactive"; label: string }[] = [
+    { value: "all", label: t("info.allMembers") },
+    { value: "active", label: t("info.active") },
+    { value: "inactive", label: t("info.inactive") },
+  ];
+
   const [logoUrl, setLogoUrl] = useState(initialLogo);
   const [bannerUrl, setBannerUrl] = useState(initialBanner);
   const [brandBusy, setBrandBusy] = useState(false);
@@ -203,7 +206,7 @@ export function InfoClient({
     });
     setBrandBusy(false);
     if (!res.ok) return setError(res.error);
-    flash("Banner & logo saved");
+    flash(t("info.brandSaved"));
   }
 
   /** Brief confirmation under the header, like the prototype's toast. */
@@ -214,7 +217,7 @@ export function InfoClient({
 
   async function saveBasic() {
     if (!basic.nameEn.trim() && !basic.nameGu.trim()) {
-      return setError("Community name is required");
+      return setError(t("info.errNameRequired"));
     }
     setBasicBusy(true);
     setError(null);
@@ -225,7 +228,7 @@ export function InfoClient({
     });
     setBasicBusy(false);
     if (!res.ok) return setError(res.error);
-    flash("Community info saved");
+    flash(t("info.basicSaved"));
   }
 
   /** Swap a section with its neighbour and persist both sortOrders. */
@@ -240,7 +243,7 @@ export function InfoClient({
     );
     if (results.some((r) => !r.ok)) {
       setInfo(info);
-      toast.error("Could not reorder sections");
+      toast.error(t("info.errReorderSections"));
     }
   }
 
@@ -250,10 +253,10 @@ export function InfoClient({
     const res = await api.patch("/api/admin/info-sections", { id: section.id, isActive: next });
     if (!res.ok) {
       setInfo((prev) => prev.map((s) => (s.id === section.id ? { ...s, isActive: !next } : s)));
-      toast.error(res.error || "Could not update section");
+      toast.error(res.error || t("info.errUpdateSection"));
       return;
     }
-    toast.success(next ? "Section shown in app" : "Section hidden from app");
+    toast.success(next ? t("info.sectionShown") : t("info.sectionHidden"));
   }
 
   const [upiId, setUpiId] = useState(initialUpi);
@@ -385,14 +388,14 @@ export function InfoClient({
     );
     if (results.some((r) => !r.ok)) {
       setMembers(members);
-      toast.error("Could not reorder members");
+      toast.error(t("info.errReorderMembers"));
     }
   }
 
   async function saveMember() {
     if (!memberDraft) return;
     if (!memberDraft.profileId && !memberDraft.nameOverride.trim()) {
-      return setMemberFormError("Provide a member name (English) or pick from the directory");
+      return setMemberFormError(t("info.errMemberName"));
     }
     setMemberBusy(true);
     setMemberFormError(null);
@@ -423,7 +426,7 @@ export function InfoClient({
       setMemberBusy(false);
       if (!res.ok) return setMemberFormError(res.error);
       setMembers((prev) => prev.map((m) => (m.id === memberDraft.id ? res.data : m)));
-      toast.success("Member updated");
+      toast.success(t("info.memberUpdated"));
     } else {
       const res = await api.post<CMember>(`/api/admin/committee-members`, {
         committeeId: committee.id,
@@ -443,7 +446,7 @@ export function InfoClient({
       setMemberBusy(false);
       if (!res.ok) return setMemberFormError(res.error);
       setMembers((prev) => [...prev, res.data]);
-      toast.success("Member added");
+      toast.success(t("info.memberAdded"));
     }
     setMemberDraft(null);
   }
@@ -454,10 +457,10 @@ export function InfoClient({
     const res = await api.patch(`/api/admin/committee-members`, { id: m.id, isActive: next });
     if (!res.ok) {
       setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, isActive: !next } : x)));
-      toast.error(res.error || "Could not update member");
+      toast.error(res.error || t("info.errUpdateMember"));
       return;
     }
-    toast.success(next ? "Member activated" : "Member deactivated");
+    toast.success(next ? t("info.memberActivated") : t("info.memberDeactivated"));
   }
 
   async function toggleShowContact(m: CMember) {
@@ -466,33 +469,33 @@ export function InfoClient({
     const res = await api.patch(`/api/admin/committee-members`, { id: m.id, showContact: next });
     if (!res.ok) {
       setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, showContact: !next } : x)));
-      toast.error(res.error || "Could not update member");
+      toast.error(res.error || t("info.errUpdateMember"));
       return;
     }
-    toast.success(next ? "Contact shown in app" : "Contact hidden from app");
+    toast.success(next ? t("info.contactShown") : t("info.contactHidden"));
   }
 
   async function removeMember(id: string) {
     const ok = await confirmDialog({
-      title: "Remove this member?",
-      confirmLabel: "Remove",
+      title: t("info.confirmRemoveMember"),
+      confirmLabel: t("info.remove"),
       tone: "danger",
     });
     if (!ok) return;
     const res = await api.del(`/api/admin/committee-members?id=${id}`);
     if (!res.ok) {
-      toast.error(res.error || "Could not remove member");
+      toast.error(res.error || t("info.errRemoveMember"));
       return;
     }
     setMembers((prev) => prev.filter((m) => m.id !== id));
     if (memberDraft?.id === id) setMemberDraft(null);
-    toast.success("Member removed");
+    toast.success(t("info.memberRemoved"));
   }
 
   /* ============ Info sections ============ */
   async function saveInfo() {
     if (!infoEdit) return;
-    if (!infoEdit.titleEn.trim()) return setError("Title is required");
+    if (!infoEdit.titleEn.trim()) return setError(t("info.errTitleRequired"));
     setBusy(true);
     setError(null);
     const payload = {
@@ -510,21 +513,21 @@ export function InfoClient({
     setInfo((prev) =>
       infoEdit.id ? prev.map((s) => (s.id === infoEdit.id ? { ...s, ...res.data } : s)) : [...prev, res.data],
     );
-    toast.success(infoEdit.id ? "Info page updated" : "Info page added");
+    toast.success(infoEdit.id ? t("info.pageUpdated") : t("info.pageAdded"));
     setInfoEdit(null);
   }
 
   async function deleteInfo(id: string) {
     const ok = await confirmDialog({
-      title: "Delete this info page?",
-      confirmLabel: "Delete",
+      title: t("info.confirmDeletePage"),
+      confirmLabel: t("common.delete"),
       tone: "danger",
     });
     if (!ok) return;
     const res = await api.del(`/api/admin/info-sections?id=${id}`);
-    if (!res.ok) return toast.error(res.error || "Could not delete info page");
+    if (!res.ok) return toast.error(res.error || t("info.errDeletePage"));
     setInfo((prev) => prev.filter((s) => s.id !== id));
-    toast.success("Info page deleted");
+    toast.success(t("info.pageDeleted"));
   }
 
   /* ============ Villages ============ */
@@ -540,7 +543,7 @@ export function InfoClient({
 
   async function addVillage() {
     if (!villageAdd) return;
-    if (!villageAdd.nameEn.trim() || !villageAdd.nameGu.trim()) return setError("Both names are required");
+    if (!villageAdd.nameEn.trim() || !villageAdd.nameGu.trim()) return setError(t("info.errBothNames"));
     setBusy(true);
     setError(null);
     const res = await api.post<Village>(`/api/admin/villages`, {
@@ -555,16 +558,7 @@ export function InfoClient({
 
   return (
     <>
-      <AdminH2
-        info={
-          <>
-            Everything shown in the User App → Community Information section is managed here. Changes
-            sync to the app on save.
-          </>
-        }
-      >
-        Community info
-      </AdminH2>
+      <AdminH2 info={t("info.pageHint")}>{t("nav.info")}</AdminH2>
 
       <div className="mb-5 flex flex-wrap gap-2">
         {TABS.map((x) => (
@@ -596,7 +590,7 @@ export function InfoClient({
           tab === "basic" ? "" : "hidden",
         )}
       >
-        <AdminH3>Cover banner &amp; logo</AdminH3>
+        <AdminH3>{t("info.brandHeading")}</AdminH3>
 
         <div className="relative mb-3 h-[132px] overflow-hidden rounded-xl bg-[var(--brand)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -607,20 +601,20 @@ export function InfoClient({
           />
           {!bannerUrl && (
             <p className="absolute top-2 right-2 rounded-md bg-black/45 px-2 py-1 text-[10.5px] font-bold text-white">
-              Default banner — upload your own to replace it
+              {t("info.defaultBanner")}
             </p>
           )}
           <span className="absolute bottom-3 left-3">
             <AdminFilePicker
               value={bannerUrl}
               folder="community"
-              label="Upload banner"
+              label={t("info.uploadBanner")}
               preview={false}
               onChange={setBannerUrl}
             />
           </span>
         </div>
-        <p className="mb-3 text-[11px] text-[var(--faint)]">1200 × 600 px (2:1) recommended</p>
+        <p className="mb-3 text-[11px] text-[var(--faint)]">{t("info.bannerSize")}</p>
 
         <div className="flex flex-wrap items-center gap-3">
           <span className="flex size-14 flex-none items-center justify-center overflow-hidden rounded-[14px] border-2 border-[var(--gold-border)] bg-[var(--brand)] text-[17px] font-extrabold text-white">
@@ -634,15 +628,15 @@ export function InfoClient({
           <AdminFilePicker
             value={logoUrl}
             folder="community"
-            label="Upload logo"
+            label={t("info.uploadLogo")}
             preview={false}
             onChange={setLogoUrl}
           />
           <AdminBtn onClick={saveBranding} disabled={brandBusy}>
-            {brandBusy ? <Loader2 className="size-4 animate-spin" /> : "Save banner & logo"}
+            {brandBusy ? <Loader2 className="size-4 animate-spin" /> : t("info.saveBranding")}
           </AdminBtn>
         </div>
-        <p className="mt-1.5 text-[11px] text-[var(--faint)]">Logo: 512 × 512 px (1:1) recommended</p>
+        <p className="mt-1.5 text-[11px] text-[var(--faint)]">{t("info.logoSize")}</p>
       </section>
 
 
@@ -652,7 +646,7 @@ export function InfoClient({
           tab === "basic" ? "" : "hidden",
         )}
       >
-        <AdminH3>Basic information</AdminH3>
+        <AdminH3>{t("info.basicHeading")}</AdminH3>
         <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
           {BASIC_FIELDS.map((f) => (
             <div key={f.key}>
@@ -675,7 +669,7 @@ export function InfoClient({
         </div>
 
         <div className="mt-4">
-          <AdminLabel>Community description (ગુજરાતી)</AdminLabel>
+          <AdminLabel>{t("info.descGu")}</AdminLabel>
           <GujaratiInput
             multiline
             rows={4}
@@ -688,7 +682,7 @@ export function InfoClient({
           />
         </div>
         <div className="mt-3">
-          <AdminLabel>Community description (English)</AdminLabel>
+          <AdminLabel>{t("info.descEn")}</AdminLabel>
           <SpeechTextarea
             value={basic.descEn}
             onChange={(v) => {
@@ -700,7 +694,7 @@ export function InfoClient({
         </div>
 
         <AdminBtn className="mt-4" onClick={saveBasic} disabled={basicBusy}>
-          {basicBusy ? <Loader2 className="size-4 animate-spin" /> : "Save community info"}
+          {basicBusy ? <Loader2 className="size-4 animate-spin" /> : t("info.saveBasic")}
         </AdminBtn>
       </section>
 
@@ -710,15 +704,14 @@ export function InfoClient({
         <div className={tab === "committee" ? "" : "hidden"}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <AdminH3
-                className="mb-0"
-                info="Manage = add members, assign position/role + contact visibility."
-              >
-                મુખ્ય સમિતિ — Main Committee
+              <AdminH3 className="mb-0" info={t("info.committeeHint")}>
+                {t("info.committeeHeading")}
               </AdminH3>
               <p className="mt-1 text-[12px] text-[var(--faint)]">
-                {members.length} {members.length === 1 ? "member" : "members"} · shown in the app in the
-                order below.
+                {tf(
+                  members.length === 1 ? "info.committeeCountOne" : "info.committeeCountMany",
+                  { n: members.length },
+                )}
               </p>
             </div>
 
@@ -726,7 +719,7 @@ export function InfoClient({
               <SearchInput
                 value={memberQ}
                 onChange={setMemberQ}
-                placeholder="Search member / role…"
+                placeholder={t("info.searchMember")}
                 className="min-w-0 flex-1 md:w-[220px] md:flex-none"
               />
               <FilterButton
@@ -740,34 +733,34 @@ export function InfoClient({
                   onChange={(v) => setMemberStatusFilter(v as "all" | "active" | "inactive")}
                   options={MEMBER_STATUS_OPTIONS}
                   className="w-[150px] shrink-0"
-                  ariaLabel="Filter by status"
+                  ariaLabel={t("info.filterByStatus")}
                 />
                 <AdminBtn className="shrink-0" onClick={openNewMember}>
                   <Plus className="size-4" />
-                  Add committee member
+                  {t("info.addMember")}
                 </AdminBtn>
               </div>
             </div>
             <AdminBtn className="w-full justify-center md:hidden" onClick={openNewMember}>
               <Plus className="size-4" />
-              Add committee member
+              {t("info.addMember")}
             </AdminBtn>
           </div>
 
           <Sheet open={memberFiltersOpen} onOpenChange={setMemberFiltersOpen}>
             <SheetContent side="bottom" className="md:hidden">
               <SheetHeader>
-                <SheetTitle>Filters</SheetTitle>
+                <SheetTitle>{t("info.filters")}</SheetTitle>
               </SheetHeader>
               <div className="flex flex-col gap-3 px-4 pb-4">
                 <div>
-                  <AdminLabel>Status</AdminLabel>
+                  <AdminLabel>{t("info.status")}</AdminLabel>
                   <AdminSelect
                     value={memberStatusFilter}
                     onChange={(v) => setMemberStatusFilter(v as "all" | "active" | "inactive")}
                     options={MEMBER_STATUS_OPTIONS}
                     className="w-full"
-                    ariaLabel="Filter by status"
+                    ariaLabel={t("info.filterByStatus")}
                   />
                 </div>
               </div>
@@ -777,19 +770,16 @@ export function InfoClient({
           <AdminTable>
             <thead>
               <tr>
-                <AdminTh>Member</AdminTh>
-                <AdminTh>Contact</AdminTh>
-                <AdminTh>Status</AdminTh>
+                <AdminTh>{t("info.thMember")}</AdminTh>
+                <AdminTh>{t("info.thContact")}</AdminTh>
+                <AdminTh>{t("info.status")}</AdminTh>
                 <AdminTh>
                   <span className="flex items-center gap-1.5">
-                    Show contact
-                    <AdminInfoTip side="top">
-                      Whether this member&apos;s contact (phone / WhatsApp / email) is shown on the app or
-                      not.
-                    </AdminInfoTip>
+                    {t("info.thShowContact")}
+                    <AdminInfoTip side="top">{t("info.showContactTip")}</AdminInfoTip>
                   </span>
                 </AdminTh>
-                <AdminTh className="text-right">Actions</AdminTh>
+                <AdminTh className="text-right">{t("info.thActions")}</AdminTh>
               </tr>
             </thead>
             <tbody>
@@ -804,7 +794,7 @@ export function InfoClient({
                       <span className="flex flex-none flex-col leading-none">
                         <button
                           type="button"
-                          aria-label="Move up"
+                          aria-label={t("info.moveUp")}
                           disabled={index === 0}
                           onClick={() => moveMember(index, -1)}
                           className="cursor-pointer px-1 text-[10px] text-[var(--faint)] disabled:opacity-30"
@@ -813,7 +803,7 @@ export function InfoClient({
                         </button>
                         <button
                           type="button"
-                          aria-label="Move down"
+                          aria-label={t("info.moveDown")}
                           disabled={index === members.length - 1}
                           onClick={() => moveMember(index, 1)}
                           className="cursor-pointer px-1 text-[10px] text-[var(--faint)] disabled:opacity-30"
@@ -876,15 +866,19 @@ export function InfoClient({
                     )}
                   </AdminTd>
                   <AdminTd>
-                    {m.isActive ? <PillActive>Active</PillActive> : <PillWarning>Inactive</PillWarning>}
+                    {m.isActive ? (
+                      <PillActive>{t("info.active")}</PillActive>
+                    ) : (
+                      <PillWarning>{t("info.inactive")}</PillWarning>
+                    )}
                   </AdminTd>
                   <AdminTd>
                     <button
                       type="button"
                       role="switch"
                       aria-checked={m.showContact}
-                      aria-label={m.showContact ? "Click to hide contact" : "Click to show contact"}
-                      title={m.showContact ? "Click to hide contact" : "Click to show contact"}
+                      aria-label={m.showContact ? t("info.clickHideContact") : t("info.clickShowContact")}
+                      title={m.showContact ? t("info.clickHideContact") : t("info.clickShowContact")}
                       onClick={() => toggleShowContact(m)}
                       className={cn(
                         "relative inline-flex h-5 w-9 flex-none cursor-pointer items-center rounded-full transition-colors",
@@ -907,14 +901,19 @@ export function InfoClient({
                   </AdminTd>
                   <AdminTd className="text-right">
                     <span className="flex flex-wrap items-center justify-end gap-2">
-                      <ActionBtn icon={Pencil} label="Edit" onClick={() => editMember(m)} />
+                      <ActionBtn icon={Pencil} label={t("common.edit")} onClick={() => editMember(m)} />
                       <ActionBtn
                         icon={m.isActive ? EyeOff : Eye}
-                        label={m.isActive ? "Deactivate" : "Activate"}
+                        label={m.isActive ? t("info.deactivate") : t("info.activate")}
                         tone={m.isActive ? "warn" : "success"}
                         onClick={() => toggleMemberActive(m)}
                       />
-                      <ActionBtn icon={Trash2} label="Remove" tone="danger" onClick={() => removeMember(m.id)} />
+                      <ActionBtn
+                        icon={Trash2}
+                        label={t("info.remove")}
+                        tone="danger"
+                        onClick={() => removeMember(m.id)}
+                      />
                     </span>
                   </AdminTd>
                 </tr>
@@ -924,20 +923,20 @@ export function InfoClient({
           </AdminTable>
           {filteredMembers.length === 0 && (
             <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
-              {members.length === 0 ? "No members yet." : "No matching members."}
+              {members.length === 0 ? t("info.noMembers") : t("info.noMatchingMembers")}
             </p>
           )}
         </div>
 
         <div className={tab === "sections" ? "" : "hidden"}>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <AdminH3 className="mb-0 shrink-0">Information sections</AdminH3>
+            <AdminH3 className="mb-0 shrink-0">{t("info.sectionsHeading")}</AdminH3>
 
             <div className="flex w-full items-center gap-3 md:w-auto">
               <SearchInput
                 value={secQ}
                 onChange={setSecQ}
-                placeholder="Search section name…"
+                placeholder={t("info.searchSection")}
                 className="min-w-0 flex-1 md:w-[220px] md:flex-none"
               />
               <FilterButton
@@ -951,7 +950,7 @@ export function InfoClient({
                   onChange={(v) => setSecStatusFilter(v as "all" | "active" | "inactive")}
                   options={SECTION_STATUS_OPTIONS}
                   className="w-[150px] shrink-0"
-                  ariaLabel="Filter by status"
+                  ariaLabel={t("info.filterByStatus")}
                 />
                 <AdminBtn
                   className="shrink-0"
@@ -960,7 +959,7 @@ export function InfoClient({
                   }
                 >
                   <Plus className="size-4" />
-                  New page
+                  {t("info.newPage")}
                 </AdminBtn>
               </div>
             </div>
@@ -971,24 +970,24 @@ export function InfoClient({
               }
             >
               <Plus className="size-4" />
-              New page
+              {t("info.newPage")}
             </AdminBtn>
           </div>
 
           <Sheet open={secFiltersOpen} onOpenChange={setSecFiltersOpen}>
             <SheetContent side="bottom" className="md:hidden">
               <SheetHeader>
-                <SheetTitle>Filters</SheetTitle>
+                <SheetTitle>{t("info.filters")}</SheetTitle>
               </SheetHeader>
               <div className="flex flex-col gap-3 px-4 pb-4">
                 <div>
-                  <AdminLabel>Status</AdminLabel>
+                  <AdminLabel>{t("info.status")}</AdminLabel>
                   <AdminSelect
                     value={secStatusFilter}
                     onChange={(v) => setSecStatusFilter(v as "all" | "active" | "inactive")}
                     options={SECTION_STATUS_OPTIONS}
                     className="w-full"
-                    ariaLabel="Filter by status"
+                    ariaLabel={t("info.filterByStatus")}
                   />
                 </div>
               </div>
@@ -998,9 +997,9 @@ export function InfoClient({
           <AdminTable>
             <thead>
               <tr>
-                <AdminTh>Section</AdminTh>
-                <AdminTh>Status</AdminTh>
-                <AdminTh className="text-right">Actions</AdminTh>
+                <AdminTh>{t("info.thSection")}</AdminTh>
+                <AdminTh>{t("info.status")}</AdminTh>
+                <AdminTh className="text-right">{t("info.thActions")}</AdminTh>
               </tr>
             </thead>
             <tbody>
@@ -1011,7 +1010,7 @@ export function InfoClient({
                       <span className="flex flex-none flex-col leading-none pt-0.5">
                         <button
                           type="button"
-                          aria-label="Move up"
+                          aria-label={t("info.moveUp")}
                           disabled={index === 0}
                           onClick={() => moveSection(index, -1)}
                           className="cursor-pointer px-1 text-[10px] text-[var(--faint)] disabled:opacity-30"
@@ -1020,7 +1019,7 @@ export function InfoClient({
                         </button>
                         <button
                           type="button"
-                          aria-label="Move down"
+                          aria-label={t("info.moveDown")}
                           disabled={index === info.length - 1}
                           onClick={() => moveSection(index, 1)}
                           className="cursor-pointer px-1 text-[10px] text-[var(--faint)] disabled:opacity-30"
@@ -1039,13 +1038,17 @@ export function InfoClient({
                     </span>
                   </AdminTd>
                   <AdminTd>
-                    {s.isActive ? <PillActive>Active</PillActive> : <PillWarning>Hidden</PillWarning>}
+                    {s.isActive ? (
+                      <PillActive>{t("info.active")}</PillActive>
+                    ) : (
+                      <PillWarning>{t("info.hidden")}</PillWarning>
+                    )}
                   </AdminTd>
                   <AdminTd className="text-right">
                     <span className="flex flex-wrap justify-end gap-1.5">
                       <ActionBtn
                         icon={Pencil}
-                        label="Edit"
+                        label={t("common.edit")}
                         onClick={() =>
                           setInfoEdit({
                             id: s.id,
@@ -1059,11 +1062,16 @@ export function InfoClient({
                       />
                       <ActionBtn
                         icon={s.isActive ? EyeOff : Eye}
-                        label={s.isActive ? "Hide" : "Show"}
+                        label={s.isActive ? t("info.hide") : t("info.show")}
                         tone={s.isActive ? "warn" : "success"}
                         onClick={() => toggleSectionActive(s)}
                       />
-                      <ActionBtn icon={Trash2} label="Delete" tone="danger" onClick={() => deleteInfo(s.id)} />
+                      <ActionBtn
+                        icon={Trash2}
+                        label={t("common.delete")}
+                        tone="danger"
+                        onClick={() => deleteInfo(s.id)}
+                      />
                     </span>
                   </AdminTd>
                 </tr>
@@ -1072,7 +1080,7 @@ export function InfoClient({
           </AdminTable>
           {filteredInfo.length === 0 && (
             <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
-              {info.length === 0 ? "No info pages yet." : "No matching sections."}
+              {info.length === 0 ? t("info.noPages") : t("info.noMatchingSections")}
             </p>
           )}
         </div>
@@ -1084,26 +1092,26 @@ export function InfoClient({
           tab === "basic" ? "" : "hidden",
         )}
       >
-        <AdminH3 info="Members on the Donate screen will open a UPI payment to this ID. Leave blank to only record donation pledges.">
-          Donations — UPI ID
-        </AdminH3>
+        <AdminH3 info={t("info.upiHint")}>{t("info.upiHeading")}</AdminH3>
         <div className="flex flex-wrap items-end gap-2.5">
           <div className="min-w-[220px] flex-1">
-            <AdminLabel>UPI ID</AdminLabel>
+            <AdminLabel>{t("info.upiLabel")}</AdminLabel>
             <AdminInput
               value={upiDraft}
               onChange={setUpiDraft}
-              placeholder="community@upi"
+              placeholder={t("info.upiPlaceholder")}
             />
           </div>
           <AdminBtn onClick={saveUpi} disabled={busy || upiDraft.trim() === upiId}>
-            {busy ? <Loader2 className="size-4 animate-spin" /> : "Save UPI"}
+            {busy ? <Loader2 className="size-4 animate-spin" /> : t("info.saveUpi")}
           </AdminBtn>
         </div>
         {upiId ? (
-          <p className="mt-2 text-[12px] font-semibold text-[var(--success)]">Active: {upiId}</p>
+          <p className="mt-2 text-[12px] font-semibold text-[var(--success)]">
+            {tf("info.upiActive", { id: upiId })}
+          </p>
         ) : (
-          <p className="mt-2 text-[12px] text-[var(--faint)]">No UPI configured yet.</p>
+          <p className="mt-2 text-[12px] text-[var(--faint)]">{t("info.noUpi")}</p>
         )}
       </div>
 
@@ -1113,25 +1121,17 @@ export function InfoClient({
           tab === "basic" ? "" : "hidden",
         )}
       >
-        <AdminH3
-          className="mb-0"
-          info={
-            <>
-              Turn ON to let members of that village show their phone numbers in the directory. When OFF,
-              no phone is shown to others for that village — regardless of the member&apos;s own setting.
-            </>
-          }
-        >
-          Directory privacy by village (ગામ પ્રમાણે નંબર)
+        <AdminH3 className="mb-0" info={t("info.villageHint")}>
+          {t("info.villageHeading")}
         </AdminH3>
       </div>
 
       <AdminTable className={tab === "basic" ? "" : "hidden"}>
         <thead>
           <tr>
-            <AdminTh>Village / area</AdminTh>
-            <AdminTh>Families</AdminTh>
-            <AdminTh>Show numbers in directory</AdminTh>
+            <AdminTh>{t("info.thVillage")}</AdminTh>
+            <AdminTh>{t("info.thFamilies")}</AdminTh>
+            <AdminTh>{t("info.thShowNumbers")}</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -1159,7 +1159,7 @@ export function InfoClient({
                       v.showPhones ? "text-[var(--success)]" : "text-[var(--danger)]",
                     )}
                   >
-                    {v.showPhones ? "ON · shown" : "OFF · hidden"}
+                    {v.showPhones ? t("info.onShown") : t("info.offHidden")}
                   </span>
                 </div>
               </AdminTd>
@@ -1172,7 +1172,7 @@ export function InfoClient({
                 onClick={() => setVillageAdd({ nameEn: "", nameGu: "" })}
                 className="cursor-pointer font-bold text-[var(--brand)]"
               >
-                + Add village / area
+                + {t("info.addVillage")}
               </button>
             </AdminTd>
           </tr>
@@ -1184,12 +1184,12 @@ export function InfoClient({
         <DialogContent className="max-h-[88vh] max-w-[460px] overflow-y-auto rounded-2xl sm:max-w-[460px]">
           <DialogHeader>
             <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
-              {infoEdit?.id ? "Edit info page" : "New info page"}
+              {infoEdit?.id ? t("info.editPage") : t("info.newPageTitle")}
             </DialogTitle>
           </DialogHeader>
           {infoEdit && (
             <div>
-              <AdminLabel>Title (English) *</AdminLabel>
+              <AdminLabel>{t("info.titleEnLabel")}</AdminLabel>
               <AdminInput
                 speech
                 value={infoEdit.titleEn}
@@ -1198,7 +1198,7 @@ export function InfoClient({
                   fromEn(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, titleGu: gu } : prev)), "title");
                 }}
               />
-              <AdminLabel>Title (ગુજરાતી)</AdminLabel>
+              <AdminLabel>{t("info.titleGuLabel")}</AdminLabel>
               <AdminInput
                 gujarati
                 value={infoEdit.titleGu}
@@ -1207,7 +1207,7 @@ export function InfoClient({
                   guInput(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, titleGu: gu } : prev)), "title:gu");
                 }}
               />
-              <AdminLabel>Body (English)</AdminLabel>
+              <AdminLabel>{t("info.bodyEnLabel")}</AdminLabel>
               <Textarea
                 value={infoEdit.bodyEn}
                 onChange={(e) => {
@@ -1217,7 +1217,7 @@ export function InfoClient({
                 }}
                 className="mb-2 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
-              <AdminLabel>Body (ગુજરાતી)</AdminLabel>
+              <AdminLabel>{t("info.bodyGuLabel")}</AdminLabel>
               <Textarea
                 value={infoEdit.bodyGu}
                 onChange={(e) => {
@@ -1227,22 +1227,22 @@ export function InfoClient({
                 }}
                 className="mb-2 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
-              <AdminLabel>Visibility</AdminLabel>
+              <AdminLabel>{t("info.visibility")}</AdminLabel>
               <AdminSegmented
                 value={infoEdit.isActive ? "active" : "hidden"}
                 onChange={(v) => setInfoEdit((prev) => (prev ? { ...prev, isActive: v === "active" } : prev))}
                 options={[
-                  { value: "active", label: "Active" },
-                  { value: "hidden", label: "Hidden" },
+                  { value: "active", label: t("info.active") },
+                  { value: "hidden", label: t("info.hidden") },
                 ]}
               />
               {error && <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
               <div className="mt-3 flex gap-2.5">
                 <AdminBtn className="flex-1 justify-center" onClick={saveInfo}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : "Save"}
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
                 </AdminBtn>
                 <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setInfoEdit(null)}>
-                  Cancel
+                  {t("common.cancel")}
                 </AdminBtn>
               </div>
             </div>
@@ -1254,11 +1254,13 @@ export function InfoClient({
       <Dialog open={villageAdd !== null} onOpenChange={(o) => !o && setVillageAdd(null)}>
         <DialogContent className="max-w-[360px] rounded-2xl sm:max-w-[360px]">
           <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">Add village / area</DialogTitle>
+            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
+              {t("info.addVillage")}
+            </DialogTitle>
           </DialogHeader>
           {villageAdd && (
             <div>
-              <AdminLabel>Name (English) *</AdminLabel>
+              <AdminLabel>{t("info.nameEnReq")}</AdminLabel>
               <AdminInput
                 speech
                 value={villageAdd.nameEn}
@@ -1267,7 +1269,7 @@ export function InfoClient({
                   fromEn(v, (gu) => setVillageAdd((prev) => (prev ? { ...prev, nameGu: gu } : prev)));
                 }}
               />
-              <AdminLabel>Name (ગુજરાતી) *</AdminLabel>
+              <AdminLabel>{t("info.nameGuReq")}</AdminLabel>
               <AdminInput
                 gujarati
                 value={villageAdd.nameGu}
@@ -1278,10 +1280,10 @@ export function InfoClient({
               />
               <div className="mt-4 flex gap-2.5">
                 <AdminBtn className="flex-1 justify-center" onClick={addVillage}>
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : "Add"}
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : t("common.add")}
                 </AdminBtn>
                 <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setVillageAdd(null)}>
-                  Cancel
+                  {t("common.cancel")}
                 </AdminBtn>
               </div>
             </div>
@@ -1293,30 +1295,30 @@ export function InfoClient({
       <AdminModal
         open={memberDraft !== null}
         onClose={() => setMemberDraft(null)}
-        title={memberDraft?.id ? "Edit committee member" : "Add committee member"}
-        subtitle="Shown in the User App committee list."
+        title={memberDraft?.id ? t("info.editMember") : t("info.addMember")}
+        subtitle={t("info.memberModalSub")}
         footer={
           <AdminModalActions
             onSave={saveMember}
             onCancel={() => setMemberDraft(null)}
             busy={memberBusy}
-            saveLabel={memberDraft?.id ? "Save changes" : "Add member"}
+            saveLabel={memberDraft?.id ? t("info.saveChanges") : t("info.addMemberShort")}
           />
         }
       >
         {memberDraft && (
           <>
             <AdminField
-              label="Link an existing member (optional)"
-              hint="Picking a member pre-fills the fields below; you can still edit them."
+              label={t("info.linkMember")}
+              hint={t("info.linkMemberHint")}
             >
               <AdminSearchSelect
                 items={memberOptions}
                 value={selectedProfile}
-                placeholder="Search directory by name / mobile…"
+                placeholder={t("info.searchDirectory")}
                 renderLabel={(p) => p.nameGu || p.nameEn}
                 renderMeta={(p) => [p.mobile, p.family].filter(Boolean).join(" · ")}
-                emptyText="No member found"
+                emptyText={t("info.noMemberFound")}
                 onChange={(p) =>
                   setMemberDraft((d) =>
                     d
@@ -1332,24 +1334,24 @@ export function InfoClient({
                 }
               />
             </AdminField>
-            <p className="-mt-2 mb-3 text-[11px] text-[var(--faint)]">Or fill the details manually below.</p>
+            <p className="-mt-2 mb-3 text-[11px] text-[var(--faint)]">{t("info.orManual")}</p>
 
             <AdminFormRow>
-              <AdminField label="Designation (ગુજરાતી)" required>
+              <AdminField label={t("info.roleGu")} required>
                 <AdminInput
                   gujarati
                   value={memberDraft.roleGu}
-                  placeholder="દા.ત. પ્રમુખ"
+                  placeholder={t("info.rolePlaceholder")}
                   onChange={(v) => {
                     setMemberDraft((d) => (d ? { ...d, roleGu: v } : d));
                     guInput(v, (gu) => setMemberDraft((d) => (d ? { ...d, roleGu: gu } : d)), "member-role:gu");
                   }}
                 />
               </AdminField>
-              <AdminField label="Designation (English)">
+              <AdminField label={t("info.roleEn")}>
                 <AdminInput
                   value={memberDraft.roleEn}
-                  placeholder="e.g. President"
+                  placeholder={t("info.rolePlaceholder")}
                   onChange={(v) => {
                     setMemberDraft((d) => (d ? { ...d, roleEn: v } : d));
                     fromEn(v, (gu) => setMemberDraft((d) => (d ? { ...d, roleGu: gu } : d)), "member-role");
@@ -1359,7 +1361,7 @@ export function InfoClient({
             </AdminFormRow>
 
             <AdminFormRow>
-              <AdminField label="Name (ગુજરાતી)" required>
+              <AdminField label={t("info.nameGu")} required>
                 <AdminInput
                   gujarati
                   value={memberDraft.nameGu}
@@ -1369,7 +1371,7 @@ export function InfoClient({
                   }}
                 />
               </AdminField>
-              <AdminField label="Name (English)">
+              <AdminField label={t("info.nameEn")}>
                 <AdminInput
                   speech
                   value={memberDraft.nameOverride}
@@ -1382,20 +1384,20 @@ export function InfoClient({
             </AdminFormRow>
 
             <AdminFormRow>
-              <AdminField label="Mobile number">
+              <AdminField label={t("info.mobile")}>
                 <AdminInput
                   value={memberDraft.phoneOverride}
                   onChange={(v) => setMemberDraft((d) => (d ? { ...d, phoneOverride: v } : d))}
                 />
               </AdminField>
               {memberDraft.sameWhatsapp ? (
-                <AdminField label="WhatsApp number">
+                <AdminField label={t("info.whatsapp")}>
                   <button
                     type="button"
                     onClick={() => setMemberDraft((d) => (d ? { ...d, sameWhatsapp: false } : d))}
                     className="flex h-[42px] w-full cursor-pointer items-center justify-between rounded-[11px] border-[1.5px] border-[var(--line-field)] bg-[var(--field)] px-3.5 text-[13px] font-semibold text-[var(--ink)]"
                   >
-                    <span>Same as mobile number</span>
+                    <span>{t("info.sameAsMobileFull")}</span>
                     <span className="relative h-[22px] w-[38px] flex-none rounded-2xl bg-[var(--wa)]">
                       <span className="absolute top-[2.5px] left-[18px] size-[17px] rounded-full bg-white shadow" />
                     </span>
@@ -1405,7 +1407,7 @@ export function InfoClient({
                 <AdminField
                   label={
                     <span className="flex items-center justify-between gap-2">
-                      <span>WhatsApp number</span>
+                      <span>{t("info.whatsapp")}</span>
                       <button
                         type="button"
                         onClick={() =>
@@ -1413,7 +1415,7 @@ export function InfoClient({
                         }
                         className="cursor-pointer text-[10.5px] font-bold text-[var(--brand)] underline"
                       >
-                        Same as mobile
+                        {t("info.sameAsMobile")}
                       </button>
                     </span>
                   }
@@ -1427,14 +1429,14 @@ export function InfoClient({
             </AdminFormRow>
 
             <AdminFormRow>
-              <AdminField label="Email">
+              <AdminField label={t("info.email")}>
                 <AdminInput
                   type="email"
                   value={memberDraft.email}
                   onChange={(v) => setMemberDraft((d) => (d ? { ...d, email: v } : d))}
                 />
               </AdminField>
-              <AdminField label="Display order">
+              <AdminField label={t("info.displayOrder")}>
                 <AdminInput
                   type="number"
                   value={String(memberDraft.sortOrder)}
@@ -1443,7 +1445,7 @@ export function InfoClient({
               </AdminField>
             </AdminFormRow>
 
-            <AdminField label="Short description (optional)">
+            <AdminField label={t("info.shortDesc")}>
               <Textarea
                 value={memberDraft.descGu}
                 onChange={(e) => {
@@ -1456,10 +1458,9 @@ export function InfoClient({
 
             <div className="mb-3 flex items-center gap-3 rounded-xl border border-[var(--line-admin)] bg-[#FBFAF7] p-3">
               <div className="flex-1">
-                <div className="text-[12.5px] font-bold text-[var(--ink)]">Show contact in User App</div>
+                <div className="text-[12.5px] font-bold text-[var(--ink)]">{t("info.showContactApp")}</div>
                 <div className="mt-0.5 text-[11px] leading-relaxed text-[var(--faint)]">
-                  When OFF, this member&apos;s phone / WhatsApp / email stay stored here but are hidden from
-                  the app.
+                  {t("info.showContactOffHint")}
                 </div>
               </div>
               <Switch
@@ -1469,13 +1470,13 @@ export function InfoClient({
               />
             </div>
 
-            <AdminField label="Status">
+            <AdminField label={t("info.status")}>
               <AdminSegmented
                 value={memberDraft.isActive ? "active" : "inactive"}
                 onChange={(v) => setMemberDraft((d) => (d ? { ...d, isActive: v === "active" } : d))}
                 options={[
-                  { value: "active", label: "Active", tone: "success" },
-                  { value: "inactive", label: "Inactive", tone: "danger" },
+                  { value: "active", label: t("info.active"), tone: "success" },
+                  { value: "inactive", label: t("info.inactive"), tone: "danger" },
                 ]}
               />
             </AdminField>

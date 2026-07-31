@@ -26,6 +26,7 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api } from "@/lib/http";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
@@ -57,26 +58,20 @@ export type FamilyRow = {
   members: number;
 };
 
-const FAMILY_STATUS_META: Record<FamilyStatus, { label: string; className: string }> = {
-  APPROVED: { label: "Approved", className: "bg-[var(--success-tint)] text-[var(--success)]" },
-  PENDING: { label: "Pending", className: "bg-[var(--gold-tint)] text-[var(--warn)]" },
-  REJECTED: { label: "Deactivated", className: "bg-[var(--line-soft)] text-[var(--muted)]" },
+const FAMILY_STATUS_META: Record<FamilyStatus, { labelKey: AdminKey; className: string }> = {
+  APPROVED: { labelKey: "fam.statusApproved", className: "bg-[var(--success-tint)] text-[var(--success)]" },
+  PENDING: { labelKey: "fam.statusPending", className: "bg-[var(--gold-tint)] text-[var(--warn)]" },
+  REJECTED: { labelKey: "fam.statusDeactivated", className: "bg-[var(--line-soft)] text-[var(--muted)]" },
 };
 
-const FAMILY_STATUS_FILTER_OPTIONS: { value: "all" | FamilyStatus; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: "APPROVED", label: "Approved" },
-  { value: "PENDING", label: "Pending" },
-  { value: "REJECTED", label: "Deactivated" },
-];
-
 function FamilyStatusPill({ status }: { status: FamilyStatus }) {
+  const { t } = useAdminT();
   const meta = FAMILY_STATUS_META[status];
   return (
     <span
       className={cn("inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold", meta.className)}
     >
-      {meta.label}
+      {t(meta.labelKey)}
     </span>
   );
 }
@@ -222,6 +217,7 @@ export function FamiliesClient({
   occupationTree: OccupationTreeNode[];
 }) {
   const router = useRouter();
+  const { t, tf, lang } = useAdminT();
   const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<FamilyRow[]>(initialRows);
   const [groups, setGroups] = useState<SurnameOption[]>(initialGroups);
@@ -229,6 +225,16 @@ export function FamiliesClient({
   const [statusFilter, setStatusFilter] = useState<"all" | FamilyStatus>("all");
   const [cityFilter, setCityFilter] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const statusFilterOptions = useMemo<{ value: "all" | FamilyStatus; label: string }[]>(
+    () => [
+      { value: "all", label: t("fam.allStatuses") },
+      { value: "APPROVED", label: t("fam.statusApproved") },
+      { value: "PENDING", label: t("fam.statusPending") },
+      { value: "REJECTED", label: t("fam.statusDeactivated") },
+    ],
+    [t],
+  );
 
   const relationOptions = useMemo(() => {
     return relations.map((r) =>
@@ -344,27 +350,27 @@ export function FamiliesClient({
 
   async function createFamily() {
     if (!form.headNameEn.trim()) {
-      setError("Head name is required");
+      setError(t("fam.errHeadName"));
       return;
     }
     if (!form.headPlace.trim()) {
-      setError(communityType === "PARIVAR" ? "Head's city is required" : "Head's village / city is required");
+      setError(communityType === "PARIVAR" ? t("fam.errHeadCity") : t("fam.errHeadVillage"));
       return;
     }
     if (communityType === "GAM" && !form.surnameEn.trim() && !form.surnameGroupId) {
-      setError("Surname is required");
+      setError(t("fam.errSurname"));
       return;
     }
     if (!form.addressEn.trim()) {
-      setError("Address is required");
+      setError(t("fam.errAddress"));
       return;
     }
     if (!/^[6-9]\d{9}$/.test(form.headMobile.replace(/\D/g, ""))) {
-      setError("Head mobile is required (10 digits, starts with 6–9)");
+      setError(t("fam.errHeadMobile"));
       return;
     }
     if (!form.headGender) {
-      setError("Head gender is required");
+      setError(t("fam.errHeadGender"));
       return;
     }
 
@@ -372,12 +378,12 @@ export function FamiliesClient({
 
     const missingRelation = keptMembers.findIndex((m) => !m.relation.trim());
     if (missingRelation >= 0) {
-      setError(`Member ${missingRelation + 2}: pick a relation`);
+      setError(tf("fam.errMemberRelation", { n: missingRelation + 2 }));
       return;
     }
     const missingGender = keptMembers.findIndex((m) => !m.gender);
     if (missingGender >= 0) {
-      setError(`Member ${missingGender + 2}: pick a gender`);
+      setError(tf("fam.errMemberGender", { n: missingGender + 2 }));
       return;
     }
 
@@ -540,7 +546,7 @@ export function FamiliesClient({
   }
 
   async function changeLogin(m: Member) {
-    const value = window.prompt("New login mobile (leave blank to remove)", m.mobile || "");
+    const value = window.prompt(t("fam.newLoginPrompt"), m.mobile || "");
     if (value === null) return;
     const mobile = value.trim();
     setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, mobile: mobile || null } : x)));
@@ -562,11 +568,11 @@ export function FamiliesClient({
   }
 
   async function deleteFamily(row: FamilyRow) {
-    const label = row.headGu || row.headEn;
+    const label = lang === "en" ? row.headEn || row.headGu : row.headGu || row.headEn;
     const ok = await confirmDialog({
-      title: `Delete ${label}'s family?`,
-      description: "This cannot be undone.",
-      confirmLabel: "Delete",
+      title: tf("fam.deleteTitle", { name: label }),
+      description: t("fam.cannotUndo"),
+      confirmLabel: t("common.delete"),
       tone: "danger",
     });
     if (!ok) return;
@@ -582,12 +588,12 @@ export function FamiliesClient({
    */
   async function toggleStatus(row: FamilyRow) {
     const next: FamilyStatus = row.status === "APPROVED" ? "REJECTED" : "APPROVED";
-    const verb = next === "APPROVED" ? "Reactivate" : "Deactivate";
-    const label = row.headGu || row.headEn;
+    const deactivating = next === "REJECTED";
+    const label = lang === "en" ? row.headEn || row.headGu : row.headGu || row.headEn;
     const ok = await confirmDialog({
-      title: `${verb} ${label}'s family?`,
-      confirmLabel: verb,
-      tone: next === "REJECTED" ? "danger" : "primary",
+      title: tf(deactivating ? "fam.deactivateTitle" : "fam.reactivateTitle", { name: label }),
+      confirmLabel: t(deactivating ? "fam.deactivate" : "fam.reactivate"),
+      tone: deactivating ? "danger" : "primary",
     });
     if (!ok) return;
 
@@ -602,24 +608,14 @@ export function FamiliesClient({
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-        <AdminH2
-          className="mb-0"
-          info={
-            <>
-              Edit: change head name, surname, address, or add/remove members. Member editor:
-              visibility overrides · mark deceased (સ્વર્ગસ્થ) · change login number · reassign head.
-              &quot;Add family directly&quot; bypasses the registration queue. New surnames are added to
-              Surname groups automatically.
-            </>
-          }
-        >
-          Families &amp; Members
+        <AdminH2 className="mb-0" info={t("fam.info")}>
+          {t("nav.families")}
         </AdminH2>
         <div className="flex w-full flex-wrap items-center gap-2.5 md:w-auto">
           <SearchInput
             value={query}
             onChange={setQuery}
-            placeholder="Search name / surname / city…"
+            placeholder={t("fam.searchPlaceholder")}
             className="min-w-0 flex-1 md:w-[200px] md:flex-none"
           />
           <FilterButton
@@ -631,17 +627,17 @@ export function FamiliesClient({
             <AdminSelect
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as "all" | FamilyStatus)}
-              ariaLabel="Filter by status"
+              ariaLabel={t("fam.filterStatus")}
               className="w-[150px] shrink-0"
-              options={FAMILY_STATUS_FILTER_OPTIONS}
+              options={statusFilterOptions}
             />
             {cityFilterOptions.length > 0 && (
               <AdminSelect
                 value={cityFilter}
                 onChange={setCityFilter}
-                ariaLabel="Filter by city"
+                ariaLabel={t("fam.filterCity")}
                 className="w-[160px] shrink-0"
-                options={[{ value: "all", label: "All cities" }, ...cityFilterOptions]}
+                options={[{ value: "all", label: t("fam.allCities") }, ...cityFilterOptions]}
               />
             )}
           </div>
@@ -663,7 +659,7 @@ export function FamiliesClient({
             }}
           >
             <Plus className="size-4" />
-            Add family directly
+            {t("fam.addDirect")}
           </AdminBtn>
         </div>
       </div>
@@ -672,23 +668,23 @@ export function FamiliesClient({
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="md:hidden">
           <SheetHeader>
-            <SheetTitle>Filters</SheetTitle>
+            <SheetTitle>{t("fam.filters")}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-3 px-4 pb-4">
             <AdminSelect
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as "all" | FamilyStatus)}
-              ariaLabel="Filter by status"
+              ariaLabel={t("fam.filterStatus")}
               className="w-full"
-              options={FAMILY_STATUS_FILTER_OPTIONS}
+              options={statusFilterOptions}
             />
             {cityFilterOptions.length > 0 && (
               <AdminSelect
                 value={cityFilter}
                 onChange={setCityFilter}
-                ariaLabel="Filter by city"
+                ariaLabel={t("fam.filterCity")}
                 className="w-full"
-                options={[{ value: "all", label: "All cities" }, ...cityFilterOptions]}
+                options={[{ value: "all", label: t("fam.allCities") }, ...cityFilterOptions]}
               />
             )}
           </div>
@@ -704,13 +700,13 @@ export function FamiliesClient({
         rowKey={(f) => f.id}
         empty={
           <p className="py-8 text-center text-[13px] text-[var(--faint)]">
-            No families match your filters.
+            {t("fam.noneMatchFilters")}
           </p>
         }
         columns={[
           {
             key: "head",
-            header: "Head",
+            header: t("fam.head"),
             primary: true,
             cell: (f) => (
               <>
@@ -723,7 +719,7 @@ export function FamiliesClient({
           },
           {
             key: "mobile",
-            header: "Mobile",
+            header: t("fam.mobile"),
             tdClassName: "whitespace-nowrap",
             cell: (f) =>
               f.mobile ? (
@@ -736,7 +732,7 @@ export function FamiliesClient({
           },
           {
             key: "surname",
-            header: "Surname",
+            header: t("fam.surname"),
             cell: (f) => (
               <>
                 <span>{f.surnameEn}</span>
@@ -746,41 +742,41 @@ export function FamiliesClient({
               </>
             ),
           },
-          { key: "city", header: "City", cell: (f) => f.city },
-          { key: "members", header: "Members", cell: (f) => f.members },
+          { key: "city", header: t("fam.city"), cell: (f) => f.city },
+          { key: "members", header: t("fam.members"), cell: (f) => f.members },
           {
             key: "status",
-            header: "Status",
+            header: t("fam.status"),
             badge: true,
             cell: (f) => <FamilyStatusPill status={f.status} />,
           },
           {
             key: "actions",
-            header: "Actions",
+            header: t("fam.actions"),
             actions: true,
             thClassName: "whitespace-nowrap",
             cell: (f) => (
               <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
-                <ActionBtn icon={Eye} label="View" onClick={() => openMembers(f)} />
+                <ActionBtn icon={Eye} label={t("common.view")} onClick={() => openMembers(f)} />
                 <ActionBtn
                   icon={Pencil}
-                  label="Edit"
+                  label={t("common.edit")}
                   onClick={() => router.push(`/admin/queue/${f.id}?from=families`)}
                 />
                 <ActionBtn
                   icon={UserPlus}
-                  label="Add member"
+                  label={t("fam.addMember")}
                   onClick={() => router.push(`/admin/queue/${f.id}?from=families&add=1`)}
                 />
                 <ActionBtn
                   icon={f.status === "APPROVED" ? ZapOff : Zap}
-                  label={f.status === "APPROVED" ? "Deactivate" : "Activate"}
+                  label={f.status === "APPROVED" ? t("fam.deactivate") : t("fam.activate")}
                   tone={f.status === "APPROVED" ? "warn" : "success"}
                   onClick={() => toggleStatus(f)}
                 />
                 <ActionBtn
                   icon={Trash2}
-                  label="Delete"
+                  label={t("common.delete")}
                   tone="danger"
                   onClick={() => deleteFamily(f)}
                 />
@@ -792,26 +788,27 @@ export function FamiliesClient({
 
       {filtered.length === 0 && (
         <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
-          {rows.length === 0 ? "No families yet." : "No families match your search."}
+          {rows.length === 0 ? t("fam.noFamilies") : t("fam.noneMatchSearch")}
         </p>
       )}
 
       <AdminModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        title="Add family directly"
+        title={t("fam.addDirect")}
         // subtitle="Bypasses the registration queue — the family is approved immediately."
         width="lg"
         footer={
           <AdminModalActions
             onSave={createFamily}
             onCancel={() => setAddOpen(false)}
-            saveLabel="Create family"
+            saveLabel={t("fam.createFamily")}
+            cancelLabel={t("common.cancel")}
             busy={addBusy}
           />
         }
       >
-        <AdminFormSection title="Family details" />
+        <AdminFormSection title={t("fam.familyDetails")} />
 
         <FamilyDetailsFields
           variant="admin"
@@ -821,29 +818,24 @@ export function FamiliesClient({
           lockedSurname={lockedSurname}
           surnameGroups={groups}
           allowNewSurname
-          t={(_gu, en) => en}
+          t={(gu, en) => (lang === "en" ? en : gu)}
         />
         <AdminFormSection
-          title="Members"
+          title={t("fam.members")}
           className="mt-5"
-          info={
-            <>
-              First person is the family head. Add other household members below — or later from
-              Members.
-            </>
-          }
+          info={t("fam.membersInfo")}
         />
 
         <div className="mb-3 rounded-2xl border border-[var(--gold-border)] bg-[var(--surface-admin)] p-3.5">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[12.5px] font-extrabold text-[var(--ink)]">Member 1 · Head</span>
+            <span className="text-[12.5px] font-extrabold text-[var(--ink)]">{t("fam.member1Head")}</span>
             <span className="rounded-lg bg-[var(--brand-tint)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--brand)]">
-              Family head
+              {t("fam.familyHead")}
             </span>
           </div>
 
           <AdminFormRow>
-            <AdminField label="Name (ગુજરાતી)">
+            <AdminField label={t("fam.nameGu")}>
               <AdminInput
                 gujarati
                 value={form.headNameGu}
@@ -853,7 +845,7 @@ export function FamiliesClient({
                 }}
               />
             </AdminField>
-            <AdminField label="Name (English)" required>
+            <AdminField label={t("fam.nameEn")} required>
               <AdminInput
                 speech
                 value={form.headNameEn}
@@ -866,22 +858,22 @@ export function FamiliesClient({
           </AdminFormRow>
 
           <AdminFormRow>
-            <AdminField label="Mobile number" required>
+            <AdminField label={t("fam.mobileNumber")} required>
               <AdminInput
                 value={form.headMobile}
                 onChange={(v) =>
                   setForm({ ...form, headMobile: v.replace(/\D/g, "").slice(0, 10) })
                 }
-                placeholder="10-digit mobile"
+                placeholder={t("fam.mobilePlaceholder")}
               />
             </AdminField>
-            <AdminField label="Gender · જાતિ" required>
+            <AdminField label={t("fam.gender")} required>
               <AdminSelect
                 value={form.headGender}
                 onChange={(v) => setForm((prev) => ({ ...prev, headGender: v }))}
                 className="w-full"
                 options={[
-                  { value: "", label: "Select gender…" },
+                  { value: "", label: t("fam.selectGender") },
                   ...GENDERS.map((g) => ({ value: g.value, label: `${g.en} · ${g.gu}` })),
                 ]}
               />
@@ -889,9 +881,9 @@ export function FamiliesClient({
           </AdminFormRow>
 
           <AdminField
-            label={communityType === "GAM" ? "Village / city · ગામ / શહેર" : "City · શહેર"}
+            label={communityType === "GAM" ? t("fam.villageCity") : t("fam.city")}
             required
-            hint="Where the head lives — this is also the family's place in the directory."
+            hint={t("fam.headPlaceHint")}
           >
             <MemberPlacePicker
               variant="admin"
@@ -899,12 +891,12 @@ export function FamiliesClient({
               onChange={(v) => setForm((prev) => ({ ...prev, headPlace: v }))}
               options={allPlaces}
               onAddNew={addPlace}
-              t={(_gu, en) => en}
+              t={(gu, en) => (lang === "en" ? en : gu)}
             />
           </AdminField>
 
           <AdminFormRow>
-            <AdminField label="Birth date">
+            <AdminField label={t("fam.birthDate")}>
               <DateField
                 dob
                 variant="admin"
@@ -912,12 +904,12 @@ export function FamiliesClient({
                 onChange={(v) => setForm({ ...form, headDateOfBirth: v })}
               />
             </AdminField>
-            <AdminField label="Blood group">
+            <AdminField label={t("fam.bloodGroup")}>
               <AdminSelect
                 value={form.headBloodGroup}
                 onChange={(v) => setForm({ ...form, headBloodGroup: v })}
                 className="w-full"
-                options={[{ value: "", label: "Select blood group" }, ...BLOOD_GROUPS]}
+                options={[{ value: "", label: t("fam.selectBloodGroup") }, ...BLOOD_GROUPS]}
               />
             </AdminField>
           </AdminFormRow>
@@ -949,7 +941,7 @@ export function FamiliesClient({
           >
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[12.5px] font-extrabold text-[var(--ink)]">
-                Member {i + 1}
+                {tf("fam.memberN", { n: i + 1 })}
               </span>
               <button
                 type="button"
@@ -958,12 +950,12 @@ export function FamiliesClient({
                 }
                 className="cursor-pointer text-[11.5px] font-bold text-[var(--danger)]"
               >
-                Remove
+                {t("fam.remove")}
               </button>
             </div>
 
             <AdminFormRow>
-              <AdminField label="Name (ગુજરાતી)">
+              <AdminField label={t("fam.nameGu")}>
                 <AdminInput
                   gujarati
                   value={m.fullNameGu}
@@ -973,7 +965,7 @@ export function FamiliesClient({
                   }}
                 />
               </AdminField>
-              <AdminField label="Name (English)">
+              <AdminField label={t("fam.nameEn")}>
                 <AdminInput
                   speech
                   value={m.fullNameEn}
@@ -986,7 +978,7 @@ export function FamiliesClient({
             </AdminFormRow>
 
             <AdminFormRow>
-              <AdminField label="Relation (સંબંધ)" required>
+              <AdminField label={t("fam.relation")} required>
                 <AdminSelect
                   value={m.relation}
                   onChange={(v) =>
@@ -999,7 +991,7 @@ export function FamiliesClient({
                   }
                   className="w-full"
                   options={[
-                    { value: "", label: "Select relation…" },
+                    { value: "", label: t("fam.selectRelation") },
                     ...relationOptions.map((r) => ({
                       value: r.nameEn,
                       label: `${r.nameEn}${r.nameGu && r.nameGu !== r.nameEn ? ` · ${r.nameGu}` : ""}`,
@@ -1007,20 +999,20 @@ export function FamiliesClient({
                   ]}
                 />
               </AdminField>
-              <AdminField label="Gender · જાતિ" required>
+              <AdminField label={t("fam.gender")} required>
                 <AdminSelect
                   value={m.gender}
                   onChange={(v) => updateMemberDraft(i, { gender: v })}
                   className="w-full"
                   options={[
-                    { value: "", label: "Select gender…" },
+                    { value: "", label: t("fam.selectGender") },
                     ...GENDERS.map((g) => ({ value: g.value, label: `${g.en} · ${g.gu}` })),
                   ]}
                 />
               </AdminField>
             </AdminFormRow>
 
-            <AdminField label="Mobile number">
+            <AdminField label={t("fam.mobileNumber")}>
               <AdminInput
                 value={m.mobile}
                 onChange={(v) =>
@@ -1030,8 +1022,8 @@ export function FamiliesClient({
             </AdminField>
 
             <AdminField
-              label={communityType === "GAM" ? "Village / city · ગામ / શહેર" : "City · શહેર"}
-              hint="Defaults to the head's — change it for a member living elsewhere."
+              label={communityType === "GAM" ? t("fam.villageCity") : t("fam.city")}
+              hint={t("fam.memberPlaceHint")}
             >
               <MemberPlacePicker
                 variant="admin"
@@ -1039,12 +1031,12 @@ export function FamiliesClient({
                 onChange={(v) => updateMemberDraft(i, { place: v })}
                 options={allPlaces}
                 onAddNew={addPlace}
-                t={(_gu, en) => en}
+                t={(gu, en) => (lang === "en" ? en : gu)}
               />
             </AdminField>
 
             <AdminFormRow>
-              <AdminField label="Birth date">
+              <AdminField label={t("fam.birthDate")}>
                 <DateField
                   dob
                   variant="admin"
@@ -1052,12 +1044,12 @@ export function FamiliesClient({
                   onChange={(v) => updateMemberDraft(i, { dateOfBirth: v })}
                 />
               </AdminField>
-              <AdminField label="Blood group">
+              <AdminField label={t("fam.bloodGroup")}>
                 <AdminSelect
                   value={m.bloodGroup}
                   onChange={(v) => updateMemberDraft(i, { bloodGroup: v })}
                   className="w-full"
-                  options={[{ value: "", label: "Select blood group" }, ...BLOOD_GROUPS]}
+                  options={[{ value: "", label: t("fam.selectBloodGroup") }, ...BLOOD_GROUPS]}
                 />
               </AdminField>
             </AdminFormRow>
@@ -1084,7 +1076,7 @@ export function FamiliesClient({
           }
           className="w-full cursor-pointer rounded-[13px] border-[1.5px] border-dashed border-[var(--brand-border)] bg-[var(--brand-tint-soft)] py-3 text-[13px] font-bold text-[var(--brand)]"
         >
-          ＋ Add member
+          ＋ {t("fam.addMember")}
         </button>
 
         {error && <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
@@ -1100,10 +1092,10 @@ export function FamiliesClient({
               <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
                 {membersOf
                   ? `${membersOf.headEn}${membersOf.headGu ? ` · ${membersOf.headGu}` : ""} — ${membersOf.surnameEn}${membersOf.surnameGu ? ` · ${membersOf.surnameGu}` : ""}`
-                  : "Members"}
+                  : t("fam.members")}
               </DialogTitle>
               <p className="mt-0.5 text-xs text-[var(--faint)]">
-                Full family details — manage members, visibility, login &amp; status.
+                {t("fam.detailsSubtitle")}
               </p>
             </div>
             <button
@@ -1118,7 +1110,7 @@ export function FamiliesClient({
           <div className="px-6 py-4 pb-5">
             {loadingMembers ? (
               <div className="flex items-center gap-2 py-8 text-[13px] text-[var(--faint)]">
-                <Loader2 className="size-4 animate-spin" /> Loading members…
+                <Loader2 className="size-4 animate-spin" /> {t("fam.loadingMembers")}
               </div>
             ) : (
               <>
@@ -1128,27 +1120,27 @@ export function FamiliesClient({
                   <AdminTable className="mb-4">
                     <tbody>
                       <tr>
-                        <AdminTd className="w-[110px] text-[var(--faint)]">City</AdminTd>
+                        <AdminTd className="w-[110px] text-[var(--faint)]">{t("fam.city")}</AdminTd>
                         <AdminTd>{membersOf.city || "—"}</AdminTd>
                       </tr>
                       <tr>
-                        <AdminTd className="text-[var(--faint)]">Mobile</AdminTd>
+                        <AdminTd className="text-[var(--faint)]">{t("fam.mobile")}</AdminTd>
                         <AdminTd>{membersOf.mobile || "—"}</AdminTd>
                       </tr>
                       <tr>
-                        <AdminTd className="text-[var(--faint)]">Address</AdminTd>
+                        <AdminTd className="text-[var(--faint)]">{t("fam.address")}</AdminTd>
                         <AdminTd>{extra.addressGu || extra.addressEn || "—"}</AdminTd>
                       </tr>
                       <tr>
-                        <AdminTd className="text-[var(--faint)]">Native place</AdminTd>
+                        <AdminTd className="text-[var(--faint)]">{t("fam.nativePlace")}</AdminTd>
                         <AdminTd>{extra.nativePlace || "—"}</AdminTd>
                       </tr>
                       <tr>
-                        <AdminTd className="text-[var(--faint)]">Business</AdminTd>
+                        <AdminTd className="text-[var(--faint)]">{t("fam.business")}</AdminTd>
                         <AdminTd>{extra.businessGu || "—"}</AdminTd>
                       </tr>
                       <tr>
-                        <AdminTd className="text-[var(--faint)]">Native elder</AdminTd>
+                        <AdminTd className="text-[var(--faint)]">{t("fam.nativeElder")}</AdminTd>
                         <AdminTd>
                           {extra.nativeElderNameGu || extra.nativeElderNameEn || "—"}
                           {extra.nativeElderPhone ? ` · ${extra.nativeElderPhone}` : ""}
@@ -1159,11 +1151,11 @@ export function FamiliesClient({
                 )}
 
                 <h4 className="mb-2 text-sm font-extrabold text-[var(--ink)]">
-                  Members ({members.length})
+                  {t("fam.members")} ({members.length})
                 </h4>
                 {members.map((m, i) => {
                   const col = MEMBER_COLORS[i % 5];
-                  const name = m.fullNameGu || m.fullNameEn;
+                  const name = lang === "en" ? m.fullNameEn || m.fullNameGu || "" : m.fullNameGu || m.fullNameEn;
                   return (
                     <div
                       key={m.id}
@@ -1184,12 +1176,12 @@ export function FamiliesClient({
                             {name}
                             {m.isHead && (
                               <span className="ml-1 rounded-[7px] bg-[var(--brand-tint)] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[var(--brand)]">
-                                વડા
+                                {t("fam.head")}
                               </span>
                             )}
                           </div>
                           <div className="text-[11.5px] text-[var(--faint)]">
-                            {(m.relation || "Member")} · {m.mobile || "— no login"}
+                            {(m.relation || t("fam.memberFallback"))} · {m.mobile || t("fam.noLogin")}
                           </div>
                         </div>
 
@@ -1203,7 +1195,7 @@ export function FamiliesClient({
                             m.isVisible ? "bg-[var(--success-tint)] text-[var(--success)]" : "bg-[var(--line-soft)] text-[var(--muted)]",
                           )}
                         >
-                          {m.isVisible ? "👁 Visible" : "🚫 Hidden"}
+                          {m.isVisible ? t("fam.visible") : t("fam.hidden")}
                         </button>
                         {!m.isHead && (
                           <button
@@ -1211,7 +1203,7 @@ export function FamiliesClient({
                             onClick={() => makeHead(m)}
                             className="cursor-pointer rounded-[9px] bg-[var(--brand-tint)] px-[11px] py-1.5 text-[11.5px] font-bold text-[var(--brand)]"
                           >
-                            Make head
+                            {t("fam.makeHead")}
                           </button>
                         )}
                         <button
@@ -1219,7 +1211,7 @@ export function FamiliesClient({
                           onClick={() => changeLogin(m)}
                           className="cursor-pointer rounded-[9px] bg-[#EEF1F6] px-[11px] py-1.5 text-[11.5px] font-bold text-[#4A5B72]"
                         >
-                          Change login #
+                          {t("fam.changeLogin")}
                         </button>
                         <button
                           type="button"
@@ -1229,7 +1221,7 @@ export function FamiliesClient({
                             m.isDeceased ? "bg-[var(--ink)] text-white" : "bg-[var(--line-soft)] text-[var(--muted)]",
                           )}
                         >
-                          {m.isDeceased ? "✓ સ્વર્ગસ્થ" : "Mark deceased"}
+                          {m.isDeceased ? t("fam.deceased") : t("fam.markDeceased")}
                         </button>
                       </div>
                     </div>

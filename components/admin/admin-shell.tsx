@@ -17,11 +17,14 @@ import {
   Shield,
   LogOut,
   Ellipsis,
+  Languages,
   type LucideIcon,
 } from "lucide-react";
 import { ADMIN_NAV } from "@/lib/constants";
 import { TooltipProvider, WithTooltip } from "@/components/ui/tooltip";
 import { SidebarCollapseToggle } from "@/components/ui/sidebar-collapse-toggle";
+import { SidebarLangToggle } from "@/components/ui/lang-toggle";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 
 const NAV_ICONS: Record<string, LucideIcon> = {
@@ -62,9 +65,13 @@ export function AdminShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t, lang } = useAdminT();
   const shortLogo = (logoText || communityNameEn).slice(0, 3);
   const [collapsed, setCollapsed] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+
+  /** ADMIN_NAV keys are mirrored 1:1 as `nav.*` dictionary entries. */
+  const navLabel = (key: string) => t(`nav.${key}` as AdminKey);
 
   useEffect(() => {
     try {
@@ -117,7 +124,8 @@ export function AdminShell({
     router.refresh();
   }
 
-  const brand = communityNameGu || communityNameEn;
+  const brand =
+    (lang === "en" ? communityNameEn : communityNameGu) || communityNameGu || communityNameEn;
 
   return (
     <TooltipProvider delay={120}>
@@ -142,7 +150,7 @@ export function AdminShell({
                 )}
               >
                 <WithTooltip
-                  label={collapsed ? "Open sidebar" : brand}
+                  label={collapsed ? t("common.openSidebar") : brand}
                   side="right"
                   disabled={!collapsed}
                 >
@@ -156,7 +164,7 @@ export function AdminShell({
                       collapsed && "cursor-pointer ring-offset-2 hover:ring-2 hover:ring-[var(--line-input)]",
                     )}
                     style={{ background: primaryColor }}
-                    aria-label={collapsed ? "Open sidebar" : brand}
+                    aria-label={collapsed ? t("common.openSidebar") : brand}
                   >
                     {logoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -188,7 +196,7 @@ export function AdminShell({
                   const count = item.badge ? (badges[item.badge] ?? 0) : 0;
                   const badge = count > 0 ? String(count) : null;
                   return (
-                    <WithTooltip key={item.key} label={item.label} side="right" disabled={!collapsed}>
+                    <WithTooltip key={item.key} label={navLabel(item.key)} side="right" disabled={!collapsed}>
                       <Link
                         href={item.href}
                         className={cn(
@@ -206,7 +214,7 @@ export function AdminShell({
                             collapsed ? "max-w-0 opacity-0" : "max-w-[140px] opacity-100",
                           )}
                         >
-                          {item.label}
+                          {navLabel(item.key)}
                         </span>
                         {badge && (
                           <span
@@ -228,11 +236,15 @@ export function AdminShell({
 
               <div
                 className={cn(
-                  "mt-auto w-full border-t border-[var(--line-admin)] pt-2 transition-[padding] duration-300",
-                  collapsed ? "flex justify-center px-0" : "px-2",
+                  "mt-auto flex w-full flex-col gap-1 border-t border-[var(--line-admin)] pt-2 transition-[padding] duration-300",
+                  collapsed ? "items-center px-0" : "px-2",
                 )}
               >
-                <WithTooltip label="Logout" side="right" disabled={!collapsed}>
+                {/* ponytail: native title= is the tooltip here — WithTooltip's
+                    base-ui `render` needs a DOM child, not a component. */}
+                <SidebarLangToggle collapsed={collapsed} />
+
+                <WithTooltip label={t("common.logout")} side="right" disabled={!collapsed}>
                   <button
                     type="button"
                     onClick={logout}
@@ -248,14 +260,20 @@ export function AdminShell({
                         collapsed ? "max-w-0 opacity-0" : "max-w-[100px] opacity-100",
                       )}
                     >
-                      Logout
+                      {t("common.logout")}
                     </span>
                   </button>
                 </WithTooltip>
               </div>
             </nav>
 
-            <SidebarCollapseToggle collapsed={collapsed} onToggle={toggleCollapsed} theme="light" />
+            <SidebarCollapseToggle
+              collapsed={collapsed}
+              onToggle={toggleCollapsed}
+              theme="light"
+              openLabel={t("common.openSidebar")}
+              closeLabel={t("common.closeSidebar")}
+            />
           </aside>
 
           <div className="admin-scroll min-w-0 flex-1 overflow-y-auto bg-white px-8 py-7 max-md:px-[15px] max-md:pb-24 max-md:pt-[18px]">
@@ -280,7 +298,7 @@ export function AdminShell({
                 )}
               >
                 <Icon className="size-5" strokeWidth={2.1} />
-                <span className="max-w-full truncate">{item.label.split(" ")[0]}</span>
+                <span className="max-w-full truncate">{navLabel(key).split(" ")[0]}</span>
                 {badge && <span className="absolute right-2 top-1.5 size-1.5 rounded-full bg-[var(--gold)]" />}
               </Link>
             );
@@ -294,7 +312,7 @@ export function AdminShell({
             )}
           >
             <Ellipsis className="size-5" strokeWidth={2.2} />
-            <span>More</span>
+            <span>{t("common.more")}</span>
           </button>
         </nav>
 
@@ -302,19 +320,19 @@ export function AdminShell({
           <div className="fixed inset-0 z-50 md:hidden">
             <button
               type="button"
-              aria-label="Close more menu"
+              aria-label={t("common.close")}
               className="absolute inset-0 bg-black/35"
               onClick={() => setMoreOpen(false)}
             />
             <div className="absolute inset-x-0 bottom-0 rounded-t-2xl border border-[var(--line-admin)] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_30px_rgba(30,25,40,.18)]">
               <div className="flex items-center justify-between border-b border-[#F0EAE0] px-4 py-3">
-                <p className="text-[14px] font-extrabold text-[var(--ink)]">More</p>
+                <p className="text-[14px] font-extrabold text-[var(--ink)]">{t("common.more")}</p>
                 <button
                   type="button"
                   onClick={() => setMoreOpen(false)}
                   className="cursor-pointer rounded-lg px-2 py-1 text-[12px] font-bold text-[#8A8378]"
                 >
-                  Close
+                  {t("common.close")}
                 </button>
               </div>
               <div className="max-h-[60vh] overflow-y-auto px-2 py-2">
@@ -336,7 +354,7 @@ export function AdminShell({
                       )}
                     >
                       <Icon className="size-5 shrink-0" strokeWidth={2.1} />
-                      <span className="min-w-0 flex-1">{item.label}</span>
+                      <span className="min-w-0 flex-1">{navLabel(item.key)}</span>
                       {badge && (
                         <span className="rounded-[11px] border border-[#E9CE7A] bg-[#FEF0CE] px-2 py-px text-[10.5px] font-extrabold text-[#8A6D1E]">
                           {badge}
@@ -345,13 +363,23 @@ export function AdminShell({
                     </Link>
                   );
                 })}
+                <div className="mt-2 flex items-center gap-3 px-3 py-2">
+                  <Languages className="size-5 shrink-0 text-[#8A8378]" strokeWidth={2.1} />
+                  <span className="flex-1 text-[14px] font-semibold text-[var(--ink)]">
+                    {t("common.language")}
+                  </span>
+                  <div className="w-[124px] shrink-0">
+                    <SidebarLangToggle />
+                  </div>
+                </div>
+
                 <button
                   type="button"
                   onClick={logout}
                   className="mt-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-[14px] font-bold text-[var(--danger)] hover:bg-[var(--brand-tint)]"
                 >
                   <LogOut className="size-5 shrink-0" strokeWidth={2.2} />
-                  <span>Logout</span>
+                  <span>{t("common.logout")}</span>
                 </button>
               </div>
             </div>

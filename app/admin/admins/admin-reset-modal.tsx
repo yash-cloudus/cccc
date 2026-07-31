@@ -8,6 +8,7 @@ import {
   AdminPasswordField,
   generatePassword,
 } from "@/components/admin/admin-form";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 import type { AdminRow } from "./admin-roles";
 
 /**
@@ -28,6 +29,7 @@ export function AdminResetModal({
   onClose: () => void;
   onSubmit: (password: string) => void;
 }) {
+  const { t } = useAdminT();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -41,8 +43,8 @@ export function AdminResetModal({
   }, [row]);
 
   function submit() {
-    if (password.trim().length < 4) return setLocalError("Password must be at least 4 characters");
-    if (password !== confirm) return setLocalError("Password and confirm password do not match");
+    if (password.trim().length < 4) return setLocalError(t("adm.errPwShort"));
+    if (password !== confirm) return setLocalError(t("adm.errPwMismatch"));
     setLocalError(null);
     onSubmit(password.trim());
   }
@@ -51,14 +53,19 @@ export function AdminResetModal({
     <AdminModal
       open={row !== null}
       onClose={onClose}
-      title="Reset password"
+      title={t("adm.resetPassword")}
       subtitle={row ? [row.nameGu || row.name, row.username].filter(Boolean).join(" · ") : undefined}
       width="sm"
       footer={
-        <AdminModalActions onSave={submit} onCancel={onClose} saveLabel="Set password" busy={busy} />
+        <AdminModalActions
+          onSave={submit}
+          onCancel={onClose}
+          saveLabel={t("adm.setPassword")}
+          busy={busy}
+        />
       }
     >
-      <AdminField label="New password" required>
+      <AdminField label={t("adm.newPassword")} required>
         <AdminPasswordField
           value={password}
           onChange={setPassword}
@@ -68,7 +75,7 @@ export function AdminResetModal({
           }}
         />
       </AdminField>
-      <AdminField label="Confirm password" required>
+      <AdminField label={t("adm.confirmPassword")} required>
         <AdminPasswordField value={confirm} onChange={setConfirm} />
       </AdminField>
       {(localError || error) && (

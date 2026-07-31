@@ -135,30 +135,43 @@ export async function getAdminDashboard(communityId: string) {
     byStandard.set(e.standard, row);
   }
 
-  // Build activity feed: merge recent families, news, ads and sort by date
+  // Build activity feed: merge recent families, news, ads and sort by date.
+  // Labels stay as dictionary keys and names carry both scripts — the dashboard
+  // is a client component and resolves both against the active language.
   type ActivityItem = {
     type: "family" | "news" | "ad" | "result";
-    label: string;
-    sublabel: string;
+    /** Key into the admin dictionary (`dash.act*`). */
+    labelKey: "dash.actFamily" | "dash.actNews" | "dash.actAd";
+    sublabelGu: string;
+    sublabelEn: string;
+    /** Appends the localised "family" word after the name. */
+    familySuffix?: boolean;
     at: Date;
   };
   const activity: ActivityItem[] = [
-    ...recentFamiliesRaw.map((f) => ({
-      type: "family" as const,
-      label: "નવું પરિવાર ઉમેરાયું",
-      sublabel: (f.headNameGu || f.headNameEn || "") + (f.surnameEn ? ` ${f.surnameEn}` : "") + " પરિવાર",
-      at: f.submittedAt,
-    })),
+    ...recentFamiliesRaw.map((f) => {
+      const surname = f.surnameEn ? ` ${f.surnameEn}` : "";
+      return {
+        type: "family" as const,
+        labelKey: "dash.actFamily" as const,
+        sublabelGu: `${f.headNameGu || f.headNameEn || ""}${surname}`,
+        sublabelEn: `${f.headNameEn || f.headNameGu || ""}${surname}`,
+        familySuffix: true,
+        at: f.submittedAt,
+      };
+    }),
     ...recentNewsRaw.map((n) => ({
       type: "news" as const,
-      label: "સમાચાર પ્રકાશિત",
-      sublabel: n.titleGu || n.titleEn || "સમાચાર",
+      labelKey: "dash.actNews" as const,
+      sublabelGu: n.titleGu || n.titleEn || "",
+      sublabelEn: n.titleEn || n.titleGu || "",
       at: n.publishedAt ?? new Date(0),
     })),
     ...recentAdsRaw.map((a) => ({
       type: "ad" as const,
-      label: "જાહેરાત બનાવાઈ",
-      sublabel: a.name,
+      labelKey: "dash.actAd" as const,
+      sublabelGu: a.name,
+      sublabelEn: a.name,
       at: a.createdAt,
     })),
   ]
@@ -194,15 +207,18 @@ export async function getAdminDashboard(communityId: string) {
     adPerformance,
     recentFamilies: recentFamiliesRaw.map((f) => ({
       id: f.id,
-      headName: f.headNameGu || f.headNameEn || "—",
+      headNameGu: f.headNameGu || f.headNameEn || "—",
+      headNameEn: f.headNameEn || f.headNameGu || "—",
       surname: f.surnameEn || "",
       memberCount: f._count.familyMembers,
       submittedAt: f.submittedAt.toISOString(),
     })),
     recentActivity: activity.map((a) => ({
       type: a.type,
-      label: a.label,
-      sublabel: a.sublabel,
+      labelKey: a.labelKey,
+      sublabelGu: a.sublabelGu,
+      sublabelEn: a.sublabelEn,
+      familySuffix: a.familySuffix ?? false,
       at: a.at.toISOString(),
     })),
   };

@@ -33,6 +33,7 @@ import {
   isDiplomaLevel,
   isStreamLevel,
 } from "@/lib/occupation-defaults";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 
 type FlatRow = {
@@ -61,6 +62,7 @@ function SubRow({
   onDelete: (node: OccupationTreeNode) => void;
   onAddChild?: (parentId: string) => void;
 }) {
+  const { t, tf } = useAdminT();
   const showStreams = isStreamLevel(node.nameEn);
   const showFields = isDiplomaLevel(node.nameEn);
 
@@ -73,22 +75,22 @@ function SubRow({
         </div>
         <AdminToggle
           on={node.isActive}
-          label={`${node.nameEn} enabled`}
+          label={tf("drop.toggleAria", { name: node.nameEn })}
           onChange={() => onToggle(node)}
         />
-        <LinkAction onClick={() => onEdit(node)}>edit</LinkAction>
+        <LinkAction onClick={() => onEdit(node)}>{t("common.edit")}</LinkAction>
         {onAddChild && (
-          <LinkAction onClick={() => onAddChild(node.id)}>+ nested</LinkAction>
+          <LinkAction onClick={() => onAddChild(node.id)}>{t("drop.addNested")}</LinkAction>
         )}
         <LinkAction danger onClick={() => onDelete(node)}>
-          delete
+          {t("common.delete")}
         </LinkAction>
       </div>
 
       {showStreams && node.children.length > 0 && (
         <div className="mb-2">
           <div className="mb-1.5 text-[10.5px] font-extrabold tracking-wide text-[var(--faint)] uppercase">
-            Streams · પ્રવાહ
+            {t("drop.streams")}
           </div>
           {node.children.map((c) => (
             <SubRow
@@ -106,7 +108,7 @@ function SubRow({
       {showFields && node.children.length > 0 && (
         <div className="mb-2">
           <div className="mb-1.5 text-[10.5px] font-extrabold tracking-wide text-[var(--faint)] uppercase">
-            Diploma fields · ક્ષેત્ર
+            {t("drop.diplomaFields")}
           </div>
           {node.children.map((c) => (
             <SubRow
@@ -161,6 +163,7 @@ function QuickOptionButtons({
   onEdit: (node: OccupationTreeNode) => void;
   onDelete: (node: OccupationTreeNode) => void;
 }) {
+  const { t } = useAdminT();
   return (
     <div className="flex flex-col gap-2.5">
       {defaults.map((opt) => {
@@ -185,7 +188,7 @@ function QuickOptionButtons({
                 className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-white/15 px-2.5 py-1.5 text-[11.5px] font-bold hover:bg-white/25"
               >
                 <Pencil className="size-3.5" />
-                edit
+                {t("common.edit")}
               </button>
               <button
                 type="button"
@@ -193,7 +196,7 @@ function QuickOptionButtons({
                 className="inline-flex cursor-pointer items-center gap-1 rounded-lg bg-black/15 px-2.5 py-1.5 text-[11.5px] font-bold hover:bg-black/25"
               >
                 <Trash2 className="size-3.5" />
-                delete
+                {t("common.delete")}
               </button>
             </div>
           );
@@ -228,6 +231,7 @@ export function OccupationNestedPanel({
   variant?: "cards" | "table";
   onChanged?: () => void;
 }) {
+  const { t, tf, lang } = useAdminT();
   const { fromEn, guInput } = useTranslitSync();
   const [tree, setTree] = useState<OccupationTreeNode[]>([]);
   const [loading, setLoading] = useState(false);
@@ -247,14 +251,14 @@ export function OccupationNestedPanel({
     const res = await api.get<FlatRow[]>("/api/admin/dropdowns?type=occupation");
     setLoading(false);
     if (!res.ok) {
-      toast.error(res.error || "Could not load sub-categories");
+      toast.error(res.error || t("drop.errLoadSubs"));
       return;
     }
     const full = buildOccupationTree(res.data);
     // Std 11/12 live under Student — must search the whole tree, not only roots.
     const node = findOccupationNodeById(full, root.id);
     setTree(node?.children ?? []);
-  }, [root.id]);
+  }, [root.id, t]);
 
   useEffect(() => {
     if (active) load();
@@ -281,18 +285,18 @@ export function OccupationNestedPanel({
     });
     setBusyKey(null);
     if (!res.ok) {
-      toast.error(res.error || "Could not add");
+      toast.error(res.error || t("drop.errAdd"));
       return;
     }
     await load();
     onChanged?.();
-    toast.success(`${opt.nameEn} added`);
+    toast.success(tf("drop.toastAdded", { noun: lang === "en" ? opt.nameEn : opt.nameGu }));
   }
 
   async function save() {
     if (!edit) return;
     if (!edit.nameEn.trim() || !edit.nameGu.trim()) {
-      setError("Both English and ગુજરાતી are required");
+      setError(t("drop.errBothRequired"));
       return;
     }
     setBusy(true);
@@ -314,7 +318,7 @@ export function OccupationNestedPanel({
     setEdit(null);
     await load();
     onChanged?.();
-    toast.success(edit.id ? "Sub-category updated" : "Sub-category added");
+    toast.success(t(edit.id ? "drop.toastSubUpdated" : "drop.toastSubAdded"));
   }
 
   async function toggleActive(node: OccupationTreeNode) {
@@ -326,7 +330,7 @@ export function OccupationNestedPanel({
       ...(next ? { needsReview: false } : {}),
     });
     if (!res.ok) {
-      toast.error(res.error || "Could not change status");
+      toast.error(res.error || t("drop.errStatus"));
       return;
     }
     await load();
@@ -335,20 +339,22 @@ export function OccupationNestedPanel({
 
   async function remove(node: OccupationTreeNode) {
     const ok = await confirmDialog({
-      title: `Delete “${node.nameEn}”?`,
-      description: "Nested sub-categories will also be removed.",
-      confirmLabel: "Delete",
+      title: tf("drop.confirmDeleteTitle", {
+        name: lang === "en" ? node.nameEn || node.nameGu : node.nameGu || node.nameEn,
+      }),
+      description: t("drop.confirmDeleteNested"),
+      confirmLabel: t("common.delete"),
       tone: "danger",
     });
     if (!ok) return;
     const res = await api.del(`/api/admin/dropdowns?id=${node.id}`);
     if (!res.ok) {
-      toast.error(res.error || "Could not delete");
+      toast.error(res.error || t("drop.errDelete"));
       return;
     }
     await load();
     onChanged?.();
-    toast.success("Deleted");
+    toast.success(t("drop.toastDeletedSimple"));
   }
 
   async function addAllDefaults() {
@@ -357,7 +363,7 @@ export function OccupationNestedPanel({
       (d) => !tree.some((c) => c.nameEn.toLowerCase() === d.nameEn.toLowerCase()),
     );
     if (missing.length === 0) {
-      toast.message("All defaults are already added");
+      toast.message(t("drop.allDefaultsPresent"));
       return;
     }
     setBusy(true);
@@ -370,21 +376,24 @@ export function OccupationNestedPanel({
         sortOrder: opt.sortOrder,
       });
       if (!res.ok) {
-        toast.error(res.error || `Could not add ${opt.nameEn}`);
+        toast.error(
+          res.error ||
+            tf("drop.errAddNamed", { name: lang === "en" ? opt.nameEn : opt.nameGu }),
+        );
         break;
       }
     }
     setBusy(false);
     await load();
     onChanged?.();
-    toast.success("Default options added");
+    toast.success(t("drop.defaultsAdded"));
   }
 
   const sectionTitle = isStreamRoot
-    ? "Streams · પ્રવાહ"
+    ? t("drop.streams")
     : isDiplomaRoot
-      ? "Diploma fields · ડિપ્લોમા ક્ષેત્ર"
-      : "Sub-categories";
+      ? t("drop.diplomaFields")
+      : t("drop.subCategories");
 
   if (variant === "table") {
     /** Under Std 11/12 / Diploma, children are leaf streams/fields — no further Nested. */
@@ -399,10 +408,10 @@ export function OccupationNestedPanel({
           <div className="flex flex-wrap gap-2">
             {isQuickPickRoot && (
               <LinkAction onClick={addAllDefaults}>
-                {busy ? "…" : isStreamRoot ? "+ Add all streams" : "+ Add all fields"}
+                {busy ? "…" : isStreamRoot ? t("drop.addAllStreams") : t("drop.addAllFields")}
               </LinkAction>
             )}
-            <LinkAction onClick={() => openEdit(root.id)}>+ Add</LinkAction>
+            <LinkAction onClick={() => openEdit(root.id)}>{t("drop.addPlus")}</LinkAction>
           </div>
         </div>
 
@@ -415,11 +424,11 @@ export function OccupationNestedPanel({
             <thead>
               <tr>
                 {childCanNest && <AdminTh className="w-10" />}
-                <AdminTh>English</AdminTh>
-                <AdminTh>ગુજરાતી</AdminTh>
-                <AdminTh>Status</AdminTh>
-                {childCanNest && <AdminTh>Subs</AdminTh>}
-                <AdminTh className="text-right">Actions</AdminTh>
+                <AdminTh>{t("drop.thEnglish")}</AdminTh>
+                <AdminTh>{t("drop.thGujarati")}</AdminTh>
+                <AdminTh>{t("drop.thStatus")}</AdminTh>
+                {childCanNest && <AdminTh>{t("drop.thSubs")}</AdminTh>}
+                <AdminTh className="text-right">{t("drop.thActions")}</AdminTh>
               </tr>
             </thead>
             <tbody>
@@ -436,7 +445,7 @@ export function OccupationNestedPanel({
                           {hasSubs ? (
                             <button
                               type="button"
-                              aria-label={childOpen ? "Collapse" : "Expand"}
+                              aria-label={childOpen ? t("drop.collapse") : t("drop.expand")}
                               onClick={() =>
                                 setExpandedChildId((prev) => (prev === node.id ? null : node.id))
                               }
@@ -461,7 +470,9 @@ export function OccupationNestedPanel({
                         <span className="flex items-center gap-2.5">
                           <AdminToggle
                             on={node.isActive}
-                            label={`${node.nameEn} enabled`}
+                            label={tf("drop.toggleAria", {
+                              name: lang === "en" ? node.nameEn : node.nameGu || node.nameEn,
+                            })}
                             onChange={() => toggleActive(node)}
                           />
                           <span
@@ -471,7 +482,7 @@ export function OccupationNestedPanel({
                                 : "text-[12px] font-bold text-[var(--faint)]"
                             }
                           >
-                            {node.isActive ? "Enabled" : "Disabled"}
+                            {node.isActive ? t("drop.enabled") : t("drop.disabled")}
                           </span>
                         </span>
                       </AdminTd>
@@ -490,12 +501,14 @@ export function OccupationNestedPanel({
                                 setExpandedChildId((prev) => (prev === node.id ? null : node.id))
                               }
                             >
-                              {childOpen ? "Hide" : "Nested"}
+                              {childOpen ? t("drop.hide") : t("drop.nested")}
                             </LinkAction>
                           )}
-                          <LinkAction onClick={() => openEdit(node.parentId, node)}>edit</LinkAction>
+                          <LinkAction onClick={() => openEdit(node.parentId, node)}>
+                            {t("common.edit")}
+                          </LinkAction>
                           <LinkAction danger onClick={() => remove(node)}>
-                            delete
+                            {t("common.delete")}
                           </LinkAction>
                         </span>
                       </AdminTd>
@@ -528,13 +541,11 @@ export function OccupationNestedPanel({
                     colSpan={childCanNest ? 6 : 4}
                     className="py-6 text-center text-[var(--faint)]"
                   >
-                    No nested options yet. Use + Add
                     {isQuickPickRoot
-                      ? isStreamRoot
-                        ? " or + Add all streams"
-                        : " or + Add all fields"
-                      : ""}
-                    .
+                      ? tf("drop.noNestedOr", {
+                          extra: isStreamRoot ? t("drop.addAllStreams") : t("drop.addAllFields"),
+                        })
+                      : t("drop.noNested")}
                   </AdminTd>
                 </tr>
               )}
@@ -567,12 +578,12 @@ export function OccupationNestedPanel({
           <DialogContent className="max-w-[360px] rounded-2xl sm:max-w-[360px]">
             <DialogHeader>
               <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
-                {edit?.id ? "Edit" : "Add"} nested option
+                {t(edit?.id ? "drop.editNestedOption" : "drop.addNestedOption")}
               </DialogTitle>
             </DialogHeader>
             {edit && (
               <div>
-                <AdminLabel>English *</AdminLabel>
+                <AdminLabel>{t("drop.thEnglish")} *</AdminLabel>
                 <AdminInput
                   value={edit.nameEn}
                   onChange={(v) => {
@@ -625,9 +636,7 @@ export function OccupationNestedPanel({
       ) : isQuickPickRoot ? (
         <>
           <p className="mb-3 text-[12.5px] font-semibold text-[var(--ink-dim)]">
-            {isStreamRoot
-              ? "Streams · પ્રવાહ — Science, Commerce, Arts"
-              : "Diploma fields · ડિપ્લોમા ક્ષેત્ર"}
+            {t(isStreamRoot ? "drop.quickStreams" : "drop.quickDiploma")}
           </p>
 
           <QuickOptionButtons

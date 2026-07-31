@@ -15,10 +15,38 @@ import {
   type RosterRow,
 } from "@/lib/result-drive";
 import { api } from "@/lib/http";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
+import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 import { waLink } from "@/lib/format";
 
 function stop(e: React.MouseEvent) {
   e.stopPropagation();
+}
+
+const STATUS_KEYS = {
+  none: "res.stNone",
+  PENDING: "res.stPending",
+  APPROVED: "res.stApproved",
+  REJECTED: "res.stRejected",
+  RESUBMIT: "res.stResubmit",
+} as const;
+
+const CHIP_KEYS = {
+  "Blurry / unclear marksheet": "res.chipBlurry",
+  "Wrong marksheet uploaded": "res.chipWrong",
+  "Marks do not match": "res.chipMarksMismatch",
+  "Incomplete document": "res.chipIncomplete",
+} as const;
+
+/** Display name for a standard / stream — the seed lists carry both languages. */
+function levelLabel(value: string, lang: string): string {
+  const m = EDUCATION_LEVELS.find((l) => l.nameEn === value || l.nameGu === value);
+  return m ? (lang === "gu" ? m.nameGu : m.nameEn) : value;
+}
+
+function streamLabel(value: string, lang: string): string {
+  const m = DEFAULT_STREAMS.find((s) => s.nameEn === value || s.nameGu === value);
+  return m ? (lang === "gu" ? m.nameGu : m.nameEn) : value;
 }
 
 export function VerifyResultModal({
@@ -46,6 +74,7 @@ export function VerifyResultModal({
   onNext: () => void;
   busy: boolean;
 }) {
+  const { t, lang } = useAdminT();
   const meta = rosterStatusMeta(row.status);
   const stream = row.stream;
   const sc = stream ? streamColors(stream) : null;
@@ -58,7 +87,9 @@ export function VerifyResultModal({
         onClick={stop}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#F1EBDE] bg-white px-6 py-4">
-          <h3 className="text-base font-extrabold text-[#2A2620]">Verify result — {standard}</h3>
+          <h3 className="text-base font-extrabold text-[#2A2620]">
+            {t("res.verifyResult")} — {levelLabel(standard, lang)}
+          </h3>
           <button type="button" onClick={onClose} className="cursor-pointer text-xl leading-none text-[#A79E92]">
             ✕
           </button>
@@ -70,20 +101,20 @@ export function VerifyResultModal({
                 isPdf(row.marksheetUrl) ? (
                   <iframe
                     src={row.marksheetUrl}
-                    title="Marksheet"
+                    title={t("res.marksheet")}
                     className="h-[260px] w-full rounded-xl border border-[#EDE4D4]"
                   />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={row.marksheetUrl}
-                    alt="Marksheet"
+                    alt={t("res.marksheet")}
                     className="max-h-[260px] w-full rounded-xl border border-[#EDE4D4] object-contain bg-[#FBFAF7]"
                   />
                 )
               ) : (
                 <div className="flex h-[260px] w-full items-center justify-center rounded-xl bg-gradient-to-br from-[#3B4A63] to-[#22304A] text-[13px] text-white/50">
-                  No marksheet uploaded
+                  {t("res.noMarksheet")}
                 </div>
               )}
             </div>
@@ -98,34 +129,34 @@ export function VerifyResultModal({
                     className="inline-block rounded-full px-2.5 py-0.5 text-[10.5px] font-bold"
                     style={{ background: meta.bg, color: meta.fg }}
                   >
-                    {meta.label}
+                    {t(STATUS_KEYS[row.status])}
                   </span>
                 </div>
               </div>
               <table className="mb-3 w-full text-[13px]">
                 <tbody>
                   {[
-                    ["Family", row.familyLabel],
-                    ["Mobile", row.mobile || "—"],
-                    ["School / College", row.schoolName || "—"],
+                    [t("res.thFamily"), row.familyLabel],
+                    [t("res.thMobile"), row.mobile || "—"],
+                    [t("res.thSchool"), row.schoolName || "—"],
                     [
-                      "Standard",
+                      t("res.standard"),
                       stream && sc ? (
                         <span key="std">
-                          {standard}{" "}
+                          {levelLabel(standard, lang)}{" "}
                           <span
                             className="inline-block rounded-full px-2.5 py-0.5 text-[10.5px] font-bold"
                             style={{ background: sc.bg, color: sc.fg }}
                           >
-                            {stream}
+                            {streamLabel(stream, lang)}
                           </span>
                         </span>
                       ) : (
-                        standard
+                        levelLabel(standard, lang)
                       ),
                     ],
-                    ["Total marks", row.totalMarks ?? "—"],
-                    ["Obtained", row.obtainedMarks ?? "—"],
+                    [t("res.totalMarks"), row.totalMarks ?? "—"],
+                    [t("res.obtained"), row.obtainedMarks ?? "—"],
                   ].map(([label, val]) => (
                     <tr key={String(label)}>
                       <td className="w-[110px] py-1.5 text-[#938C80]">{label}</td>
@@ -136,29 +167,29 @@ export function VerifyResultModal({
               </table>
               <div className="rounded-xl border border-[#B7E6C6] bg-[#F0FBF3] px-3 py-3 text-center">
                 <div className="text-[26px] font-extrabold text-[#22A45D]">{pct}</div>
-                <div className="text-[11.5px] text-[#6B6357]">auto-calculated · manual entry disabled</div>
+                <div className="text-[11.5px] text-[#6B6357]">{t("res.autoCalcNote")}</div>
               </div>
             </div>
           </div>
           {!viewOnly && row.status !== "none" && (
             <div className="mt-4 flex flex-wrap gap-2">
               <AdminBtn onClick={onApprove} disabled={busy}>
-                ✓ Approve
+                ✓ {t("res.approve")}
               </AdminBtn>
               <AdminBtn variant="ghost" onClick={onSaveNext} disabled={busy}>
-                ✓ Save &amp; next
+                ✓ {t("res.saveNext")}
               </AdminBtn>
               <AdminBtn variant="ghost" onClick={onReject} disabled={busy} className="!text-[#B0303A] !border-[#EFCED1]">
-                ✕ Reject
+                ✕ {t("res.reject")}
               </AdminBtn>
               {hasNav && (
                 <>
                   <div className="flex-1" />
                   <AdminBtn variant="ghost" onClick={onPrev} disabled={busy}>
-                    ‹ Prev
+                    ‹ {t("res.prev")}
                   </AdminBtn>
                   <AdminBtn variant="ghost" onClick={onNext} disabled={busy}>
-                    Next ›
+                    {t("res.next")} ›
                   </AdminBtn>
                 </>
               )}
@@ -181,6 +212,7 @@ export function RejectResultModal({
   onConfirm: (reason: string) => void;
   busy: boolean;
 }) {
+  const { t } = useAdminT();
   const [reason, setReason] = useState("");
   const [err, setErr] = useState(false);
 
@@ -191,37 +223,40 @@ export function RejectResultModal({
         onClick={stop}
       >
         <div className="border-b border-[#F1EBDE] px-6 py-[18px]">
-          <h3 className="text-base font-extrabold text-[#2A2620]">Reject result</h3>
+          <h3 className="text-base font-extrabold text-[#2A2620]">{t("res.rejectResult")}</h3>
           <p className="mt-0.5 text-[12px] text-[#938C80]">
-            {row.studentName} — notified on WhatsApp; the reason shows in the app.
+            {row.studentName} — {t("res.rejectNote")}
           </p>
         </div>
         <div className="px-6 py-[18px]">
-          <AdminLabel>Reject reason *</AdminLabel>
+          <AdminLabel>{t("res.rejectReason")}</AdminLabel>
           <div className="mb-3 flex flex-wrap gap-1.5">
-            {REJECT_REASON_CHIPS.map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => setReason(chip)}
-                className="cursor-pointer rounded-2xl border-[1.5px] px-3 py-1.5 text-[12px] font-bold"
-                style={{
-                  borderColor: reason === chip ? "#B0303A" : "#E6E0D3",
-                  background: reason === chip ? "#FCE7E7" : "#fff",
-                  color: reason === chip ? "#B0303A" : "#6B6357",
-                }}
-              >
-                {chip}
-              </button>
-            ))}
+            {REJECT_REASON_CHIPS.map((chip) => {
+              const label = t(CHIP_KEYS[chip]);
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => setReason(label)}
+                  className="cursor-pointer rounded-2xl border-[1.5px] px-3 py-1.5 text-[12px] font-bold"
+                  style={{
+                    borderColor: reason === label ? "#B0303A" : "#E6E0D3",
+                    background: reason === label ? "#FCE7E7" : "#fff",
+                    color: reason === label ? "#B0303A" : "#6B6357",
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Reason the student will see…"
+            placeholder={t("res.reasonPlaceholder")}
             className="mb-2 min-h-[70px] w-full resize-none rounded-[11px] border-[1.5px] border-[#EDE4D4] bg-[#FCFAF6] px-3 py-2.5 text-[13px] text-[#2A2320] outline-none"
           />
-          {err && <p className="mb-2 text-[12px] font-semibold text-[#B0303A]">Please enter a reason.</p>}
+          {err && <p className="mb-2 text-[12px] font-semibold text-[#B0303A]">{t("res.reasonRequired")}</p>}
           <div className="mt-1.5 flex gap-2.5">
             <AdminBtn
               className="flex-1 justify-center !bg-gradient-to-br !from-[#B0303A] !to-[#8A1F28]"
@@ -231,10 +266,10 @@ export function RejectResultModal({
                 onConfirm(reason.trim());
               }}
             >
-              Reject result
+              {t("res.rejectResult")}
             </AdminBtn>
             <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={onClose}>
-              Cancel
+              {t("common.cancel")}
             </AdminBtn>
           </div>
         </div>
@@ -254,6 +289,7 @@ export function UploadResultModal({
   onClose: () => void;
   onSaved: (updated: RosterRow) => void;
 }) {
+  const { t, lang } = useAdminT();
   const fileRef = useRef<HTMLInputElement>(null);
   const isHigher = HIGHER_STANDARDS.has(row.standard);
   const showStream = STREAM_STANDARDS.has(row.standard);
@@ -287,12 +323,12 @@ export function UploadResultModal({
   async function save() {
     setError(null);
     if (!isHigher) {
-      const t = Number(total);
+      const tot = Number(total);
       const o = Number(obtained);
-      if (!t) return setError("Enter total marks.");
-      if (o > t) return setError("Obtained cannot exceed total.");
+      if (!tot) return setError(t("res.errTotalMarks"));
+      if (o > tot) return setError(t("res.errObtainedExceeds"));
     } else if (!course.trim()) {
-      return setError("Enter degree / course name.");
+      return setError(t("res.errCourseName"));
     }
 
     setBusy(true);
@@ -357,9 +393,9 @@ export function UploadResultModal({
         onClick={stop}
       >
         <div className="border-b border-[#F1EBDE] px-6 py-[18px]">
-          <h3 className="text-base font-extrabold text-[#2A2620]">Upload result</h3>
+          <h3 className="text-base font-extrabold text-[#2A2620]">{t("res.uploadResult")}</h3>
           <p className="mt-0.5 text-[12px] text-[#938C80]">
-            {row.studentName} · {row.standard}
+            {row.studentName} · {levelLabel(row.standard, lang)}
             {row.stream && sc ? (
               <>
                 {" "}
@@ -367,14 +403,14 @@ export function UploadResultModal({
                   className="inline-block rounded-full px-2.5 py-0.5 text-[10.5px] font-bold"
                   style={{ background: sc.bg, color: sc.fg }}
                 >
-                  {row.stream}
+                  {streamLabel(row.stream, lang)}
                 </span>
               </>
             ) : null}
           </p>
         </div>
         <div className="px-6 py-[18px]">
-          <AdminLabel>{isHigher ? "Degree / Diploma certificate" : "Marksheet photo / PDF"}</AdminLabel>
+          <AdminLabel>{isHigher ? t("res.degreeCert") : t("res.marksheetFile")}</AdminLabel>
           <input
             ref={fileRef}
             type="file"
@@ -397,29 +433,29 @@ export function UploadResultModal({
             {uploading ? (
               <span className="flex h-24 items-center justify-center gap-2">
                 <Loader2 className="size-6 animate-spin" />
-                <span className="text-[13px] font-bold">Uploading…</span>
+                <span className="text-[13px] font-bold">{t("res.uploading")}</span>
               </span>
             ) : marksheetUrl ? (
               <>
                 {isPdf(marksheetUrl) ? (
                   <span className="flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-lg bg-white text-[#A62A38]">
                     <FileText className="size-7" strokeWidth={1.6} />
-                    <span className="text-[12px] font-bold">PDF uploaded</span>
+                    <span className="text-[12px] font-bold">{t("res.pdfUploaded")}</span>
                   </span>
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={marksheetUrl}
-                    alt="Uploaded marksheet"
+                    alt={t("res.uploadedMarksheet")}
                     className="max-h-44 w-full rounded-lg bg-white object-contain"
                   />
                 )}
-                <span className="text-[12.5px] font-bold">Uploaded ✓ — tap to replace</span>
+                <span className="text-[12.5px] font-bold">{t("res.uploadedTapReplace")}</span>
               </>
             ) : (
               <span className="flex h-24 flex-col items-center justify-center gap-1.5">
                 <ImagePlus className="size-6" strokeWidth={1.6} />
-                <span className="text-[13px] font-bold">tap to upload / replace</span>
+                <span className="text-[13px] font-bold">{t("res.tapToUpload")}</span>
               </span>
             )}
           </button>

@@ -2,8 +2,22 @@
 
 import { AdminBtn } from "@/components/admin/admin-ui";
 import { AdminModal } from "@/components/admin/admin-form";
-import { fmtDate, menuLabel, roleLabel, type AdminRow } from "./admin-roles";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
+import { fmtDate, type AdminRow } from "./admin-roles";
+import { menuKey } from "./admin-form-modal";
 import { AvatarInitial } from "./avatar-initial";
+
+/**
+ * Stored role → dictionary key. The labels in `admin-roles` are the English
+ * source; the rendered text comes from here so both languages stay in sync.
+ */
+export const ROLE_KEY: Record<string, AdminKey> = {
+  OWNER: "adm.roleOwner",
+  DATA_MANAGER: "adm.roleDataManager",
+  CONTENT_MANAGER: "adm.roleContentManager",
+  MODERATOR: "adm.roleModerator",
+  ADMIN: "adm.roleCommunityAdmin",
+};
 
 /** Read-only "Admin details" sheet opened by the row's `view` action. */
 export function AdminViewModal({
@@ -15,16 +29,17 @@ export function AdminViewModal({
   onClose: () => void;
   onEdit: (row: AdminRow) => void;
 }) {
+  const { t } = useAdminT();
   const active = row?.status === "APPROVED";
   const rows: [string, string][] = row
     ? [
-        ["Login ID", row.username || "—"],
-        ["Mobile", /^[6-9]\d{9}$/.test(row.mobile) ? row.mobile : "—"],
-        ["Family", row.family || "—"],
-        ["Surname", row.surname || "—"],
-        ["Contact visibility", row.showPhone ? "On" : "Off"],
-        ["Last login", fmtDate(row.lastLoginAt)],
-        ["Created", fmtDate(row.createdAt)],
+        [t("adm.loginId"), row.username || "—"],
+        [t("adm.mobile"), /^[6-9]\d{9}$/.test(row.mobile) ? row.mobile : "—"],
+        [t("adm.family"), row.family || "—"],
+        [t("adm.surname"), row.surname || "—"],
+        [t("adm.stepContact"), row.showPhone ? t("adm.on") : t("adm.off")],
+        [t("adm.lastLogin"), row.lastLoginAt ? fmtDate(row.lastLoginAt) : t("adm.never")],
+        [t("adm.created"), fmtDate(row.createdAt)],
       ]
     : [];
 
@@ -32,11 +47,11 @@ export function AdminViewModal({
     <AdminModal
       open={row !== null}
       onClose={onClose}
-      title="Admin details"
+      title={t("adm.adminDetails")}
       footer={
         row ? (
           <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => onEdit(row)}>
-            Edit admin
+            {t("adm.editAdmin")}
           </AdminBtn>
         ) : undefined
       }
@@ -58,7 +73,7 @@ export function AdminViewModal({
                     key={r}
                     className="rounded-full bg-[var(--success-tint)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--success)]"
                   >
-                    {roleLabel(r)}
+                    {ROLE_KEY[r] ? t(ROLE_KEY[r]) : r}
                   </span>
                 ))}
                 <span
@@ -68,7 +83,7 @@ export function AdminViewModal({
                       : "rounded-full bg-[var(--danger-tint)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--danger)]"
                   }
                 >
-                  {active ? "Active" : "Inactive"}
+                  {active ? t("adm.active") : t("adm.inactive")}
                 </span>
               </div>
             </div>
@@ -83,7 +98,7 @@ export function AdminViewModal({
                 <dt className="text-[12.5px] font-semibold text-[var(--faint)]">{label}</dt>
                 <dd
                   className={
-                    label === "Login ID"
+                    label === t("adm.loginId")
                       ? "font-mono text-[12.5px] font-semibold text-[var(--ink)]"
                       : "text-[12.5px] font-semibold text-[var(--ink)]"
                   }
@@ -94,11 +109,11 @@ export function AdminViewModal({
             ))}
           </dl>
 
-          <div className="mb-1 text-[12.5px] font-bold text-[var(--faint)]">Menu permissions</div>
+          <div className="mb-1 text-[12.5px] font-bold text-[var(--faint)]">
+            {t("adm.stepMenus")}
+          </div>
           {row.menus.length === 0 ? (
-            <p className="text-[12px] font-semibold text-[var(--faint)]">
-              Not set — this admin follows its role template.
-            </p>
+            <p className="text-[12px] font-semibold text-[var(--faint)]">{t("adm.menusNotSet")}</p>
           ) : (
             <div className="flex flex-wrap gap-1.5">
               {row.menus.map((k) => (
@@ -106,7 +121,7 @@ export function AdminViewModal({
                   key={k}
                   className="rounded-full bg-[#EEF1F6] px-2.5 py-1 text-[11.5px] font-bold text-[#4A5B72]"
                 >
-                  {menuLabel(k)}
+                  {t(menuKey(k))}
                 </span>
               ))}
             </div>

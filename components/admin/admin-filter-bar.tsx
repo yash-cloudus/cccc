@@ -22,6 +22,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 
 export type AdminFilter = {
@@ -53,6 +54,7 @@ export function AdminFilterBar({
   actions?: React.ReactNode;
   className?: string;
 }) {
+  const { t } = useAdminT();
   const [sheetOpen, setSheetOpen] = useState(false);
   const dirty = filters.some((f) => f.value !== (f.neutral ?? "all"));
 
@@ -100,7 +102,7 @@ export function AdminFilterBar({
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetContent side="bottom" className="md:hidden">
             <SheetHeader>
-              <SheetTitle>Filters</SheetTitle>
+              <SheetTitle>{t("ui.filters")}</SheetTitle>
             </SheetHeader>
             <div className="flex flex-col gap-3 px-4 pb-6">
               {filters.map((f) => (

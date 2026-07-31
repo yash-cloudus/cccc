@@ -6,10 +6,6 @@ import { QueueClient, type QueueRow, type UpdateRequestRow } from "./queue-clien
 
 export const dynamic = "force-dynamic";
 
-function fmtDate(d: Date) {
-  return new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
-
 export default async function RegistrationQueuePage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
@@ -29,15 +25,13 @@ export default async function RegistrationQueuePage() {
 
   const rows: QueueRow[] = families.map((f) => ({
     id: f.id,
-    head: f.headNameGu || f.headNameEn,
     headEn: f.headNameEn,
     headGu: f.headNameGu || null,
-    surname: f.surnameGu || f.surnameEn,
     surnameEn: f.surnameEn,
     surnameGu: f.surnameGu || null,
     city: f.city || "—",
     members: f._count.familyMembers,
-    submitted: fmtDate(f.submittedAt),
+    submitted: f.submittedAt.toISOString(),
     status: f.status,
   }));
 
@@ -53,14 +47,12 @@ export default async function RegistrationQueuePage() {
     const memberGu = u.member?.fullNameGu || u.family?.headNameGu || null;
     return {
       id: u.id,
-      member: memberGu || memberEn,
       memberEn,
       memberGu,
-      surname: u.family?.surnameGu || u.family?.surnameEn || "—",
       surnameEn: u.family?.surnameEn || "—",
       surnameGu: u.family?.surnameGu || null,
       changes,
-      submitted: fmtDate(u.submittedAt),
+      submitted: u.submittedAt.toISOString(),
       status: u.status,
       rejectReason: u.rejectReason,
     };

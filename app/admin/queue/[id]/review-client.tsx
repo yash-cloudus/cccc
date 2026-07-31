@@ -37,6 +37,7 @@ import {
 } from "@/components/forms/member-fields";
 import { REJECT_REASONS } from "@/lib/constants";
 import { api } from "@/lib/http";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { useAdminPlaces } from "@/hooks/use-admin-places";
 import {
   familyPlaceFromHead,
@@ -58,6 +59,15 @@ import type { OccupationTreeNode } from "@/lib/occupation-defaults";
  * them: the family's head name comes from the head member, and the family's
  * place comes from where the head lives.
  */
+
+/** Chip labels for the stored (English) reject reasons — the value sent to the
+ *  API stays the English constant, only the label is translated. */
+const REJECT_REASON_KEY: Record<string, AdminKey> = {
+  "Incomplete form": "queue.reasonIncomplete",
+  "Duplicate family": "queue.reasonDuplicate",
+  "Invalid phone": "queue.reasonInvalidPhone",
+  "Needs verification": "queue.reasonNeedsVerification",
+};
 
 export type EditMember = {
   id: string;
@@ -87,7 +97,6 @@ export function ReviewClient({
   relations = [],
   occupationTree,
   backHref = "/admin/queue",
-  backLabel = "‹ Back to queue",
   fromFamilies = false,
   autoAddMember = false,
 }: {
@@ -100,7 +109,6 @@ export function ReviewClient({
   relations?: { nameEn: string; nameGu: string }[];
   occupationTree: OccupationTreeNode[];
   backHref?: string;
-  backLabel?: string;
   /** Opened from Families & Members, not the registration queue — this is
    * routine record-keeping, not an admission decision, so Approve/Reject stay
    * off even when the family happens to still be PENDING. Families & Members
@@ -110,6 +118,11 @@ export function ReviewClient({
    * blank member card instead of making the admin find "+ Add member" first. */
   autoAddMember?: boolean;
 }) {
+  const { t, tf, lang } = useAdminT();
+  /** Pick the reader's language out of a bilingual DB value. */
+  const bi = (gu: string | null | undefined, en: string | null | undefined) =>
+    (lang === "en" ? en || gu : gu || en) || "";
+  const backLabel = t(fromFamilies ? "queue.backToFamilies" : "queue.backToQueue");
   const router = useRouter();
   const nextId = useRef(0);
   const newMemberRef = useRef<HTMLDivElement | null>(null);
@@ -282,22 +295,22 @@ export function ReviewClient({
    * a login. Saving a half-corrected legacy family must stay possible.
    */
   function validate(forApproval: boolean): string | null {
-    if (!head) return "A family needs at least one member";
-    if (!head.fullNameEn.trim()) return "Head name (English) is required";
-    if (!f.addressEn.trim()) return "Address (English) is required";
+    if (!head) return t("queue.valNoMembers");
+    if (!head.fullNameEn.trim()) return t("queue.valHeadName");
+    if (!f.addressEn.trim()) return t("queue.valAddress");
     const unnamed = f.members.findIndex((m) => !m.fullNameEn.trim());
-    if (unnamed >= 0) return `Member ${unnamed + 1} needs a name`;
+    if (unnamed >= 0) return tf("queue.valMemberName", { n: unnamed + 1 });
     // Same rule as the member wizard: every non-head member needs a relation.
     const unrelated = f.members.findIndex(
       (m) => !m.isHead && !m.relation.trim(),
     );
-    if (unrelated >= 0) return `Member ${unrelated + 1}: pick a relation`;
+    if (unrelated >= 0) return tf("queue.valMemberRelation", { n: unrelated + 1 });
     // Families registered before gender existed are backfilled from relation
     // where it was implied, so this normally only catches the head.
     const ungendered = f.members.findIndex((m) => !m.gender.trim());
-    if (ungendered >= 0) return `Member ${ungendered + 1}: pick a gender`;
+    if (ungendered >= 0) return tf("queue.valMemberGender", { n: ungendered + 1 });
     if (forApproval && !/^[6-9]\d{9}$/.test(head.mobile)) {
-      return "Head mobile is required to approve (10 digits, starting 6–9)";
+      return t("queue.valHeadMobile");
     }
     return null;
   }
@@ -328,7 +341,7 @@ export function ReviewClient({
     if (!okSave) return;
     // Back to the list the edit was opened from — staying on the form left the
     // admin unsure whether it had saved, and the list still showing the old row.
-    toast.success("Changes saved.");
+    toast.success(t("queue.savedToast"));
     router.push(backHref);
     router.refresh();
   }
@@ -357,8 +370,8 @@ export function ReviewClient({
 
   async function reject() {
     if (!rejectReason.trim()) {
-      setError("Reject reason is required");
-      toast.error("Reject reason is required");
+      setError(t("queue.errReasonRequired"));
+      toast.error(t("queue.errReasonRequired"));
       return;
     }
     setBusy("reject");
@@ -386,8 +399,8 @@ export function ReviewClient({
           <button
             type="button"
             onClick={handleBack}
-            aria-label={backLabel.replace(/^‹\s*/, "")}
-            title={backLabel.replace(/^‹\s*/, "")}
+            aria-label={backLabel}
+            title={backLabel}
             className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--line-admin)] bg-white text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]"
           >
             <ChevronLeft className="size-5" strokeWidth={2.4} />
@@ -395,15 +408,11 @@ export function ReviewClient({
 
           <AdminH2
             className="mb-0 min-w-0"
-            info={
-              isQueueReview
-                ? "Edit any field, then Save or Approve. Approving activates family login numbers. The head's name and place become the family's."
-                : "Edit any field, then Save. The head's name and place become the family's."
-            }
+            info={t(isQueueReview ? "queue.reviewInfo" : "queue.editInfo")}
           >
-            {isQueueReview ? "Review & edit" : "Edit"}:{" "}
-            {head?.fullNameGu || head?.fullNameEn || f.headNameEn} (
-            {f.surnameGu || f.surnameEn})
+            {isQueueReview ? t("queue.reviewTitle") : t("common.edit")}:{" "}
+            {bi(head?.fullNameGu, head?.fullNameEn) || f.headNameEn} (
+            {bi(f.surnameGu, f.surnameEn)})
           </AdminH2>
         </div>
 
@@ -412,7 +421,7 @@ export function ReviewClient({
             {busy === "save" ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
-              "Save changes"
+              t("queue.saveChanges")
             )}
           </AdminBtn>
           {isQueueReview && (
@@ -421,7 +430,7 @@ export function ReviewClient({
                 {busy === "approve" ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  "✓ Approve family"
+                  `✓ ${t("queue.approveFamily")}`
                 )}
               </AdminBtn>
               <AdminBtn
@@ -432,7 +441,7 @@ export function ReviewClient({
                   setError(null);
                 }}
               >
-                ✕ Reject (with reason)
+                ✕ {t("queue.rejectWithReason")}
               </AdminBtn>
             </>
           )}
@@ -447,7 +456,7 @@ export function ReviewClient({
             as an absolutely-positioned panel under its field, and clipping this
             box would cut that panel off when it opens near the bottom. */}
         <section className="rounded-2xl border border-[var(--line-admin)] bg-white p-4 sm:p-5 lg:sticky lg:top-4">
-          <AdminH3>Family details</AdminH3>
+          <AdminH3>{t("queue.familyDetails")}</AdminH3>
           <FamilyDetailsFields
             variant="admin"
             values={f}
@@ -455,11 +464,11 @@ export function ReviewClient({
             communityType={communityType}
             lockedSurname={lockedSurname}
             surnameGroups={surnameGroups}
-            t={(_gu, en) => en}
+            t={(gu, en) => (lang === "en" ? en : gu)}
           />
           <AdminField
-            label="Business note (ગુજરાતી)"
-            hint="Free text shown on the family's directory page — each member's own work is set below."
+            label={t("queue.businessNote")}
+            hint={t("queue.businessNoteHint")}
           >
             <AdminInput
               gujarati
@@ -471,13 +480,13 @@ export function ReviewClient({
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <AdminH3 className="mb-0">Members ({f.members.length})</AdminH3>
+            <AdminH3 className="mb-0">{tf("queue.membersCount", { n: f.members.length })}</AdminH3>
             <button
               type="button"
               onClick={addMember}
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line-admin)] px-2.5 py-1.5 text-[12px] font-extrabold text-[var(--brand)]"
             >
-              <Plus className="size-3.5" strokeWidth={2.6} /> Add member
+              <Plus className="size-3.5" strokeWidth={2.6} /> {t("queue.addMember")}
             </button>
           </div>
 
@@ -497,8 +506,8 @@ export function ReviewClient({
               >
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <b className="text-[13px] text-[var(--ink)]">
-                    Member {idx + 1}
-                    {m.isHead ? " · Head" : ""}
+                    {tf("queue.memberN", { n: idx + 1 })}
+                    {m.isHead ? ` · ${t("queue.head")}` : ""}
                   </b>
                   {!m.isHead && (
                     <button

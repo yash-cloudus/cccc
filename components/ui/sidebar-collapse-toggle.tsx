@@ -14,17 +14,23 @@ export function SidebarCollapseToggle({
   collapsed,
   onToggle,
   theme = "light",
+  openLabel = "Open sidebar",
+  closeLabel = "Close sidebar",
 }: {
   collapsed: boolean;
   onToggle: () => void;
   theme?: "light" | "dark";
+  /** Community admin passes translated labels; the platform shell keeps English. */
+  openLabel?: string;
+  closeLabel?: string;
 }) {
+  const label = collapsed ? openLabel : closeLabel;
   return (
-    <WithTooltip label={collapsed ? "Open sidebar" : "Close sidebar"} side="right">
+    <WithTooltip label={label} side="right">
       <button
         type="button"
         onClick={onToggle}
-        aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
+        aria-label={label}
         className={cn(
           "absolute -right-4 top-[34px] z-30 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 shadow-[0_3px_10px_rgba(20,16,10,.2)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-110 active:scale-95",
           theme === "dark"

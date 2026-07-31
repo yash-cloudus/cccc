@@ -48,6 +48,7 @@ import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { DateField } from "@/components/ui/date-field";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 
 export type AdStatus =
   | "PENDING"
@@ -100,36 +101,42 @@ export type BusinessOption = {
 };
 
 /** Status pill palette — matches Admin.dc.html `stMeta`. */
-const STATUS_META: Record<AdStatus, { label: string; className: string }> = {
-  PENDING: { label: "Pending", className: "bg-[var(--gold-tint)] text-[var(--warn)]" },
-  ACTIVE: { label: "Active", className: "bg-[var(--success-tint)] text-[var(--success)]" },
-  EXPIRED: { label: "Expired", className: "bg-[var(--danger-tint)] text-[var(--danger)]" },
-  REJECTED: { label: "Rejected", className: "bg-[var(--danger-tint)] text-[var(--danger)]" },
-  DEACTIVATED: { label: "Deactivated", className: "bg-[var(--line-soft)] text-[var(--muted)]" },
-  DRAFT: { label: "Draft", className: "bg-[#EEF1F6] text-[#4A5B72]" },
+const STATUS_META: Record<AdStatus, { labelKey: AdminKey; className: string }> = {
+  PENDING: { labelKey: "ads.stPending", className: "bg-[var(--gold-tint)] text-[var(--warn)]" },
+  ACTIVE: { labelKey: "ads.stActive", className: "bg-[var(--success-tint)] text-[var(--success)]" },
+  EXPIRED: { labelKey: "ads.stExpired", className: "bg-[var(--danger-tint)] text-[var(--danger)]" },
+  REJECTED: { labelKey: "ads.stRejected", className: "bg-[var(--danger-tint)] text-[var(--danger)]" },
+  DEACTIVATED: { labelKey: "ads.stDeactivated", className: "bg-[var(--line-soft)] text-[var(--muted)]" },
+  DRAFT: { labelKey: "ads.stDraft", className: "bg-[#EEF1F6] text-[#4A5B72]" },
 };
 
-const STATUS_FILTER_OPTIONS: { value: "all" | AdStatus; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: "PENDING", label: "Pending" },
-  { value: "ACTIVE", label: "Active" },
-  { value: "EXPIRED", label: "Expired" },
-  { value: "REJECTED", label: "Rejected" },
-  { value: "DEACTIVATED", label: "Deactivated" },
-  { value: "DRAFT", label: "Draft" },
+const STATUS_FILTER_OPTIONS: { value: "all" | AdStatus; labelKey: AdminKey }[] = [
+  { value: "all", labelKey: "ads.allStatuses" },
+  { value: "PENDING", labelKey: "ads.stPending" },
+  { value: "ACTIVE", labelKey: "ads.stActive" },
+  { value: "EXPIRED", labelKey: "ads.stExpired" },
+  { value: "REJECTED", labelKey: "ads.stRejected" },
+  { value: "DEACTIVATED", labelKey: "ads.stDeactivated" },
+  { value: "DRAFT", labelKey: "ads.stDraft" },
 ];
 
-const SOURCE_FILTER_OPTIONS: { value: "all" | "user" | "admin"; label: string }[] = [
-  { value: "all", label: "All sources" },
-  { value: "user", label: "User app" },
-  { value: "admin", label: "Admin" },
+const SOURCE_FILTER_OPTIONS: { value: "all" | "user" | "admin"; labelKey: AdminKey }[] = [
+  { value: "all", labelKey: "ads.allSources" },
+  { value: "user", labelKey: "ads.srcUserApp" },
+  { value: "admin", labelKey: "ads.srcAdmin" },
 ];
 
-const PAY_OPTS = [
-  { value: "pending", label: "Pending" },
-  { value: "verified", label: "Verified" },
-  { value: "manual", label: "Manual entry" },
-  { value: "notreq", label: "Not required" },
+const TAB_LABEL_KEYS: Record<"all" | "premium" | "general", AdminKey> = {
+  all: "ads.tabAll",
+  premium: "ads.typePremium",
+  general: "ads.typeGeneral",
+};
+
+const PAY_OPTS: { value: string; labelKey: AdminKey }[] = [
+  { value: "pending", labelKey: "ads.payPending" },
+  { value: "verified", labelKey: "ads.payVerified" },
+  { value: "manual", labelKey: "ads.payManual" },
+  { value: "notreq", labelKey: "ads.payNotRequired" },
 ];
 
 const fmtDate = (iso: string) =>
@@ -244,15 +251,18 @@ function editFormFrom(ad: AdRow): EditForm {
 }
 
 function StatusPill({ status }: { status: AdStatus }) {
+  const { t } = useAdminT();
   const meta = STATUS_META[status];
   return (
     <span className={cn("inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold", meta.className)}>
-      {meta.label}
+      {t(meta.labelKey)}
     </span>
   );
 }
 
 function AdSummaryCard({ ad }: { ad: AdRow }) {
+  const { t } = useAdminT();
+  const payOpt = PAY_OPTS.find((p) => p.value === ad.payStatus);
   return (
     <div className="mb-4 rounded-[14px] border border-[var(--line-admin)] bg-[var(--surface-admin)] p-3.5">
       <div className="flex gap-3">
@@ -267,20 +277,20 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
               />
             ) : (
               <span className="flex h-14 w-[88px] items-center justify-center rounded-lg bg-white text-[10px] font-bold text-[var(--faint)]">
-                no banner
+                {t("ads.noBanner")}
               </span>
             )}
-            <span className="text-[10px] font-bold text-[var(--faint)]">Banner</span>
+            <span className="text-[10px] font-bold text-[var(--faint)]">{t("ads.banner")}</span>
           </div>
         )}
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-2">
             <b className="text-[15px] text-[var(--ink)]">{ad.name}</b>
             <span className="rounded-full bg-[#EEF1F6] px-2 py-0.5 text-[10.5px] font-bold capitalize text-[#4A5B72]">
-              {ad.type}
+              {t(ad.type === "premium" ? "ads.typePremium" : "ads.typeGeneral")}
             </span>
             <span className="rounded-full bg-[var(--line-soft)] px-2 py-0.5 text-[10.5px] font-bold text-[var(--muted)]">
-              {ad.source === "user" ? "User" : "Admin"}
+              {t(ad.source === "user" ? "ads.srcUser" : "ads.srcAdmin")}
             </span>
           </div>
           <div className="text-[12px] text-[var(--ink-dim)]">
@@ -293,7 +303,7 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
             <StatusPill status={ad.status} />
             {ad.type === "premium" && (
               <span className="inline-block rounded-full bg-[#EEF1F6] px-2 py-0.5 text-[10.5px] font-bold text-[#4A5B72]">
-                Payment: {PAY_OPTS.find((p) => p.value === ad.payStatus)?.label ?? ad.payStatus}
+                {t("ads.paymentLabel")}: {payOpt ? t(payOpt.labelKey) : ad.payStatus}
               </span>
             )}
           </div>
@@ -305,44 +315,44 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
                 href={ad.paymentProof}
                 target="_blank"
                 rel="noreferrer"
-                title="View payment screenshot"
+                title={t("ads.viewPaymentProof")}
                 className="block h-14 w-[88px] overflow-hidden rounded-lg border border-[var(--line)]"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={ad.paymentProof}
-                  alt="Payment screenshot"
+                  alt={t("ads.paymentScreenshot")}
                   className="h-full w-full object-cover"
                 />
               </a>
             ) : (
               <span className="flex h-14 w-[88px] items-center justify-center rounded-lg bg-white px-1 text-center text-[10px] font-bold text-[var(--faint)]">
-                no proof
+                {t("ads.noProof")}
               </span>
             )}
-            <span className="text-[10px] font-bold text-[var(--faint)]">Payment proof</span>
+            <span className="text-[10px] font-bold text-[var(--faint)]">{t("ads.paymentProof")}</span>
           </div>
         )}
       </div>
       {ad.type === "premium" && (
         <div className="mt-3 flex gap-5 border-t border-[var(--line-soft)] pt-3 text-[12px] text-[var(--ink)]">
           <div>
-            <span className="text-[var(--faint)]">Start</span>
+            <span className="text-[var(--faint)]">{t("ads.thStart")}</span>
             <br />
             <b>{fmtDate(ad.startDate)}</b>
           </div>
           <div>
-            <span className="text-[var(--faint)]">End</span>
+            <span className="text-[var(--faint)]">{t("ads.thEnd")}</span>
             <br />
             <b>{fmtDate(ad.endDate)}</b>
           </div>
           <div>
-            <span className="text-[var(--faint)]">Views</span>
+            <span className="text-[var(--faint)]">{t("ads.thViews")}</span>
             <br />
             <b>{ad.views.toLocaleString()}</b>
           </div>
           <div>
-            <span className="text-[var(--faint)]">Clicks</span>
+            <span className="text-[var(--faint)]">{t("ads.thClicks")}</span>
             <br />
             <b>{ad.clicks.toLocaleString()}</b>
           </div>
@@ -355,13 +365,14 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
 /** Build category select options; keep orphan original text visible on edit. */
 function categorySelectOptions(
   categories: CategoryOption[],
-  current?: string | null,
+  current: string | null | undefined,
+  placeholder: string,
 ): { value: string; label: string }[] {
   const opts = categories.map((c) => ({ value: c.value, label: c.label }));
   if (current && !opts.some((o) => o.value === current)) {
     opts.unshift({ value: current, label: current });
   }
-  return [{ value: "", label: "— Select category —" }, ...opts];
+  return [{ value: "", label: placeholder }, ...opts];
 }
 
 export function AdsClient({
@@ -373,6 +384,7 @@ export function AdsClient({
   categories: CategoryOption[];
   businesses?: BusinessOption[];
 }) {
+  const { t } = useAdminT();
   const [rows, setRows] = useState<AdRow[]>(initialRows);
   const [tab, setTab] = useState<"all" | "premium" | "general">("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -394,6 +406,19 @@ export function AdsClient({
       general: rows.filter((r) => r.type === "general").length,
     }),
     [rows],
+  );
+
+  const statusOptions = useMemo(
+    () => STATUS_FILTER_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) })),
+    [t],
+  );
+  const sourceOptions = useMemo(
+    () => SOURCE_FILTER_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) })),
+    [t],
+  );
+  const payOptions = useMemo(
+    () => PAY_OPTS.map((o) => ({ value: o.value, label: t(o.labelKey) })),
+    [t],
   );
 
   /** Filter dropdown: master cats + any original free-text cats already on ads. */
@@ -440,10 +465,10 @@ export function AdsClient({
     const res = await api.patch("/api/admin/ads", { id, status: next });
     if (!res.ok) {
       setRows(prev);
-      toast.error(res.error || "Could not update status");
+      toast.error(res.error || t("ads.errStatus"));
       return;
     }
-    toast.success(`Advertisement ${STATUS_META[next].label.toLowerCase()}`);
+    toast.success(t(next === "ACTIVE" ? "ads.toastActivated" : "ads.toastDeactivated"));
   }
 
   async function approveReviewed() {
@@ -453,19 +478,19 @@ export function AdsClient({
     const res = await api.patch("/api/admin/ads", { id: modal.ad.id, status: "ACTIVE" });
     setBusy(false);
     if (!res.ok) {
-      setError(res.error || "Could not approve");
+      setError(res.error || t("ads.errApprove"));
       return;
     }
     setRows((rs) => rs.map((r) => (r.id === modal.ad.id ? { ...r, status: "ACTIVE" } : r)));
     setModal(null);
-    toast.success("Approved");
+    toast.success(t("ads.toastApproved"));
   }
 
   async function rejectReviewed() {
     if (!modal || modal.kind !== "review") return;
     const reason = modal.reason.trim();
     if (!reason) {
-      setError("Reject reason is required");
+      setError(t("ads.errReasonRequired"));
       return;
     }
     setBusy(true);
@@ -477,33 +502,33 @@ export function AdsClient({
     });
     setBusy(false);
     if (!res.ok) {
-      setError(res.error || "Could not reject");
+      setError(res.error || t("ads.errReject"));
       return;
     }
     setRows((rs) => rs.map((r) => (r.id === modal.ad.id ? { ...r, ...res.data } : r)));
     setModal(null);
-    toast.success("Rejected");
+    toast.success(t("ads.toastRejected"));
   }
 
   async function remove(id: string) {
     const ok = await confirmDialog({
-      title: "Delete this advertisement?",
-      confirmLabel: "Delete",
+      title: t("ads.confirmDelete"),
+      confirmLabel: t("common.delete"),
       tone: "danger",
     });
     if (!ok) return;
     const res = await api.del(`/api/admin/ads?id=${id}`);
     if (!res.ok) {
-      toast.error(res.error || "Could not delete");
+      toast.error(res.error || t("ads.errDelete"));
       return;
     }
     setRows((rs) => rs.filter((r) => r.id !== id));
-    toast.success("Advertisement deleted");
+    toast.success(t("ads.toastDeleted"));
   }
 
   function validateDates(startDate: string, endDate: string): string | null {
-    if (!startDate || !endDate) return "Start and end dates are required";
-    if (endDate < startDate) return "End date must be on or after the start date";
+    if (!startDate || !endDate) return t("ads.errDatesRequired");
+    if (endDate < startDate) return t("ads.errEndBeforeStart");
     return null;
   }
 
@@ -512,15 +537,15 @@ export function AdsClient({
     const draft = modal.draft;
 
     if (draft.businessMode === "existing" && !draft.businessId) {
-      setError("Select a business");
+      setError(t("ads.errSelectBusiness"));
       return;
     }
     if (!draft.name.trim()) {
-      setError("Business / ad name is required");
+      setError(t("ads.errNameRequired"));
       return;
     }
     if (!draft.category.trim()) {
-      setError("Category is required");
+      setError(t("ads.errCategoryRequired"));
       return;
     }
     const dateErr = validateDates(draft.startDate, draft.endDate);
@@ -529,7 +554,7 @@ export function AdsClient({
       return;
     }
     if (!isValidMobile(draft.ownerMobile)) {
-      setError("Owner mobile must be a 10-digit number starting with 6–9");
+      setError(t("ads.errMobile"));
       return;
     }
 
@@ -589,7 +614,7 @@ export function AdsClient({
       ...prev,
     ]);
     setModal(null);
-    toast.success("Advertisement created");
+    toast.success(t("ads.toastCreated"));
   }
 
   async function saveEdit() {
@@ -597,7 +622,7 @@ export function AdsClient({
     const { ad, form } = modal;
 
     if (!form.category.trim()) {
-      setError("Category is required");
+      setError(t("ads.errCategoryRequired"));
       return;
     }
     const dateErr = validateDates(form.startDate, form.endDate);
@@ -606,7 +631,7 @@ export function AdsClient({
       return;
     }
     if (!isValidMobile(form.ownerMobile)) {
-      setError("Owner mobile must be a 10-digit number starting with 6–9");
+      setError(t("ads.errMobile"));
       return;
     }
 
@@ -629,7 +654,7 @@ export function AdsClient({
     });
     setBusy(false);
     if (!res.ok) {
-      setError(res.error || "Could not save");
+      setError(res.error || t("ads.errSave"));
       return;
     }
 
@@ -655,7 +680,7 @@ export function AdsClient({
       ),
     );
     setModal(null);
-    toast.success("Advertisement updated");
+    toast.success(t("ads.toastUpdated"));
   }
 
   async function renewGo() {
@@ -670,14 +695,14 @@ export function AdsClient({
     });
     setBusy(false);
     if (!res.ok) {
-      toast.error(res.error || "Could not renew");
+      toast.error(res.error || t("ads.errRenew"));
       return;
     }
     setRows((rs) =>
       rs.map((r) => (r.id === ad.id ? { ...r, status: "ACTIVE", endDate } : r)),
     );
     setModal(null);
-    toast.success("Advertisement renewed");
+    toast.success(t("ads.toastRenewed"));
   }
 
   function setDraft(updater: Draft | ((d: Draft) => Draft)) {
@@ -708,16 +733,16 @@ export function AdsClient({
   const modalTitle =
     modal?.kind === "create"
       ? modal.draft.step === "type"
-        ? "New advertisement"
-        : `New ${modal.draft.type} advertisement`
+        ? t("ads.newAd")
+        : t(modal.draft.type === "premium" ? "ads.modalNewPremium" : "ads.modalNewGeneral")
       : modal?.kind === "view"
-        ? "View advertisement"
+        ? t("ads.modalView")
         : modal?.kind === "review"
-          ? "Review submission"
+          ? t("ads.modalReview")
           : modal?.kind === "edit"
-            ? "Edit advertisement"
+            ? t("ads.modalEdit")
             : modal?.kind === "renew"
-              ? "Renew advertisement"
+              ? t("ads.modalRenew")
               : "";
 
   return (
@@ -727,17 +752,12 @@ export function AdsClient({
           className="mb-0"
           info={
             <>
-              <p>
-                General ads are auto-created when a business is approved (or added here) · Premium ads are
-                paid banner requests.
-              </p>
-              <p className="mt-1.5">
-                Auto-expiry on end date · renew = extend date · views/clicks help renewal conversations.
-              </p>
+              <p>{t("ads.infoLine1")}</p>
+              <p className="mt-1.5">{t("ads.infoLine2")}</p>
             </>
           }
         >
-          Advertisements
+          {t("nav.ads")}
         </AdminH2>
         <AdminBtn
           onClick={() => {
@@ -746,32 +766,32 @@ export function AdsClient({
           }}
         >
           <Plus className="size-4" />
-          New advertisement
+          {t("ads.newAd")}
         </AdminBtn>
       </div>
 
       {/* Type tabs (left) · date range (middle, desktop-only) · search + filters (right) — one row */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex w-full shrink-0 gap-1 overflow-x-auto rounded-xl bg-[var(--surface-admin)] p-1 md:w-auto">
-          {(["all", "premium", "general"] as const).map((t) => (
+          {(["all", "premium", "general"] as const).map((tb) => (
             <button
-              key={t}
+              key={tb}
               type="button"
-              onClick={() => setTab(t)}
+              onClick={() => setTab(tb)}
               className={cn(
                 "cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold whitespace-nowrap capitalize",
-                tab === t ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--ink-dim)]",
+                tab === tb ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--ink-dim)]",
               )}
             >
-              {t} ({counts[t]})
+              {t(TAB_LABEL_KEYS[tb])} ({counts[tb]})
             </button>
           ))}
         </div>
 
         <div className="hidden flex-wrap items-center gap-2 text-[12px] font-bold text-[var(--muted)] md:flex">
-          <span>From</span>
+          <span>{t("ads.from")}</span>
           <DateField variant="admin" value={from} onChange={setFrom} className="w-[148px]" />
-          <span>To</span>
+          <span>{t("ads.to")}</span>
           <DateField variant="admin" value={to} onChange={setTo} min={from} className="w-[148px]" />
           {(from || to) && (
             <LinkAction
@@ -780,7 +800,7 @@ export function AdsClient({
                 setTo("");
               }}
             >
-              clear dates
+              {t("ads.clearDates")}
             </LinkAction>
           )}
         </div>
@@ -789,7 +809,7 @@ export function AdsClient({
           <SearchInput
             value={q}
             onChange={setQ}
-            placeholder="Search business, owner or mobile…"
+            placeholder={t("ads.searchPlaceholder")}
             className="min-w-0 flex-1 md:w-[210px] md:flex-none"
           />
           <FilterButton
@@ -801,26 +821,26 @@ export function AdsClient({
             <AdminSelect
               value={catFilter}
               onChange={setCatFilter}
-              ariaLabel="Filter by category"
+              ariaLabel={t("ads.filterByCategory")}
               className="w-[150px] shrink-0"
               options={[
-                { value: "all", label: "All categories" },
+                { value: "all", label: t("ads.allCategories") },
                 ...filterCatOptions,
               ]}
             />
             <AdminSelect
               value={status}
               onChange={(v) => setStatus(v as "all" | AdStatus)}
-              ariaLabel="Filter by status"
+              ariaLabel={t("ads.filterByStatus")}
               className="w-[140px] shrink-0"
-              options={STATUS_FILTER_OPTIONS}
+              options={statusOptions}
             />
             <AdminSelect
               value={source}
               onChange={(v) => setSource(v as "all" | "user" | "admin")}
-              ariaLabel="Filter by created by"
+              ariaLabel={t("ads.filterBySource")}
               className="w-[140px] shrink-0"
-              options={SOURCE_FILTER_OPTIONS}
+              options={sourceOptions}
             />
           </div>
         </div>
@@ -829,14 +849,14 @@ export function AdsClient({
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="md:hidden">
           <SheetHeader>
-            <SheetTitle>Filters</SheetTitle>
+            <SheetTitle>{t("ads.filters")}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-3 px-4 pb-4">
             <div>
-              <AdminLabel>Date range</AdminLabel>
+              <AdminLabel>{t("ads.dateRange")}</AdminLabel>
               <div className="flex items-center gap-2">
                 <DateField variant="admin" value={from} onChange={setFrom} className="min-w-0 flex-1" />
-                <span className="text-[12px] font-bold text-[var(--muted)]">to</span>
+                <span className="text-[12px] font-bold text-[var(--muted)]">{t("ads.to")}</span>
                 <DateField variant="admin" value={to} onChange={setTo} min={from} className="min-w-0 flex-1" />
               </div>
               {(from || to) && (
@@ -847,33 +867,33 @@ export function AdsClient({
                     setTo("");
                   }}
                 >
-                  clear dates
+                  {t("ads.clearDates")}
                 </LinkAction>
               )}
             </div>
             <AdminSelect
               value={catFilter}
               onChange={setCatFilter}
-              ariaLabel="Filter by category"
+              ariaLabel={t("ads.filterByCategory")}
               className="w-full"
               options={[
-                { value: "all", label: "All categories" },
+                { value: "all", label: t("ads.allCategories") },
                 ...filterCatOptions,
               ]}
             />
             <AdminSelect
               value={status}
               onChange={(v) => setStatus(v as "all" | AdStatus)}
-              ariaLabel="Filter by status"
+              ariaLabel={t("ads.filterByStatus")}
               className="w-full"
-              options={STATUS_FILTER_OPTIONS}
+              options={statusOptions}
             />
             <AdminSelect
               value={source}
               onChange={(v) => setSource(v as "all" | "user" | "admin")}
-              ariaLabel="Filter by created by"
+              ariaLabel={t("ads.filterBySource")}
               className="w-full"
-              options={SOURCE_FILTER_OPTIONS}
+              options={sourceOptions}
             />
           </div>
         </SheetContent>
@@ -882,19 +902,19 @@ export function AdsClient({
       <AdminTable>
         <thead>
           <tr>
-            <AdminTh>Preview</AdminTh>
-            <AdminTh>Business</AdminTh>
-            <AdminTh>Owner</AdminTh>
-            <AdminTh>Category</AdminTh>
-            <AdminTh>Type</AdminTh>
-            <AdminTh>Status</AdminTh>
-            <AdminTh>Created</AdminTh>
-            <AdminTh>Start</AdminTh>
-            <AdminTh>End</AdminTh>
-            <AdminTh>Views</AdminTh>
-            <AdminTh>Clicks</AdminTh>
-            <AdminTh>Source</AdminTh>
-            <AdminTh className="text-right whitespace-nowrap">Actions</AdminTh>
+            <AdminTh>{t("ads.thPreview")}</AdminTh>
+            <AdminTh>{t("ads.thBusiness")}</AdminTh>
+            <AdminTh>{t("ads.thOwner")}</AdminTh>
+            <AdminTh>{t("ads.thCategory")}</AdminTh>
+            <AdminTh>{t("ads.thType")}</AdminTh>
+            <AdminTh>{t("ads.thStatus")}</AdminTh>
+            <AdminTh>{t("ads.thCreated")}</AdminTh>
+            <AdminTh>{t("ads.thStart")}</AdminTh>
+            <AdminTh>{t("ads.thEnd")}</AdminTh>
+            <AdminTh>{t("ads.thViews")}</AdminTh>
+            <AdminTh>{t("ads.thClicks")}</AdminTh>
+            <AdminTh>{t("ads.thSource")}</AdminTh>
+            <AdminTh className="text-right whitespace-nowrap">{t("ads.thActions")}</AdminTh>
           </tr>
         </thead>
         <tbody>
@@ -910,7 +930,7 @@ export function AdsClient({
                   />
                 ) : (
                   <span className="flex h-9 w-[64px] items-center justify-center rounded-lg bg-[var(--surface-admin)] text-[10px] font-bold text-[var(--faint)]">
-                    none
+                    {t("ads.noneImage")}
                   </span>
                 )}
               </AdminTd>
@@ -922,7 +942,9 @@ export function AdsClient({
                 )}
               </AdminTd>
               <AdminTd className="whitespace-nowrap">{a.category || "—"}</AdminTd>
-              <AdminTd className="capitalize">{a.type}</AdminTd>
+              <AdminTd className="capitalize">
+                {t(a.type === "premium" ? "ads.typePremium" : "ads.typeGeneral")}
+              </AdminTd>
               <AdminTd>
                 <StatusPill status={a.status} />
               </AdminTd>
@@ -931,7 +953,9 @@ export function AdsClient({
               <AdminTd className="whitespace-nowrap">{fmtDate(a.endDate)}</AdminTd>
               <AdminTd>{a.views.toLocaleString()}</AdminTd>
               <AdminTd>{a.clicks.toLocaleString()}</AdminTd>
-              <AdminTd className="capitalize">{a.source === "user" ? "User app" : "Admin"}</AdminTd>
+              <AdminTd className="capitalize">
+                {t(a.source === "user" ? "ads.srcUserApp" : "ads.srcAdmin")}
+              </AdminTd>
               <AdminTd>
                 {/* Buttons size to their own content — Approve/Reject, Activate,
                     Deactivate and the Rejected badge all share one spot (exactly
@@ -940,7 +964,7 @@ export function AdsClient({
                   {a.status !== "PENDING" && a.status !== "REJECTED" && (
                     <ActionBtn
                       icon={Pencil}
-                      label="Edit"
+                      label={t("common.edit")}
                       onClick={() => {
                         setError(null);
                         setModal({ kind: "edit", ad: a, form: editFormFrom(a) });
@@ -950,7 +974,7 @@ export function AdsClient({
                   {a.type === "premium" && (a.status === "ACTIVE" || a.status === "EXPIRED") && (
                     <ActionBtn
                       icon={RotateCw}
-                      label="Renew"
+                      label={t("ads.renew")}
                       tone="success"
                       onClick={() => {
                         setError(null);
@@ -961,8 +985,8 @@ export function AdsClient({
                   {a.status === "PENDING" ? (
                     <button
                       type="button"
-                      title="Approve/Reject"
-                      aria-label="Approve/Reject"
+                      title={t("ads.approveReject")}
+                      aria-label={t("ads.approveReject")}
                       onClick={() => {
                         setError(null);
                         setModal({ kind: "review", ad: a, reason: "" });
@@ -970,39 +994,44 @@ export function AdsClient({
                       className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line-admin)] bg-white px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap transition-colors hover:border-[var(--line-strong)] hover:bg-[var(--surface-admin)]"
                     >
                       <CheckCircle2 className="size-3.5 text-[var(--success)]" strokeWidth={2.3} />
-                      <span className="text-[var(--success)]">Approve</span>
+                      <span className="text-[var(--success)]">{t("ads.approve")}</span>
                       <span className="text-[var(--ink-mid)]">/</span>
-                      <span className="text-[var(--danger)]">Reject</span>
+                      <span className="text-[var(--danger)]">{t("ads.reject")}</span>
                     </button>
                   ) : a.status === "ACTIVE" ? (
                     <ActionBtn
                       icon={PauseCircle}
-                      label="Deactivate"
+                      label={t("ads.deactivate")}
                       tone="warn"
                       onClick={() => setStatusOf(a.id, "DEACTIVATED")}
                     />
                   ) : a.status === "REJECTED" ? (
                     <span className="flex cursor-default items-center gap-1.5 rounded-lg border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-2.5 py-[5px] text-[11.5px] font-bold whitespace-nowrap text-[var(--danger)]">
                       <XCircle className="size-3.5" strokeWidth={2.3} />
-                      Rejected
+                      {t("ads.stRejected")}
                     </span>
                   ) : (
                     <ActionBtn
                       icon={CheckCircle2}
-                      label="Activate"
+                      label={t("ads.activate")}
                       tone="success"
                       onClick={() => setStatusOf(a.id, "ACTIVE")}
                     />
                   )}
                   <ActionBtn
                     icon={Eye}
-                    label="View"
+                    label={t("common.view")}
                     onClick={() => {
                       setError(null);
                       setModal({ kind: "view", ad: a });
                     }}
                   />
-                  <ActionBtn icon={Trash2} label="Delete" tone="danger" onClick={() => remove(a.id)} />
+                  <ActionBtn
+                    icon={Trash2}
+                    label={t("common.delete")}
+                    tone="danger"
+                    onClick={() => remove(a.id)}
+                  />
                 </div>
               </AdminTd>
             </tr>
@@ -1010,9 +1039,7 @@ export function AdsClient({
           {visible.length === 0 && (
             <tr>
               <AdminTd colSpan={13} className="py-8 text-center text-[var(--faint)]">
-                {rows.length === 0
-                  ? "No advertisements yet."
-                  : "No advertisement matches these filters."}
+                {rows.length === 0 ? t("ads.emptyNone") : t("ads.emptyFiltered")}
               </AdminTd>
             </tr>
           )}
@@ -1023,34 +1050,32 @@ export function AdsClient({
         open={modal !== null}
         onClose={() => setModal(null)}
         title={modalTitle}
-        subtitle={
-          draft?.step === "type" ? "Which kind of advertisement is this?" : undefined
-        }
+        subtitle={draft?.step === "type" ? t("ads.typeStepSubtitle") : undefined}
         footer={
           draft?.step === "form" ? (
             <AdminModalActions
               onSave={create}
               onCancel={() => setModal(null)}
-              saveLabel="Create advertisement"
+              saveLabel={t("ads.createSave")}
               busy={busy}
             />
           ) : modal?.kind === "edit" ? (
             <AdminModalActions
               onSave={saveEdit}
               onCancel={() => setModal(null)}
-              saveLabel="Save changes"
+              saveLabel={t("ads.saveChanges")}
               busy={busy}
             />
           ) : modal?.kind === "renew" ? (
             <AdminModalActions
               onSave={renewGo}
               onCancel={() => setModal(null)}
-              saveLabel="Renew advertisement"
+              saveLabel={t("ads.modalRenew")}
               busy={busy}
             />
           ) : modal?.kind === "view" ? (
             <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setModal(null)}>
-              Close
+              {t("common.close")}
             </AdminBtn>
           ) : modal?.kind === "review" ? (
             <>
@@ -1060,9 +1085,9 @@ export function AdsClient({
                 onClick={approveReviewed}
                 disabled={busy}
               >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : "Approve"}
+                {busy ? <Loader2 className="size-4 animate-spin" /> : t("ads.approve")}
               </AdminBtn>
-              <WithTooltip label="Add a reason to reject" disabled={canReject}>
+              <WithTooltip label={t("ads.needReasonTooltip")} disabled={canReject}>
                 <button
                   type="button"
                   onClick={() => {
@@ -1074,11 +1099,11 @@ export function AdsClient({
                     !canReject && "cursor-not-allowed opacity-50",
                   )}
                 >
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : "Reject"}
+                  {busy ? <Loader2 className="size-4 animate-spin" /> : t("ads.reject")}
                 </button>
               </WithTooltip>
               <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setModal(null)}>
-                Cancel
+                {t("common.cancel")}
               </AdminBtn>
             </>
           ) : undefined
@@ -1091,13 +1116,13 @@ export function AdsClient({
               [
                 {
                   t: "premium" as const,
-                  title: "Premium advertisement",
-                  desc: "Paid banner shown in the app's home carousel.",
+                  title: t("ads.premiumTitle"),
+                  desc: t("ads.premiumDesc"),
                 },
                 {
                   t: "general" as const,
-                  title: "General advertisement",
-                  desc: "Free listing linked to an approved business.",
+                  title: t("ads.generalTitle"),
+                  desc: t("ads.generalDesc"),
                 },
               ]
             ).map((o) => (
@@ -1122,23 +1147,23 @@ export function AdsClient({
               onClick={() => setDraft({ ...draft, step: "type" })}
               className="mb-3 cursor-pointer text-[12.5px] font-bold text-[var(--brand)]"
             >
-              ‹ Change type
+              ‹ {t("ads.changeType")}
             </button>
 
-            <AdminFormSection title="Business" />
+            <AdminFormSection title={t("ads.thBusiness")} />
             <AdminField>
               <AdminSegmented
                 value={draft.businessMode}
                 onChange={(v) => setDraft({ ...draft, businessMode: v })}
                 options={[
-                  { value: "existing", label: "Existing business" },
-                  { value: "new", label: "Create new" },
+                  { value: "existing", label: t("ads.existingBusiness") },
+                  { value: "new", label: t("ads.createNew") },
                 ]}
               />
             </AdminField>
 
             {draft.businessMode === "existing" ? (
-              <AdminField label="Business" required>
+              <AdminField label={t("ads.thBusiness")} required>
                 <AdminSelect
                   value={draft.businessId}
                   onChange={(v) => {
@@ -1154,27 +1179,27 @@ export function AdsClient({
                   }}
                   className="w-full"
                   options={[
-                    { value: "", label: "— Select business —" },
+                    { value: "", label: t("ads.selectBusiness") },
                     ...businesses.map((b) => ({ value: b.id, label: b.label })),
                   ]}
                 />
               </AdminField>
             ) : (
               <>
-                <AdminField label="Business / ad name" required>
+                <AdminField label={t("ads.adName")} required>
                   <AdminInput
                     value={draft.name}
                     onChange={(v) => setDraft({ ...draft, name: v })}
                   />
                 </AdminField>
                 <AdminFormRow>
-                  <AdminField label="Owner name">
+                  <AdminField label={t("ads.ownerName")}>
                     <AdminInput
                       value={draft.ownerName}
                       onChange={(v) => setDraft({ ...draft, ownerName: v })}
                     />
                   </AdminField>
-                  <AdminField label="Owner mobile" hint="10-digit mobile · numbers only">
+                  <AdminField label={t("ads.ownerMobile")} hint={t("ads.ownerMobileHint")}>
                     <AdminInput
                       type="tel"
                       value={draft.ownerMobile}
@@ -1188,48 +1213,48 @@ export function AdsClient({
               </>
             )}
 
-            <AdminField label="Category" required>
+            <AdminField label={t("ads.thCategory")} required>
               <AdminSelect
                 value={draft.category}
                 onChange={(v) => setDraft({ ...draft, category: v })}
                 className="w-full"
-                options={categorySelectOptions(categories, draft.category)}
+                options={categorySelectOptions(categories, draft.category, t("ads.selectCategory"))}
               />
             </AdminField>
 
-            <AdminField label="Description">
+            <AdminField label={t("ads.description")}>
               <AdminInput
                 value={draft.pitch}
-                placeholder="Short description…"
+                placeholder={t("ads.descriptionPlaceholder")}
                 onChange={(v) => setDraft({ ...draft, pitch: v })}
               />
             </AdminField>
 
             {draft.type === "premium" && (
               <>
-                <AdminField label="Banner image">
+                <AdminField label={t("ads.bannerImage")}>
                   <AdminFilePicker
                     value={draft.imageUrl}
                     folder="ads"
-                    hint="1200 × 600 px (2:1) recommended"
+                    hint={t("ads.bannerHint")}
                     onChange={(url) => setDraft((d) => ({ ...d, imageUrl: url }))}
                   />
                 </AdminField>
-                <AdminField label="Link URL">
+                <AdminField label={t("ads.linkUrl")}>
                   <AdminInput
                     value={draft.linkUrl}
                     onChange={(v) => setDraft({ ...draft, linkUrl: v })}
                   />
                 </AdminField>
                 <AdminFormRow>
-                  <AdminField label="Start date" required>
+                  <AdminField label={t("ads.startDate")} required>
                     <DateField
                       variant="admin"
                       value={draft.startDate}
                       onChange={(v) => setDraft({ ...draft, startDate: v })}
                     />
                   </AdminField>
-                  <AdminField label="End date" required>
+                  <AdminField label={t("ads.endDate")} required>
                     <DateField
                       variant="admin"
                       value={draft.endDate}
@@ -1238,12 +1263,12 @@ export function AdsClient({
                     />
                   </AdminField>
                 </AdminFormRow>
-                <AdminField label="Payment status">
+                <AdminField label={t("ads.paymentStatus")}>
                   <AdminSelect
                     value={draft.payStatus}
                     onChange={(v) => setDraft({ ...draft, payStatus: v })}
                     className="w-full"
-                    options={PAY_OPTS}
+                    options={payOptions}
                   />
                 </AdminField>
               </>
@@ -1251,14 +1276,14 @@ export function AdsClient({
 
             {draft.type === "general" && (
               <AdminFormRow>
-                <AdminField label="Start date" required>
+                <AdminField label={t("ads.startDate")} required>
                   <DateField
                     variant="admin"
                     value={draft.startDate}
                     onChange={(v) => setDraft({ ...draft, startDate: v })}
                   />
                 </AdminField>
-                <AdminField label="End date" required>
+                <AdminField label={t("ads.endDate")} required>
                   <DateField
                     variant="admin"
                     value={draft.endDate}
@@ -1270,7 +1295,7 @@ export function AdsClient({
             )}
 
             <AdminFormRow>
-              <AdminField label="Status">
+              <AdminField label={t("ads.thStatus")}>
                 <AdminSelect
                   value={draft.status}
                   onChange={(v) => setDraft({ ...draft, status: v as AdStatus })}
@@ -1278,18 +1303,18 @@ export function AdsClient({
                   options={
                     draft.type === "premium"
                       ? [
-                          { value: "ACTIVE", label: "Active" },
-                          { value: "PENDING", label: "Pending" },
-                          { value: "DRAFT", label: "Draft" },
+                          { value: "ACTIVE", label: t("ads.stActive") },
+                          { value: "PENDING", label: t("ads.stPending") },
+                          { value: "DRAFT", label: t("ads.stDraft") },
                         ]
                       : [
-                          { value: "ACTIVE", label: "Active" },
-                          { value: "DEACTIVATED", label: "Deactivated" },
+                          { value: "ACTIVE", label: t("ads.stActive") },
+                          { value: "DEACTIVATED", label: t("ads.stDeactivated") },
                         ]
                   }
                 />
               </AdminField>
-              <AdminField label="Priority">
+              <AdminField label={t("ads.priority")}>
                 <AdminInput
                   type="number"
                   value={draft.priority}
@@ -1405,15 +1430,15 @@ export function AdsClient({
             </div>
 
             <AdminField
-              label="Reject reason"
+              label={t("ads.rejectReason")}
               required
-              hint="Required to reject — the submitter sees this reason."
+              hint={t("ads.rejectReasonHint")}
               className="mt-3.5"
             >
               <Textarea
                 value={modal.reason}
                 onChange={(e) => setReviewReason(e.target.value)}
-                placeholder="Why is this being rejected…"
+                placeholder={t("ads.rejectReasonPlaceholder")}
                 className="min-h-[70px] resize-none border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
             </AdminField>
@@ -1431,23 +1456,23 @@ export function AdsClient({
 
             {modal.ad.type === "premium" ? (
               <>
-                <AdminField label="Banner image">
+                <AdminField label={t("ads.bannerImage")}>
                   <AdminFilePicker
                     value={modal.form.imageUrl}
                     folder="ads"
-                    hint="1200 × 600 px (2:1) recommended"
+                    hint={t("ads.bannerHint")}
                     onChange={(url) => setEditForm((f) => ({ ...f, imageUrl: url }))}
                   />
                 </AdminField>
                 <AdminFormRow>
-                  <AdminField label="Start date" required>
+                  <AdminField label={t("ads.startDate")} required>
                     <DateField
                       variant="admin"
                       value={modal.form.startDate}
                       onChange={(v) => setEditForm({ ...modal.form, startDate: v })}
                     />
                   </AdminField>
-                  <AdminField label="End date" required>
+                  <AdminField label={t("ads.endDate")} required>
                     <DateField
                       variant="admin"
                       value={modal.form.endDate}
@@ -1456,33 +1481,36 @@ export function AdsClient({
                     />
                   </AdminField>
                 </AdminFormRow>
-                <AdminField label="Payment status">
+                <AdminField label={t("ads.paymentStatus")}>
                   <AdminSelect
                     value={modal.form.payStatus}
                     onChange={(v) => setEditForm({ ...modal.form, payStatus: v })}
                     className="w-full"
-                    options={PAY_OPTS}
+                    options={payOptions}
                   />
                 </AdminField>
               </>
             ) : (
               <>
                 <div className="mb-3.5 rounded-[11px] border border-[#CFE0EC] bg-[#E7F0FB] px-3.5 py-2.5 text-[12px] leading-relaxed text-[#3D6B8C]">
-                  General ads pull their info from the Business module. Edit category &amp; status
-                  here; other details are managed under Families / Business.
+                  {t("ads.generalEditNote")}
                 </div>
-                <AdminField label="Category" required>
+                <AdminField label={t("ads.category")} required>
                   <AdminSelect
                     value={modal.form.category}
                     onChange={(v) => setEditForm({ ...modal.form, category: v })}
                     className="w-full"
-                    options={categorySelectOptions(categories, modal.form.category)}
+                    options={categorySelectOptions(
+                      categories,
+                      modal.form.category,
+                      t("ads.selectCategory"),
+                    )}
                   />
                 </AdminField>
               </>
             )}
 
-            <AdminField label="Status">
+            <AdminField label={t("ads.status")}>
               <AdminSelect
                 value={modal.form.status}
                 onChange={(v) => setEditForm({ ...modal.form, status: v as AdStatus })}
@@ -1490,15 +1518,15 @@ export function AdsClient({
                 options={
                   modal.ad.type === "premium"
                     ? [
-                        { value: "ACTIVE", label: "Active" },
-                        { value: "PENDING", label: "Pending" },
-                        { value: "DRAFT", label: "Draft" },
-                        { value: "DEACTIVATED", label: "Deactivated" },
-                        { value: "EXPIRED", label: "Expired" },
+                        { value: "ACTIVE", label: t("ads.stActive") },
+                        { value: "PENDING", label: t("ads.stPending") },
+                        { value: "DRAFT", label: t("ads.stDraft") },
+                        { value: "DEACTIVATED", label: t("ads.stDeactivated") },
+                        { value: "EXPIRED", label: t("ads.stExpired") },
                       ]
                     : [
-                        { value: "ACTIVE", label: "Active" },
-                        { value: "DEACTIVATED", label: "Deactivated" },
+                        { value: "ACTIVE", label: t("ads.stActive") },
+                        { value: "DEACTIVATED", label: t("ads.stDeactivated") },
                       ]
                 }
               />
@@ -1515,15 +1543,15 @@ export function AdsClient({
           <>
             <AdSummaryCard ad={modal.ad} />
             <div className="mb-3.5 flex justify-between text-[13px] text-[var(--ink)]">
-              <span className="text-[var(--faint)]">Current expiry</span>
+              <span className="text-[var(--faint)]">{t("ads.currentExpiry")}</span>
               <b>{fmtDate(modal.ad.endDate)}</b>
             </div>
-            <AdminField label="Renew duration">
+            <AdminField label={t("ads.renewDuration")}>
               <div className="flex gap-2.5">
                 {(
                   [
-                    { v: "6m" as const, label: "6 Months" },
-                    { v: "1y" as const, label: "1 Year" },
+                    { v: "6m" as const, label: t("ads.dur6m") },
+                    { v: "1y" as const, label: t("ads.dur1y") },
                   ]
                 ).map((o) => (
                   <button
@@ -1543,7 +1571,7 @@ export function AdsClient({
               </div>
             </AdminField>
             <div className="mb-1 flex items-center justify-between rounded-[11px] border border-[#B7E6C6] bg-[#F0FBF3] px-3.5 py-3 text-[13px]">
-              <span className="font-bold text-[#1E7A44]">New expiry date</span>
+              <span className="font-bold text-[#1E7A44]">{t("ads.newExpiryDate")}</span>
               <b className="text-[#1E7A44]">{fmtDate(renewPreview)}</b>
             </div>
           </>

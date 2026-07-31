@@ -30,10 +30,17 @@ import {
 import { toast } from "sonner";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
-import { accentGradient, accentVarStyle, ALBUM_HOVER_SHADOW, formatDateDMY } from "@/lib/format";
+import {
+  accentGradient,
+  accentVarStyle,
+  ALBUM_HOVER_SHADOW,
+  formatDateDMY,
+  pickText,
+} from "@/lib/format";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { DateField, todayISO } from "@/components/ui/date-field";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 
 export type AlbumImage = { imageUrl: string; caption: string | null };
 
@@ -95,22 +102,8 @@ function endDateUrgencyClass(endDateISO: string | null): string {
   return "";
 }
 
-const STATUS_FILTER_OPTIONS = [
-  { value: "all", label: "All albums" },
-  { value: "visible", label: "Visible" },
-  { value: "expired", label: "Expired" },
-];
-
-/** Album accent colours — same set as Admin.dc.html `accentOpts`. */
-const ACCENTS = [
-  { value: "#8E2230", label: "Maroon" },
-  { value: "#B26A1E", label: "Amber" },
-  { value: "#3D6B8C", label: "Blue" },
-  { value: "#6A4E9C", label: "Purple" },
-  { value: "#4E7A45", label: "Green" },
-];
-
 export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
+  const { t, tf, lang } = useAdminT();
   const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<AlbumRow[]>(initialRows);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -120,6 +113,21 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "visible" | "expired">("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const statusFilterOptions = [
+    { value: "all", label: t("gal.filterAll") },
+    { value: "visible", label: t("gal.visible") },
+    { value: "expired", label: t("gal.expired") },
+  ];
+
+  /** Album accent colours — same set as Admin.dc.html `accentOpts`. */
+  const accents = [
+    { value: "#8E2230", label: t("gal.accentMaroon") },
+    { value: "#B26A1E", label: t("gal.accentAmber") },
+    { value: "#3D6B8C", label: t("gal.accentBlue") },
+    { value: "#6A4E9C", label: t("gal.accentPurple") },
+    { value: "#4E7A45", label: t("gal.accentGreen") },
+  ];
 
   const filteredRows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -163,10 +171,10 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   async function saveAlbum() {
     if (!draft) return;
     if (!draft.titleGu.trim() && !draft.titleEn.trim()) {
-      return setError("Folder name is required");
+      return setError(t("gal.errNameRequired"));
     }
     if (draft.startDate && draft.endDate && draft.endDate < draft.startDate) {
-      return setError("End date can't be before start date");
+      return setError(t("gal.errEndBeforeStart"));
     }
     setBusy(true);
     setError(null);
@@ -210,17 +218,16 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       draft.id ? prev.map((r) => (r.id === draft.id ? row : r)) : [row, ...prev],
     );
     setDraft(null);
-    toast.success(draft.id ? "Album updated" : "Album created");
+    toast.success(draft.id ? t("gal.toastUpdated") : t("gal.toastCreated"));
   }
 
   async function toggleVisible(a: AlbumRow) {
     const next = !a.isVisible;
     const ok = await confirmDialog({
-      title: next ? "Show this album?" : "Hide this album?",
-      description: next
-        ? "It will become visible again in the User App."
-        : "It will no longer be visible in the User App until shown again.",
-      confirmLabel: next ? "Show" : "Hide",
+      title: next ? t("gal.confirmShowTitle") : t("gal.confirmHideTitle"),
+      description: next ? t("gal.confirmShowDesc") : t("gal.confirmHideDesc"),
+      confirmLabel: next ? t("gal.show") : t("gal.hide"),
+      cancelLabel: t("common.cancel"),
       tone: next ? "primary" : "danger",
     });
     if (!ok) return;
@@ -228,27 +235,28 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
     const res = await api.patch(`/api/gallery`, { id: a.id, isVisible: next });
     if (!res.ok) {
       setRows((prev) => prev.map((r) => (r.id === a.id ? { ...r, isVisible: !next } : r)));
-      toast.error(res.error || "Could not update");
+      toast.error(res.error || t("gal.errUpdate"));
       return;
     }
-    toast.success(next ? "Album shown" : "Album hidden");
+    toast.success(next ? t("gal.toastShown") : t("gal.toastHidden"));
   }
 
   async function remove(id: string) {
     const ok = await confirmDialog({
-      title: "Delete this album?",
-      description: "All photos in it will be removed too.",
-      confirmLabel: "Delete",
+      title: t("gal.confirmDeleteTitle"),
+      description: t("gal.confirmDeleteDesc"),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
       tone: "danger",
     });
     if (!ok) return;
     const res = await api.del(`/api/gallery?id=${id}`);
     if (!res.ok) {
-      toast.error(res.error || "Could not delete");
+      toast.error(res.error || t("gal.errDelete"));
       return;
     }
     setRows((prev) => prev.filter((r) => r.id !== id));
-    toast.success("Album deleted");
+    toast.success(t("gal.toastDeleted"));
   }
 
   return (
@@ -258,27 +266,19 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
           className="mb-0 shrink-0"
           info={
             <>
-              <p>
-                Create a folder with a name, start &amp; end date, then upload multiple images into
-                it. Photos appear in the User App under that album until the end date passes, after
-                which the album is automatically deactivated.
-              </p>
-              <p className="mt-1.5">
-                Album = title + start/end date + description + cover. Long videos = YouTube link
-                inside album. End date reached → album auto-deactivates (not visible in the User
-                App).
-              </p>
+              <p>{t("gal.info1")}</p>
+              <p className="mt-1.5">{t("gal.info2")}</p>
             </>
           }
         >
-          Event Gallery — albums
+          {t("gal.heading")}
         </AdminH2>
 
         <div className="flex w-full items-center gap-2.5 md:w-auto">
           <SearchInput
             value={q}
             onChange={setQ}
-            placeholder="Search albums…"
+            placeholder={t("gal.searchPlaceholder")}
             className="min-w-0 flex-1 md:w-[210px] md:flex-none"
           />
           <FilterButton
@@ -290,34 +290,34 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
             <AdminSelect
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as "all" | "visible" | "expired")}
-              options={STATUS_FILTER_OPTIONS}
+              options={statusFilterOptions}
               className="w-[150px] shrink-0"
-              ariaLabel="Filter by status"
+              ariaLabel={t("gal.filterByStatus")}
             />
             <AdminBtn className="shrink-0" onClick={openCreate}>
               <Plus className="size-4" />
-              Create album (folder)
+              {t("gal.createAlbum")}
             </AdminBtn>
           </div>
         </div>
         <AdminBtn className="w-full justify-center md:hidden" onClick={openCreate}>
           <Plus className="size-4" />
-          Create album (folder)
+          {t("gal.createAlbum")}
         </AdminBtn>
       </div>
 
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="md:hidden">
           <SheetHeader>
-            <SheetTitle>Filters</SheetTitle>
+            <SheetTitle>{t("gal.filters")}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-3 px-4 pb-4">
             <AdminSelect
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as "all" | "visible" | "expired")}
-              options={STATUS_FILTER_OPTIONS}
+              options={statusFilterOptions}
               className="w-full"
-              ariaLabel="Filter by status"
+              ariaLabel={t("gal.filterByStatus")}
             />
           </div>
         </SheetContent>
@@ -326,7 +326,11 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
         {filteredRows.map((a) => {
           const expired = isExpired(a.endDateISO);
-          const statusLabel = a.isVisible ? "Visible" : expired ? "Expired" : "Hidden";
+          const statusLabel = a.isVisible
+            ? t("gal.visible")
+            : expired
+              ? t("gal.expired")
+              : t("gal.hidden");
           return (
             <article
               key={a.id}
@@ -356,7 +360,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
 
               <div className="flex min-w-0 flex-1 flex-col p-3.5">
                 <h3 className="truncate text-[14px] font-extrabold text-[var(--ink)]">
-                  {a.titleGu || a.titleEn}
+                  {pickText(a.titleGu, a.titleEn, lang)}
                 </h3>
                 <div className="mt-0.5 flex items-center justify-between gap-2">
                   <p className="min-w-0 truncate text-[11.5px] font-semibold text-[var(--faint)]">
@@ -373,8 +377,8 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                     ) : (
                       "—"
                     )}{" "}
-                    · {a.photos} photo{a.photos === 1 ? "" : "s"}
-                    {a.youtubeUrl ? " · video" : ""}
+                    · {tf(a.photos === 1 ? "gal.photoOne" : "gal.photoMany", { n: a.photos })}
+                    {a.youtubeUrl ? ` · ${t("gal.video")}` : ""}
                   </p>
                   <span
                     className={cn(
@@ -391,14 +395,23 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1.5 border-t border-[var(--line-soft)] pt-3">
-                  <ActionBtn icon={Upload} label="Upload / manage" onClick={() => openEdit(a)} />
+                  <ActionBtn
+                    icon={Upload}
+                    label={t("gal.uploadManage")}
+                    onClick={() => openEdit(a)}
+                  />
                   <ActionBtn
                     icon={a.isVisible ? EyeOff : Eye}
-                    label={a.isVisible ? "Hide" : "Show"}
+                    label={a.isVisible ? t("gal.hide") : t("gal.show")}
                     tone={a.isVisible ? "warn" : "success"}
                     onClick={() => toggleVisible(a)}
                   />
-                  <ActionBtn icon={Trash2} label="Delete" tone="danger" onClick={() => remove(a.id)} />
+                  <ActionBtn
+                    icon={Trash2}
+                    label={t("common.delete")}
+                    tone="danger"
+                    onClick={() => remove(a.id)}
+                  />
                 </div>
               </div>
             </article>
@@ -408,31 +421,32 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
 
       {filteredRows.length === 0 && (
         <p className="py-10 text-center text-[13px] text-[var(--faint)]">
-          {rows.length === 0 ? "No albums yet — create your first folder." : "No matching albums."}
+          {rows.length === 0 ? t("gal.emptyNone") : t("gal.emptyMatch")}
         </p>
       )}
 
       <AdminModal
         open={draft !== null}
         onClose={() => setDraft(null)}
-        title={draft?.id ? "Edit album" : "Create album"}
-        subtitle="Folder name, start/end date & description."
+        title={draft?.id ? t("gal.editAlbum") : t("gal.newAlbum")}
+        subtitle={t("gal.modalSubtitle")}
         footer={
           <AdminModalActions
             onSave={saveAlbum}
             onCancel={() => setDraft(null)}
-            saveLabel={draft?.id ? "Save album" : "Create"}
+            saveLabel={draft?.id ? t("gal.saveAlbum") : t("gal.create")}
+            cancelLabel={t("common.cancel")}
             busy={busy}
           />
         }
       >
         {draft && (
           <>
-            <AdminField label="Folder name (ગુજરાતી)" required>
+            <AdminField label={t("gal.folderNameGu")} required>
               <AdminInput
                 gujarati
                 value={draft.titleGu}
-                placeholder="દા.ત. પાટોત્સવ 2026"
+                placeholder={t("gal.folderNamePlaceholder")}
                 onChange={(v) => {
                   setDraft((d) => (d ? { ...d, titleGu: v } : d));
                   guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
@@ -440,10 +454,10 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
               />
             </AdminField>
 
-            <AdminField label="Folder name (English)">
+            <AdminField label={t("gal.folderNameEn")}>
               <AdminInput
                 value={draft.titleEn}
-                placeholder="e.g. Patotsav 2026"
+                placeholder={t("gal.folderNamePlaceholder")}
                 onChange={(v) => {
                   setDraft((d) => (d ? { ...d, titleEn: v } : d));
                   fromEn(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)));
@@ -452,7 +466,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
             </AdminField>
 
             <AdminFormRow>
-              <AdminField label="Start date">
+              <AdminField label={t("gal.startDate")}>
                 <DateField
                   variant="admin"
                   value={draft.startDate}
@@ -460,7 +474,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                   onChange={(v) => setDraft({ ...draft, startDate: v })}
                 />
               </AdminField>
-              <AdminField label="End date" hint="Album auto-deactivates after this date">
+              <AdminField label={t("gal.endDate")} hint={t("gal.endDateHint")}>
                 <DateField
                   variant="admin"
                   value={draft.endDate}
@@ -470,44 +484,44 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
               </AdminField>
             </AdminFormRow>
 
-            <AdminField label="Accent color">
+            <AdminField label={t("gal.accentColor")}>
               <AdminColorSelect
                 value={draft.accent}
                 onChange={(v) => setDraft({ ...draft, accent: v })}
                 className="w-full"
-                options={ACCENTS}
+                options={accents}
               />
             </AdminField>
 
-            <AdminField label="Description (ગુજરાતી)">
+            <AdminField label={t("gal.descGu")}>
               <AdminInput
                 value={draft.description}
-                placeholder="ટૂંકી વિગત"
+                placeholder={t("gal.descPlaceholder")}
                 onChange={(v) => setDraft({ ...draft, description: v })}
               />
             </AdminField>
 
-            <AdminField label="Status">
+            <AdminField label={t("gal.status")}>
               <AdminSegmented
                 value={draft.isVisible ? "active" : "hidden"}
                 onChange={(v) => setDraft({ ...draft, isVisible: v === "active" })}
                 options={[
-                  { value: "active", label: "Active" },
-                  { value: "hidden", label: "Hidden" },
+                  { value: "active", label: t("gal.active") },
+                  { value: "hidden", label: t("gal.hidden") },
                 ]}
               />
             </AdminField>
 
-            <AdminField label="Cover image">
+            <AdminField label={t("gal.coverImage")}>
               <AdminFilePicker
                 value={draft.coverUrl}
                 folder="gallery"
-                hint="1200 × 600 px (2:1) recommended"
+                hint={t("gal.coverHint")}
                 onChange={(url) => setDraft((d) => (d ? { ...d, coverUrl: url } : d))}
               />
             </AdminField>
 
-            <AdminField label="YouTube URL (optional)">
+            <AdminField label={t("gal.youtubeUrl")}>
               <AdminInput
                 value={draft.youtubeUrl}
                 onChange={(v) => setDraft({ ...draft, youtubeUrl: v })}
@@ -515,8 +529,8 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
             </AdminField>
 
             <AdminField
-              label={`Photos (${draft.images.length})`}
-              hint="1280 × 720 px (16:9) recommended, per photo"
+              label={tf("gal.photosCount", { n: draft.images.length })}
+              hint={t("gal.photosHint")}
             >
               <AdminMultiImagePicker
                 images={draft.images}
@@ -532,8 +546,8 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       <AdminModal
         open={preview !== null}
         onClose={() => setPreview(null)}
-        title={preview ? preview.titleGu || preview.titleEn : ""}
-        subtitle="How this album appears in the User App."
+        title={preview ? pickText(preview.titleGu, preview.titleEn, lang) : ""}
+        subtitle={t("gal.previewSubtitle")}
         width="lg"
       >
         {preview && (
@@ -552,7 +566,11 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
             <div className="p-4">
               {(() => {
                 const expired = isExpired(preview.endDateISO);
-                const statusLabel = preview.isVisible ? "Visible" : expired ? "Expired" : "Hidden";
+                const statusLabel = preview.isVisible
+                  ? t("gal.visible")
+                  : expired
+                    ? t("gal.expired")
+                    : t("gal.hidden");
                 return (
                   <span
                     className={cn(
@@ -569,7 +587,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                 );
               })()}
               <h3 className="mt-2 font-[family-name:var(--font-noto-serif-gujarati)] text-lg font-bold text-[var(--ink)]">
-                {preview.titleGu || preview.titleEn}
+                {pickText(preview.titleGu, preview.titleEn, lang)}
               </h3>
               <p className="mt-1 text-[11.5px] font-semibold text-[var(--faint)]">
                 {preview.startDateISO || preview.endDateISO ? (
@@ -585,7 +603,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                 ) : (
                   "—"
                 )}{" "}
-                · {preview.photos} photo{preview.photos === 1 ? "" : "s"}
+                · {tf(preview.photos === 1 ? "gal.photoOne" : "gal.photoMany", { n: preview.photos })}
               </p>
               {preview.description && (
                 <p className="mt-3 whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
@@ -595,7 +613,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
 
               {preview.images.length === 0 ? (
                 <p className="mt-4 py-6 text-center text-[13px] text-[var(--faint)]">
-                  No photos in this album yet.
+                  {t("gal.noPhotos")}
                 </p>
               ) : (
                 <div className="mt-4 grid grid-cols-4 gap-2">
@@ -610,8 +628,8 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                         href={img.imageUrl}
                         target="_blank"
                         rel="noreferrer"
-                        aria-label="View photo"
-                        title="View photo"
+                        aria-label={t("gal.viewPhoto")}
+                        title={t("gal.viewPhoto")}
                         className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-black/55 text-white"
                       >
                         <Eye className="size-3" strokeWidth={2.3} />
@@ -631,7 +649,9 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                   <div className="flex size-9 items-center justify-center rounded-lg bg-[var(--info-tint)] text-[var(--info)]">
                     <ImageIcon className="size-[18px]" strokeWidth={1.85} />
                   </div>
-                  <span className="text-[13px] font-bold text-[var(--ink)]">Watch video</span>
+                  <span className="text-[13px] font-bold text-[var(--ink)]">
+                    {t("gal.watchVideo")}
+                  </span>
                 </a>
               )}
             </div>

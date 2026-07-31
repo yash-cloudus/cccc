@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminInput, AdminToggle } from "@/components/admin/admin-ui";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 import {
   AdminCheck,
@@ -21,13 +22,29 @@ import {
   ROLE_TEMPLATES,
   ROLE_TEMPLATE_MENUS,
   ROLE_TEMPLATE_ROLES,
-  menuLabel,
   templateOf,
   type AdminRow,
   type MemberOption,
   type RoleTemplate,
 } from "./admin-roles";
 import { AvatarInitial } from "./avatar-initial";
+
+/**
+ * Role template → dictionary key. The labels in `admin-roles` are the English
+ * source; the rendered text comes from here so both languages stay in sync.
+ */
+export const TEMPLATE_KEY: Record<RoleTemplate, AdminKey> = {
+  community_admin: "adm.roleCommunityAdmin",
+  coordinator_head: "adm.tplCoordinatorHead",
+  content_manager: "adm.roleContentManager",
+  gallery_manager: "adm.tplGalleryManager",
+  result_manager: "adm.tplResultManager",
+  owner: "adm.roleOwner",
+  custom: "adm.tplCustom",
+};
+
+/** Menu keys mirror the sidebar, so their labels reuse the `nav.*` entries. */
+export const menuKey = (k: string) => `nav.${k}` as AdminKey;
 
 /** Everything the Add / Edit modal collects. */
 export type AdminFormValues = {
@@ -108,6 +125,7 @@ export function AdminFormModal({
   onClose: () => void;
   onSubmit: (values: AdminFormValues) => void;
 }) {
+  const { t } = useAdminT();
   const editing = row !== null;
   const [form, setForm] = useState<AdminFormValues>(blank);
 
@@ -136,18 +154,18 @@ export function AdminFormModal({
     <AdminModal
       open={open}
       onClose={onClose}
-      title={editing ? "Edit admin" : "Add admin"}
-      subtitle="Everything for this admin — set up in one place."
+      title={editing ? t("adm.editAdmin") : t("adm.addAdmin")}
+      subtitle={t("adm.formSubtitle")}
       footer={
         <AdminModalActions
           onSave={() => onSubmit(form)}
           onCancel={onClose}
-          saveLabel={editing ? "Save changes" : "Create admin"}
+          saveLabel={editing ? t("adm.saveChanges") : t("adm.createAdmin")}
           busy={busy}
         />
       }
     >
-      <AdminFormSection step={1} title="Member" />
+      <AdminFormSection step={1} title={t("adm.stepMember")} />
       {editing ? (
         <MemberCard
           name={form.fullNameGu || form.fullNameEn}
@@ -157,17 +175,14 @@ export function AdminFormModal({
         />
       ) : (
         <>
-          <AdminField
-            required
-            hint="The admin's name, mobile and family come from the member you pick."
-          >
+          <AdminField required hint={t("adm.memberHint")}>
             <AdminSearchSelect
               items={members}
               value={selectedMember}
-              placeholder="Search & select a member…"
+              placeholder={t("adm.memberSearchPlaceholder")}
               renderLabel={(m) => m.name}
               renderMeta={(m) => [m.mobile, m.surname].filter(Boolean).join(" · ")}
-              emptyText="No member found"
+              emptyText={t("adm.noMemberFound")}
               onChange={(m) =>
                 setForm((f) => ({
                   ...f,
@@ -191,16 +206,16 @@ export function AdminFormModal({
         </>
       )}
 
-      <AdminFormSection step={2} title="Login credentials" className="mt-5" />
-      <AdminField label="Login ID" required>
+      <AdminFormSection step={2} title={t("adm.stepCredentials")} className="mt-5" />
+      <AdminField label={t("adm.loginId")} required>
         <AdminInput
           value={form.username}
-          placeholder="e.g. community_admin_02"
+          placeholder={t("adm.loginIdPlaceholder")}
           onChange={(v) => set("username", v.toLowerCase().replace(/\s+/g, "_"))}
         />
       </AdminField>
       <AdminFormRow>
-        <AdminField label="Password" required={!editing}>
+        <AdminField label={t("adm.password")} required={!editing}>
           <AdminPasswordField
             value={form.password}
             onChange={(v) => set("password", v)}
@@ -210,7 +225,7 @@ export function AdminFormModal({
             }}
           />
         </AdminField>
-        <AdminField label="Confirm password" required={!editing}>
+        <AdminField label={t("adm.confirmPassword")} required={!editing}>
           <AdminPasswordField
             value={form.confirmPassword}
             onChange={(v) => set("confirmPassword", v)}
@@ -219,17 +234,21 @@ export function AdminFormModal({
       </AdminFormRow>
       {editing && (
         <p className="-mt-1 mb-1 text-[11.5px] text-[var(--faint)]">
-          Leave both blank to keep the current password.
+          {t("adm.keepPasswordHint")}
         </p>
       )}
 
-      <AdminFormSection step={3} title="Role (pre-fills permissions)" className="mt-5" />
-      <AdminChoiceChips value={form.roleTemplate} onChange={applyTemplate} options={ROLE_TEMPLATES} />
+      <AdminFormSection step={3} title={t("adm.stepRole")} className="mt-5" />
+      <AdminChoiceChips
+        value={form.roleTemplate}
+        onChange={applyTemplate}
+        options={ROLE_TEMPLATES.map((o) => ({ value: o.value, label: t(TEMPLATE_KEY[o.value]) }))}
+      />
 
       <div className="mt-5 mb-2.5 flex items-center justify-between">
-        <AdminFormSection step={4} title="Menu permissions" className="mb-0" />
+        <AdminFormSection step={4} title={t("adm.stepMenus")} className="mb-0" />
         <AdminCheck
-          label="Select all"
+          label={t("adm.selectAll")}
           checked={allMenus}
           onChange={(next) =>
             setForm((f) => ({
@@ -252,7 +271,7 @@ export function AdminFormModal({
               )}
             >
               <AdminCheck
-                label={m.label}
+                label={t(menuKey(m.key))}
                 checked={on}
                 onChange={() =>
                   setForm((f) => ({
@@ -267,30 +286,30 @@ export function AdminFormModal({
         })}
       </div>
 
-      <AdminFormSection step={5} title="Contact visibility" className="mt-5" />
+      <AdminFormSection step={5} title={t("adm.stepContact")} className="mt-5" />
       <div className="flex items-center gap-3 rounded-[14px] border border-[var(--line-admin)] bg-[#FBFAF7] p-3.5">
         <div className="flex-1">
-          <div className="text-[13px] font-bold text-[var(--ink)]">Show Contact to Members</div>
+          <div className="text-[13px] font-bold text-[var(--ink)]">{t("adm.showContact")}</div>
           <div className="mt-0.5 text-[11.5px] leading-relaxed text-[var(--faint)]">
-            ON → contact details are visible to users in the Community app. OFF → hidden.
+            {t("adm.showContactHelp")}
           </div>
         </div>
         <span className="text-[11.5px] font-extrabold text-[var(--faint)]">
-          {form.showPhone ? "ON" : "OFF"}
+          {form.showPhone ? t("adm.on") : t("adm.off")}
         </span>
         <AdminToggle
           on={form.showPhone}
           onChange={(v) => set("showPhone", v)}
-          label="Show contact to members"
+          label={t("adm.showContact")}
         />
       </div>
 
       <div className="mt-4 rounded-[14px] border border-[#D2D6FB] bg-[var(--platform-tint)] p-3.5">
         <div className="mb-2 text-[11px] font-extrabold tracking-wider text-[#3D6B8C] uppercase">
-          Access summary
+          {t("adm.accessSummary")}
         </div>
         {form.menus.length === 0 ? (
-          <p className="text-[12px] font-semibold text-[var(--faint)]">No menus granted yet.</p>
+          <p className="text-[12px] font-semibold text-[var(--faint)]">{t("adm.noMenus")}</p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
             {form.menus.map((k) => (
@@ -298,7 +317,7 @@ export function AdminFormModal({
                 key={k}
                 className="rounded-full bg-white px-2.5 py-1 text-[11.5px] font-bold text-[#3A45B0]"
               >
-                {menuLabel(k)}
+                {t(menuKey(k))}
               </span>
             ))}
           </div>
@@ -322,16 +341,17 @@ function MemberCard({
   family: string;
   surname: string;
 }) {
+  const { t } = useAdminT();
   return (
     <div className="mt-2 flex gap-3 rounded-[14px] border border-[var(--line-admin)] bg-[#FBFAF7] p-3.5">
       <AvatarInitial name={name} className="size-11 rounded-[14px] text-[17px]" />
       <dl className="grid flex-1 grid-cols-1 gap-x-4 gap-y-1 text-[12.5px] sm:grid-cols-2">
         {(
           [
-            ["Name", name],
-            ["Mobile", mobile || "—"],
-            ["Family", family || "—"],
-            ["Surname", surname || "—"],
+            [t("adm.name"), name],
+            [t("adm.mobile"), mobile || "—"],
+            [t("adm.family"), family || "—"],
+            [t("adm.surname"), surname || "—"],
           ] as const
         ).map(([label, value]) => (
           <div key={label} className="flex gap-1.5">

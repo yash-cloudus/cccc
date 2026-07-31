@@ -26,18 +26,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { storedOccupationPath } from "@/lib/cascading-occupation";
 import { REJECT_REASONS } from "@/lib/constants";
 import { api } from "@/lib/http";
+import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
+
+/** Chip labels for the stored (English) reject reasons — the value sent to the
+ *  API stays the English constant, only the label is translated. */
+const REJECT_REASON_KEY: Record<string, AdminKey> = {
+  "Incomplete form": "queue.reasonIncomplete",
+  "Duplicate family": "queue.reasonDuplicate",
+  "Invalid phone": "queue.reasonInvalidPhone",
+  "Needs verification": "queue.reasonNeedsVerification",
+};
 
 export type QueueRow = {
   id: string;
-  head: string;
   headEn: string;
   headGu: string | null;
-  surname: string;
   surnameEn: string;
   surnameGu: string | null;
   city: string;
   members: number;
+  /** ISO timestamp — formatted client-side, in the admin's language. */
   submitted: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
 };
@@ -51,13 +60,12 @@ export type FieldChange = {
 
 export type UpdateRequestRow = {
   id: string;
-  member: string;
   memberEn: string;
   memberGu: string | null;
-  surname: string;
   surnameEn: string;
   surnameGu: string | null;
   changes: FieldChange[];
+  /** ISO timestamp — formatted client-side, in the admin's language. */
   submitted: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
   rejectReason: string | null;
@@ -96,6 +104,16 @@ export function QueueClient({
   cities: string[];
   updateRequests: UpdateRequestRow[];
 }) {
+  const { t, tf, lang, locale } = useAdminT();
+  /** Pick the reader's language out of a bilingual DB value. */
+  const bi = (gu: string | null | undefined, en: string | null | undefined) =>
+    (lang === "en" ? en || gu : gu || en) || "";
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(locale, {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
   const [rows, setRows] = useState<QueueRow[]>(initialRows);
   const [tab, setTab] = useState<"new" | "updates">("new");
   const [updates, setUpdates] = useState<UpdateRequestRow[]>(updateRequests);
@@ -106,7 +124,7 @@ export function QueueClient({
   async function reviewUpdate(row: UpdateRequestRow, action: "apply" | "reject") {
     let rejectReasonText: string | undefined;
     if (action === "reject") {
-      const input = window.prompt("Reason for rejecting this update request?");
+      const input = window.prompt(t("queue.promptUpdateReject"));
       if (input === null) return;
       rejectReasonText = input.trim() || undefined;
     }
@@ -209,7 +227,7 @@ export function QueueClient({
     const id = rejectId ?? approveId;
     if (!id) return;
     if (!rejectReason.trim()) {
-      setError("Reject reason is required");
+      setError(t("queue.errReasonRequired"));
       return;
     }
     setBusy(true);
@@ -234,19 +252,17 @@ export function QueueClient({
           className="mb-0"
           info={
             <>
-              <p>Approve → family&apos;s phone numbers can log in · Reject requires a reason.</p>
-              <p className="mt-1.5">
-                Members edited their profile in the app. Review what changed, then apply or reject.
-              </p>
+              <p>{t("queue.info1")}</p>
+              <p className="mt-1.5">{t("queue.info2")}</p>
             </>
           }
         >
-          Registration queue
+          {t("nav.queue")}
         </AdminH2>
         <div className="flex gap-2.5">
-          <QStat count={qc.pending} color="#B0801E" label="Pending" />
-          <QStat count={qc.approved} color="#1E9E52" label="Approved" />
-          <QStat count={qc.rejected} color="#B0303A" label="Rejected" />
+          <QStat count={qc.pending} color="#B0801E" label={t("queue.pending")} />
+          <QStat count={qc.approved} color="#1E9E52" label={t("queue.approved")} />
+          <QStat count={qc.rejected} color="#B0303A" label={t("queue.rejected")} />
         </div>
       </div>
 
@@ -255,25 +271,27 @@ export function QueueClient({
         <div className="inline-flex gap-1 rounded-xl bg-[var(--surface-admin)] p-1">
           {(
             [
-              { key: "new" as const, label: `New registrations (${rows.length})` },
+              { key: "new" as const, label: tf("queue.tabNew", { n: rows.length }) },
               {
                 key: "updates" as const,
-                label: `Update requests (${updates.filter((u) => u.status === "PENDING").length})`,
+                label: tf("queue.tabUpdates", {
+                  n: updates.filter((u) => u.status === "PENDING").length,
+                }),
               },
             ]
-          ).map((t) => (
+          ).map((tabItem) => (
             <button
-              key={t.key}
+              key={tabItem.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => setTab(tabItem.key)}
               className={cn(
                 "cursor-pointer rounded-lg px-4 py-2 text-[13px] font-bold",
-                tab === t.key
+                tab === tabItem.key
                   ? "bg-[var(--brand)] text-white"
                   : "text-[var(--ink-dim)] hover:text-[var(--ink)]",
               )}
             >
-              {t.label}
+              {tabItem.label}
             </button>
           ))}
         </div>
@@ -284,31 +302,31 @@ export function QueueClient({
             search={{
               value: query,
               onChange: setQuery,
-              placeholder: "Search family / surname / city…",
+              placeholder: t("queue.searchPlaceholder"),
             }}
             filters={[
               {
                 key: "status",
-                label: "Status",
+                label: t("queue.status"),
                 value: status,
                 onChange: (v) => setStatus(v as "all" | QueueRow["status"]),
                 width: "w-[140px]",
                 options: [
-                  { value: "all", label: "All statuses" },
-                  { value: "PENDING", label: "Pending" },
-                  { value: "APPROVED", label: "Approved" },
-                  { value: "REJECTED", label: "Rejected" },
+                  { value: "all", label: t("queue.allStatuses") },
+                  { value: "PENDING", label: t("queue.pending") },
+                  { value: "APPROVED", label: t("queue.approved") },
+                  { value: "REJECTED", label: t("queue.rejected") },
                 ],
               },
               ...(cities.length > 0
                 ? [
                     {
                       key: "city",
-                      label: "City",
+                      label: t("queue.city"),
                       value: city,
                       onChange: setCity,
                       options: [
-                        { value: "all", label: "All cities" },
+                        { value: "all", label: t("queue.allCities") },
                         ...cities.map((c) => ({ value: c, label: c })),
                       ],
                     },
@@ -327,13 +345,13 @@ export function QueueClient({
         rowKey={(r) => r.id}
         empty={
           <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
-            No families match the current filters.
+            {t("queue.emptyFamilies")}
           </p>
         }
         columns={[
           {
             key: "head",
-            header: "Family (head)",
+            header: t("queue.colFamily"),
             primary: true,
             cell: (r) => (
               <>
@@ -346,7 +364,7 @@ export function QueueClient({
           },
           {
             key: "surname",
-            header: "Surname",
+            header: t("queue.colSurname"),
             cell: (r) => (
               <>
                 {r.surnameEn}
@@ -356,18 +374,18 @@ export function QueueClient({
               </>
             ),
           },
-          { key: "city", header: "City", cell: (r) => r.city },
-          { key: "members", header: "Members", cell: (r) => r.members },
-          { key: "submitted", header: "Submitted", cell: (r) => r.submitted },
+          { key: "city", header: t("queue.city"), cell: (r) => r.city },
+          { key: "members", header: t("queue.colMembers"), cell: (r) => r.members },
+          { key: "submitted", header: t("queue.colSubmitted"), cell: (r) => fmtDate(r.submitted) },
           {
             key: "status",
-            header: "Status",
+            header: t("queue.status"),
             badge: true,
             cell: (r) => <StatusPill status={lower(r.status)} />,
           },
           {
             key: "action",
-            header: "Action",
+            header: t("queue.colAction"),
             actions: true,
             thClassName: "whitespace-nowrap",
             cell: (r) =>
@@ -375,18 +393,18 @@ export function QueueClient({
                 <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
                   <ActionBtn
                     icon={Eye}
-                    label="View"
+                    label={t("common.view")}
                     onClick={() => { window.location.href = `/admin/queue/${r.id}`; }}
                   />
                   <ActionBtn
                     icon={Check}
-                    label="Approve"
+                    label={t("queue.approve")}
                     tone="success"
                     onClick={() => openApprove(r.id)}
                   />
                   <ActionBtn
                     icon={X}
-                    label="Reject"
+                    label={t("queue.reject")}
                     tone="danger"
                     onClick={() => {
                       setRejectId(r.id);
@@ -397,7 +415,7 @@ export function QueueClient({
                 </div>
               ) : (
                 <span className="text-[11.5px] text-[var(--faint)] md:flex md:justify-end">
-                  {r.status === "APPROVED" ? "Approved" : "Rejected"}
+                  {r.status === "APPROVED" ? t("queue.approved") : t("queue.rejected")}
                 </span>
               ),
           },
@@ -415,13 +433,13 @@ export function QueueClient({
         rowKey={(u) => u.id}
         empty={
           <p className="py-8 text-center text-[13px] text-[var(--faint)]">
-            No pending update requests.
+            {t("queue.emptyUpdates")}
           </p>
         }
         columns={[
           {
             key: "member",
-            header: "Member",
+            header: t("queue.colMember"),
             primary: true,
             tdClassName: "font-semibold text-[var(--ink)]",
             cell: (u) => (
@@ -435,7 +453,7 @@ export function QueueClient({
           },
           {
             key: "surname",
-            header: "Surname",
+            header: t("queue.colSurname"),
             cell: (u) => (
               <>
                 {u.surnameEn}
@@ -445,16 +463,16 @@ export function QueueClient({
               </>
             ),
           },
-          { key: "changes", header: "Changes", cell: (u) => u.changes.length },
+          { key: "changes", header: t("queue.colChanges"), cell: (u) => u.changes.length },
           {
             key: "submitted",
-            header: "Submitted",
+            header: t("queue.colSubmitted"),
             tdClassName: "whitespace-nowrap",
-            cell: (u) => u.submitted,
+            cell: (u) => fmtDate(u.submitted),
           },
           {
             key: "status",
-            header: "Status",
+            header: t("queue.status"),
             badge: true,
             cell: (u) => (
               <>
@@ -475,12 +493,12 @@ export function QueueClient({
           },
           {
             key: "action",
-            header: "Action",
+            header: t("queue.colAction"),
             actions: true,
             cell: (u) => (
               <span className="flex flex-wrap gap-2 md:justify-end">
                 <AdminBtn variant="ghost" onClick={() => setDiff(u)}>
-                  View changes
+                  {t("queue.viewChanges")}
                 </AdminBtn>
                 {u.status === "PENDING" && (
                   <>
@@ -493,7 +511,7 @@ export function QueueClient({
                         <Loader2 className="size-4 animate-spin" />
                       ) : (
                         <>
-                          <Check className="size-4" /> Apply
+                          <Check className="size-4" /> {t("queue.apply")}
                         </>
                       )}
                     </AdminBtn>
@@ -502,7 +520,7 @@ export function QueueClient({
                       disabled={updateBusy === u.id}
                       onClick={() => reviewUpdate(u, "reject")}
                     >
-                      <X className="size-4" /> Reject
+                      <X className="size-4" /> {t("queue.reject")}
                     </AdminBtn>
                   </>
                 )}
@@ -519,14 +537,14 @@ export function QueueClient({
         <DialogContent className="max-h-[85vh] max-w-[520px] overflow-y-auto rounded-2xl sm:max-w-[520px]">
           <DialogHeader>
             <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
-              {diff?.member} — requested changes
+              {diff ? tf("queue.diffTitle", { name: bi(diff.memberGu, diff.memberEn) }) : ""}
             </DialogTitle>
           </DialogHeader>
           {diff && (
             <div>
               {diff.changes.length === 0 ? (
                 <p className="py-4 text-[13px] text-[var(--faint)]">
-                  This request carries no readable changes.
+                  {t("queue.noChanges")}
                 </p>
               ) : (
                 <div className="flex flex-col gap-2.5">
@@ -559,14 +577,14 @@ export function QueueClient({
                     className="flex-1 justify-center"
                     onClick={() => reviewUpdate(diff, "apply")}
                   >
-                    Apply changes
+                    {t("queue.applyChanges")}
                   </AdminBtn>
                   <AdminBtn
                     variant="danger"
                     className="flex-1 justify-center"
                     onClick={() => reviewUpdate(diff, "reject")}
                   >
-                    Reject
+                    {t("queue.reject")}
                   </AdminBtn>
                 </div>
               )}
@@ -583,8 +601,8 @@ export function QueueClient({
           setDetail(null);
           setError(null);
         }}
-        title="Approve family?"
-        subtitle="Review all details before approving."
+        title={t("queue.approveTitle")}
+        subtitle={t("queue.approveSubtitle")}
         icon={
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--success-tint)] text-[var(--success)]">
             <Check className="size-[22px]" strokeWidth={2.2} />
@@ -598,14 +616,14 @@ export function QueueClient({
                 className="flex-1 justify-center"
                 onClick={() => confirmApprove(false)}
               >
-                {busy ? <Loader2 className="size-4 animate-spin" /> : "✓ Approve"}
+                {busy ? <Loader2 className="size-4 animate-spin" /> : `✓ ${t("queue.approve")}`}
               </AdminBtn>
               <AdminBtn
                 variant="success"
                 className="flex-1 justify-center"
                 onClick={() => confirmApprove(true)}
               >
-                ✓ Approve &amp; Next
+                ✓ {t("queue.approveNext")}
               </AdminBtn>
               <AdminBtn
                 variant="ghost"
@@ -616,7 +634,7 @@ export function QueueClient({
                   setRejectReason("");
                 }}
               >
-                ✕ Reject
+                ✕ {t("queue.reject")}
               </AdminBtn>
             </>
           ) : undefined
@@ -626,11 +644,12 @@ export function QueueClient({
           <div>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h4 className="text-sm font-extrabold text-[var(--ink)]">
-                {approveRow.head} — {approveRow.surname}
+                {bi(approveRow.headGu, approveRow.headEn)} —{" "}
+                {bi(approveRow.surnameGu, approveRow.surnameEn)}
               </h4>
               <ActionBtn
                 icon={Eye}
-                label="View"
+                label={t("common.view")}
                 onClick={() => {
                   window.location.href = `/admin/queue/${approveRow.id}`;
                 }}
@@ -639,43 +658,43 @@ export function QueueClient({
 
             {loadingDetail ? (
               <div className="flex items-center gap-2 py-6 text-[13px] text-[var(--faint)]">
-                <Loader2 className="size-4 animate-spin" /> Loading details…
+                <Loader2 className="size-4 animate-spin" /> {t("queue.loadingDetails")}
               </div>
             ) : detail ? (
               <>
                 <AdminTable className="mb-4">
                   <tbody>
                     <tr>
-                      <AdminTd className="w-[120px] text-[var(--faint)]">City</AdminTd>
+                      <AdminTd className="w-[120px] text-[var(--faint)]">{t("queue.city")}</AdminTd>
                       <AdminTd>{approveRow.city}</AdminTd>
                     </tr>
                     <tr>
-                      <AdminTd className="text-[var(--faint)]">Address</AdminTd>
-                      <AdminTd>{detail.addressGu || detail.addressEn || "—"}</AdminTd>
+                      <AdminTd className="text-[var(--faint)]">{t("queue.address")}</AdminTd>
+                      <AdminTd>{bi(detail.addressGu, detail.addressEn) || "—"}</AdminTd>
                     </tr>
                     <tr>
-                      <AdminTd className="text-[var(--faint)]">Business</AdminTd>
+                      <AdminTd className="text-[var(--faint)]">{t("queue.business")}</AdminTd>
                       <AdminTd>{headOccupation || detail.businessGu || "—"}</AdminTd>
                     </tr>
                     <tr>
-                      <AdminTd className="text-[var(--faint)]">Native elder</AdminTd>
+                      <AdminTd className="text-[var(--faint)]">{t("queue.nativeElder")}</AdminTd>
                       <AdminTd>
-                        {detail.nativeElderNameGu || detail.nativeElderNameEn || "—"}
+                        {bi(detail.nativeElderNameGu, detail.nativeElderNameEn) || "—"}
                         {detail.nativeElderPhone ? ` · ${detail.nativeElderPhone}` : ""}
                       </AdminTd>
                     </tr>
                     <tr>
-                      <AdminTd className="text-[var(--faint)]">Submitted</AdminTd>
-                      <AdminTd>{approveRow.submitted}</AdminTd>
+                      <AdminTd className="text-[var(--faint)]">{t("queue.colSubmitted")}</AdminTd>
+                      <AdminTd>{fmtDate(approveRow.submitted)}</AdminTd>
                     </tr>
                   </tbody>
                 </AdminTable>
 
                 <h4 className="mb-2 text-sm font-extrabold text-[var(--ink)]">
-                  Members ({detail.familyMembers.length})
+                  {tf("queue.membersCount", { n: detail.familyMembers.length })}
                 </h4>
                 {detail.familyMembers.map((m) => {
-                  const name = m.fullNameGu || m.fullNameEn;
+                  const name = bi(m.fullNameGu, m.fullNameEn);
                   const work = storedOccupationPath(m);
                   return (
                     <div key={m.id} className="flex items-center gap-3 border-t border-[var(--cream)] py-2">
@@ -685,11 +704,11 @@ export function QueueClient({
                       <div className="min-w-0 flex-1">
                         <div className="text-[13px] font-bold text-[var(--ink)]">{name}</div>
                         <div className="text-[11.5px] text-[var(--faint)]">
-                          {m.isHead ? "Head" : m.relation || "Member"}
+                          {m.isHead ? t("queue.head") : m.relation || t("queue.member")}
                           {work ? ` · ${work}` : ""}
                         </div>
                       </div>
-                      <span className="text-xs text-[var(--ink-mid)]">{m.mobile || "— no login"}</span>
+                      <span className="text-xs text-[var(--ink-mid)]">{m.mobile || t("queue.noLogin")}</span>
                     </div>
                   );
                 })}
@@ -715,20 +734,22 @@ export function QueueClient({
         <DialogContent className="max-w-[380px] rounded-2xl sm:max-w-[380px]">
           <DialogHeader>
             <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
-              Reject registration
+              {t("queue.rejectTitle")}
             </DialogTitle>
             <DialogDescription className="text-[12.5px] text-[var(--faint)]">
-              {rejectRow?.head} — the family will be notified with the reason.
+              {tf("queue.rejectDesc", {
+                name: rejectRow ? bi(rejectRow.headGu, rejectRow.headEn) : "",
+              })}
             </DialogDescription>
           </DialogHeader>
 
           <div>
-            <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">Reason *</div>
+            <div className="mb-1 text-[11.5px] font-bold text-[var(--muted)]">{t("queue.reasonRequired")}</div>
             <div className="mb-3 flex flex-wrap gap-1.5">
               {REJECT_REASONS.map((reason) => (
                 <FilterChip
                   key={reason}
-                  label={reason}
+                  label={t(REJECT_REASON_KEY[reason])}
                   active={rejectReason === reason}
                   onClick={() => setRejectReason(reason)}
                 />
@@ -737,20 +758,20 @@ export function QueueClient({
             <Textarea
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Add a note…"
+              placeholder={t("queue.addNote")}
               className="mb-2 min-h-[70px] resize-none border-[var(--line-field)] bg-[var(--field)] text-[13px]"
             />
             {error && <p className="mb-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
             <div className="flex gap-2.5">
               <AdminBtn variant="danger" className="flex-1 justify-center" onClick={confirmReject}>
-                {busy ? <Loader2 className="size-4 animate-spin" /> : "Confirm reject"}
+                {busy ? <Loader2 className="size-4 animate-spin" /> : t("queue.confirmReject")}
               </AdminBtn>
               <AdminBtn
                 variant="ghost"
                 className="flex-1 justify-center"
                 onClick={() => setRejectId(null)}
               >
-                Cancel
+                {t("common.cancel")}
               </AdminBtn>
             </div>
           </div>

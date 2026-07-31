@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from "react";
 import { AdminModal, AdminModalActions } from "@/components/admin/admin-form";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 
 export type ConfirmOptions = {
   title: string;
@@ -53,6 +54,7 @@ export function confirmDialog(opts: ConfirmOptions): Promise<boolean> {
 }
 
 export function ConfirmDialogHost() {
+  const { t } = useAdminT();
   const [pending, setPending] = useState<PendingConfirm | null>(null);
 
   useEffect(() => {
@@ -78,8 +80,8 @@ export function ConfirmDialogHost() {
         <AdminModalActions
           onSave={() => settle(true)}
           onCancel={() => settle(false)}
-          saveLabel={pending?.confirmLabel ?? "Confirm"}
-          cancelLabel={pending?.cancelLabel ?? "Cancel"}
+          saveLabel={pending?.confirmLabel ?? t("ui.confirm")}
+          cancelLabel={pending?.cancelLabel ?? t("common.cancel")}
           variant={pending?.tone === "danger" ? "danger" : "primary"}
         />
       }

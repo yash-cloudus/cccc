@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { AdminBtn, AdminInfoTip } from "@/components/admin/admin-ui";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 
@@ -98,8 +99,8 @@ export function AdminModal({
 export function AdminModalActions({
   onSave,
   onCancel,
-  saveLabel = "Save",
-  cancelLabel = "Cancel",
+  saveLabel,
+  cancelLabel,
   variant = "primary",
   busy,
   disabled,
@@ -113,6 +114,7 @@ export function AdminModalActions({
   busy?: boolean;
   disabled?: boolean;
 }) {
+  const { t } = useAdminT();
   return (
     <>
       <AdminBtn
@@ -121,10 +123,10 @@ export function AdminModalActions({
         onClick={onSave}
         disabled={busy || disabled}
       >
-        {busy ? <Loader2 className="size-4 animate-spin" /> : saveLabel}
+        {busy ? <Loader2 className="size-4 animate-spin" /> : (saveLabel ?? t("common.save"))}
       </AdminBtn>
       <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={onCancel}>
-        {cancelLabel}
+        {cancelLabel ?? t("common.cancel")}
       </AdminBtn>
     </>
   );
@@ -341,7 +343,7 @@ export function AdminFilePicker({
   onChange,
   accept = "image/*",
   folder = "community-app",
-  label = "Choose image",
+  label,
   preview = true,
   hint,
 }: {
@@ -354,6 +356,7 @@ export function AdminFilePicker({
   /** Short note (e.g. recommended size) shown beside the button, in the row's empty space. */
   hint?: string;
 }) {
+  const { t } = useAdminT();
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -399,7 +402,7 @@ export function AdminFilePicker({
         />
         <AdminBtn variant="ghost" onClick={() => ref.current?.click()} disabled={busy}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-          {label}
+          {label ?? t("ui.chooseImage")}
         </AdminBtn>
         {hint && !value && (
           <span className="text-[11px] text-[var(--faint)]">{hint}</span>
@@ -410,7 +413,7 @@ export function AdminFilePicker({
             onClick={() => onChange("")}
             className="cursor-pointer text-xs font-bold text-[var(--danger)] underline"
           >
-            Remove
+            {t("ui.remove")}
           </button>
         )}
       </div>
@@ -432,6 +435,7 @@ export function AdminMultiImagePicker({
   onChange: (next: string[]) => void;
   folder?: string;
 }) {
+  const { t } = useAdminT();
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -475,7 +479,7 @@ export function AdminMultiImagePicker({
         className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-[13px] border-[1.5px] border-dashed border-[var(--brand-border)] bg-[var(--brand-tint-soft)] py-3.5 text-[13px] font-bold text-[var(--brand)] disabled:opacity-60"
       >
         {busy ? <Loader2 className="size-4 animate-spin" /> : <span className="text-base">＋</span>}
-        Upload images (select multiple)
+        {t("ui.uploadImages")}
       </button>
 
       {images.length > 0 && (
@@ -489,7 +493,7 @@ export function AdminMultiImagePicker({
               <img src={url} alt="" className="h-16 w-full object-cover" />
               <button
                 type="button"
-                aria-label="Remove photo"
+                aria-label={t("ui.removePhoto")}
                 onClick={() => onChange(images.filter((_, j) => j !== i))}
                 className="absolute top-1 right-1 flex size-5 cursor-pointer items-center justify-center rounded-full bg-black/55 text-white"
               >
@@ -516,6 +520,7 @@ export function AdminPasswordField({
   placeholder?: string;
   onGenerate?: () => void;
 }) {
+  const { t } = useAdminT();
   const [show, setShow] = useState(false);
   return (
     <div>
@@ -532,7 +537,7 @@ export function AdminPasswordField({
           onClick={() => setShow((s) => !s)}
           className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-[11.5px] font-bold text-[var(--ink-mid)]"
         >
-          {show ? "Hide" : "Show"}
+          {show ? t("ui.hide") : t("ui.show")}
         </button>
       </div>
       {onGenerate && (
@@ -541,7 +546,7 @@ export function AdminPasswordField({
           onClick={onGenerate}
           className="mt-1.5 cursor-pointer text-[11.5px] font-bold text-[var(--violet)] underline"
         >
-          ⟳ Generate strong password
+          ⟳ {t("ui.generatePassword")}
         </button>
       )}
     </div>
@@ -556,7 +561,7 @@ export function AdminSearchSelect<T extends { id: string }>({
   placeholder,
   renderLabel,
   renderMeta,
-  emptyText = "No match found",
+  emptyText,
 }: {
   items: T[];
   value: T | null;
@@ -566,6 +571,7 @@ export function AdminSearchSelect<T extends { id: string }>({
   renderMeta?: (item: T) => string;
   emptyText?: string;
 }) {
+  const { t } = useAdminT();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
 
@@ -597,7 +603,7 @@ export function AdminSearchSelect<T extends { id: string }>({
               autoFocus
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              placeholder="Search…"
+              placeholder={t("common.search")}
               className="min-w-0 flex-1 border-none bg-transparent text-[13px] outline-none"
             />
           </div>
@@ -622,7 +628,9 @@ export function AdminSearchSelect<T extends { id: string }>({
               </button>
             ))}
             {filtered.length === 0 && (
-              <p className="px-3 py-4 text-center text-[12.5px] text-[var(--faint)]">{emptyText}</p>
+              <p className="px-3 py-4 text-center text-[12.5px] text-[var(--faint)]">
+                {emptyText ?? t("ui.noMatch")}
+              </p>
             )}
           </div>
         </div>

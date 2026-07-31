@@ -5,6 +5,7 @@ import { Search, ChevronDown, Check, Info, SlidersHorizontal, type LucideIcon } 
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { SpeechInput } from "@/components/ui/speech-input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 import { Select as SelectPrimitive } from "@base-ui/react/select";
 
@@ -54,7 +55,7 @@ export function ActionBtn({
  */
 export function AdminInfoTip({
   children,
-  label = "More information",
+  label,
   side = "bottom",
   className,
 }: {
@@ -63,6 +64,7 @@ export function AdminInfoTip({
   side?: "top" | "bottom" | "left" | "right";
   className?: string;
 }) {
+  const { t } = useAdminT();
   const [open, setOpen] = useState(false);
   return (
     <Tooltip open={open} onOpenChange={setOpen}>
@@ -70,7 +72,7 @@ export function AdminInfoTip({
         render={
           <button
             type="button"
-            aria-label={label}
+            aria-label={label ?? t("ui.moreInfo")}
             onClick={() => setOpen((o) => !o)}
             className={cn(
               "flex size-[18px] shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--faint)] transition-colors hover:text-[var(--brand)] focus-visible:text-[var(--brand)] focus-visible:outline-none",
@@ -298,12 +300,17 @@ export function PillExpired({ children }: { children: React.ReactNode }) {
 }
 
 export function StatusPill({ status }: { status: "pending" | "approved" | "rejected" }) {
+  const { t } = useAdminT();
   const styles = {
     pending: "bg-[var(--ochre-tint)] text-[var(--warn)]",
     approved: "bg-[var(--success-tint)] text-[var(--success)]",
     rejected: "bg-[var(--danger-tint)] text-[var(--danger)]",
   };
-  const labels = { pending: "Pending", approved: "Approved", rejected: "Rejected" };
+  const labels = {
+    pending: t("ui.statusPending"),
+    approved: t("ui.statusApproved"),
+    rejected: t("ui.statusRejected"),
+  };
   return (
     <span className={cn("inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold", styles[status])}>
       {labels[status]}
@@ -376,11 +383,12 @@ export function FilterButton({
   active?: boolean;
   className?: string;
 }) {
+  const { t } = useAdminT();
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-label="Filters"
+      aria-label={t("ui.filters")}
       className={cn(
         "relative flex size-[42px] shrink-0 cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-[var(--line-admin)] bg-[var(--field)] text-[var(--brand)] transition-colors hover:border-[var(--brand)] hover:bg-white",
         className,

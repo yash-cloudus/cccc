@@ -46,10 +46,11 @@ import { SpeechTextarea } from "@/components/ui/speech-input";
 import { toast } from "sonner";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
-import { formatDateDMY } from "@/lib/format";
+import { formatDateDMY, pickText } from "@/lib/format";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { DateField } from "@/components/ui/date-field";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 
 /** Pill used for the Pinned/Notify columns — makes the current state and the
  * click action unambiguous (plain icon-only buttons read as decoration, not
@@ -149,12 +150,6 @@ const emptyDraft: Draft = {
   sendNotification: true,
 };
 
-const STATUS_FILTER_OPTIONS = [
-  { value: "all", label: "All posts" },
-  { value: "published", label: "Published" },
-  { value: "draft", label: "Draft" },
-];
-
 /** ✓ / — cell used for the Cover and PDF columns. */
 function HasCell({ on, href, label }: { on: boolean; href?: string | null; label: string }) {
   if (!on) return <span className="text-[var(--faint)]">—</span>;
@@ -174,6 +169,7 @@ function HasCell({ on, href, label }: { on: boolean; href?: string | null; label
 }
 
 export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
+  const { t, lang } = useAdminT();
   const { fromEn, guInput } = useTranslitSync();
   const [rows, setRows] = useState<NewsRow[]>(initialRows);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -183,6 +179,12 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const statusFilterOptions = [
+    { value: "all", label: t("news.filterAll") },
+    { value: "published", label: t("news.statusPublished") },
+    { value: "draft", label: t("news.statusDraft") },
+  ];
 
   const filteredRows = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -226,7 +228,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
   async function save() {
     if (!draft) return;
     if (!draft.titleEn.trim() || !draft.contentEn.trim()) {
-      setError("Title and content (English) are required");
+      setError(t("news.errRequired"));
       return;
     }
     setBusy(true);
@@ -314,23 +316,24 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
       ]);
     }
     setDraft(null);
-    toast.success(draft.id ? "Post updated" : "Post created");
+    toast.success(draft.id ? t("news.toastUpdated") : t("news.toastCreated"));
   }
 
   async function remove(id: string) {
     const ok = await confirmDialog({
-      title: "Delete this post?",
-      confirmLabel: "Delete",
+      title: t("news.confirmDeleteTitle"),
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
       tone: "danger",
     });
     if (!ok) return;
     const res = await api.del(`/api/news/${id}`);
     if (!res.ok) {
-      toast.error(res.error || "Could not delete");
+      toast.error(res.error || t("news.errDelete"));
       return;
     }
     setRows((prev) => prev.filter((r) => r.id !== id));
-    toast.success("Post deleted");
+    toast.success(t("news.toastDeleted"));
   }
 
   /** Optimistic row-level flag flip, rolled back if the API rejects it. */
@@ -344,16 +347,19 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
     const res = await api.put(`/api/news/${row.id}`, { [field]: next });
     if (!res.ok) {
       setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, [field]: !next } : r)));
-      toast.error(res.error || "Could not update");
+      toast.error(res.error || t("news.errUpdate"));
       return;
     }
     toast.success(next ? messages.on : messages.off);
   }
 
   const togglePinned = (row: NewsRow) =>
-    toggleFlag(row, "isPinned", { on: "Pinned to top", off: "Unpinned" });
+    toggleFlag(row, "isPinned", { on: t("news.toastPinned"), off: t("news.toastUnpinned") });
   const togglePublished = (row: NewsRow) =>
-    toggleFlag(row, "isPublished", { on: "Published", off: "Unpublished" });
+    toggleFlag(row, "isPublished", {
+      on: t("news.toastPublished"),
+      off: t("news.toastUnpublished"),
+    });
 
   /** One-way — a push notification can't be un-sent, so this never toggles back off. */
   async function notifyNow(row: NewsRow) {
@@ -366,32 +372,24 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
       setRows((prev) =>
         prev.map((r) => (r.id === row.id ? { ...r, notificationSent: false } : r)),
       );
-      toast.error(res.error || "Could not send notification");
+      toast.error(res.error || t("news.errNotify"));
       return;
     }
-    toast.success("Notification sent");
+    toast.success(t("news.toastNotified"));
   }
 
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <AdminH2
-          className="mb-0 shrink-0"
-          info={
-            <>
-              &quot;Send notification&quot; pushes an in-app alert to all approved members. Use for
-              important updates only.
-            </>
-          }
-        >
-          News
+        <AdminH2 className="mb-0 shrink-0" info={<>{t("news.info")}</>}>
+          {t("nav.news")}
         </AdminH2>
 
         <div className="flex w-full items-center gap-3 md:w-auto">
           <SearchInput
             value={q}
             onChange={setQ}
-            placeholder="Search news…"
+            placeholder={t("news.searchPlaceholder")}
             className="min-w-0 flex-1 md:w-[260px] md:flex-none"
           />
           <FilterButton
@@ -403,36 +401,36 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
             <AdminSelect
               value={statusFilter}
               onChange={(v) => setStatusFilter(v as "all" | "published" | "draft")}
-              options={STATUS_FILTER_OPTIONS}
+              options={statusFilterOptions}
               className="w-[150px] shrink-0"
-              ariaLabel="Filter by status"
+              ariaLabel={t("news.filterByStatus")}
             />
             <AdminBtn className="shrink-0" onClick={openNew}>
               <Plus className="size-4" />
-              New post
+              {t("news.newPost")}
             </AdminBtn>
           </div>
         </div>
         <AdminBtn className="w-full justify-center md:hidden" onClick={openNew}>
           <Plus className="size-4" />
-          New post
+          {t("news.newPost")}
         </AdminBtn>
       </div>
 
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         <SheetContent side="bottom" className="md:hidden">
           <SheetHeader>
-            <SheetTitle>Filters</SheetTitle>
+            <SheetTitle>{t("news.filters")}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-3 px-4 pb-4">
             <div>
-              <AdminLabel>Status</AdminLabel>
+              <AdminLabel>{t("news.status")}</AdminLabel>
               <AdminSelect
                 value={statusFilter}
                 onChange={(v) => setStatusFilter(v as "all" | "published" | "draft")}
-                options={STATUS_FILTER_OPTIONS}
+                options={statusFilterOptions}
                 className="w-full"
-                ariaLabel="Filter by status"
+                ariaLabel={t("news.filterByStatus")}
               />
             </div>
           </div>
@@ -444,33 +442,37 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         rowKey={(n) => n.id}
         empty={
           <p className="py-8 text-center text-[13px] text-[var(--faint)]">
-            No news posts match your filters.
+            {t("news.emptyFiltered")}
           </p>
         }
         columns={[
           {
             key: "title",
-            header: "Title",
+            header: t("news.colTitle"),
             primary: true,
             tdClassName: "font-semibold text-[var(--ink)]",
-            cell: (n) => n.titleGu || n.titleEn,
+            cell: (n) => pickText(n.titleGu, n.titleEn, lang),
           },
           {
             key: "date",
-            header: "Date",
+            header: t("news.colDate"),
             tdClassName: "whitespace-nowrap",
             cell: (n) => n.publishedAt,
           },
           {
             key: "status",
-            header: "Status",
+            header: t("news.status"),
             badge: true,
             cell: (n) =>
-              n.isPublished ? <PillActive>Published</PillActive> : <PillWarning>Draft</PillWarning>,
+              n.isPublished ? (
+                <PillActive>{t("news.statusPublished")}</PillActive>
+              ) : (
+                <PillWarning>{t("news.statusDraft")}</PillWarning>
+              ),
           },
           {
             key: "cover",
-            header: "Cover",
+            header: t("news.colCover"),
             // A 52px thumbnail adds nothing to a card that already has the title.
             desktopOnly: true,
             cell: (n) =>
@@ -487,22 +489,26 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
           },
           {
             key: "pdf",
-            header: "PDF",
+            header: t("news.colPdf"),
             cell: (n) => (
-              <HasCell on={!!n.documentUrl} href={n.documentUrl} label={n.documentName || "PDF"} />
+              <HasCell
+                on={!!n.documentUrl}
+                href={n.documentUrl}
+                label={n.documentName || t("news.colPdf")}
+              />
             ),
           },
           {
             key: "pinned",
-            header: "Pinned",
+            header: t("news.pinned"),
             cell: (n) => (
               <StatusPillButton
                 icon={Pin}
                 active={n.isPinned}
-                activeLabel="Pinned"
-                inactiveLabel="Pin"
-                activeTitle="Click to unpin"
-                inactiveTitle="Click to pin to top"
+                activeLabel={t("news.pinned")}
+                inactiveLabel={t("news.pin")}
+                activeTitle={t("news.unpinHint")}
+                inactiveTitle={t("news.pinHint")}
                 onClick={() => togglePinned(n)}
                 tone="warn"
               />
@@ -510,15 +516,15 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
           },
           {
             key: "notify",
-            header: "Notify?",
+            header: t("news.colNotify"),
             cell: (n) => (
               <StatusPillButton
                 icon={Bell}
                 active={n.notificationSent}
-                activeLabel="Sent"
-                inactiveLabel="Notify"
-                activeTitle="Notification already sent"
-                inactiveTitle="Send notification now"
+                activeLabel={t("news.sent")}
+                inactiveLabel={t("news.notify")}
+                activeTitle={t("news.notifySentHint")}
+                inactiveTitle={t("news.notifyHint")}
                 onClick={() => notifyNow(n)}
                 disabled={n.notificationSent}
                 tone="info"
@@ -527,21 +533,21 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
           },
           {
             key: "actions",
-            header: "Actions",
+            header: t("news.colActions"),
             actions: true,
             cell: (n) => (
               <span className="flex flex-wrap gap-1.5 md:justify-end">
-                <ActionBtn icon={Eye} label="Preview" onClick={() => setPreview(n)} />
+                <ActionBtn icon={Eye} label={t("news.preview")} onClick={() => setPreview(n)} />
                 <ActionBtn
                   icon={n.isPublished ? EyeOff : Send}
-                  label={n.isPublished ? "Unpublish" : "Publish"}
+                  label={n.isPublished ? t("news.unpublish") : t("news.publish")}
                   tone={n.isPublished ? "warn" : "success"}
                   onClick={() => togglePublished(n)}
                 />
-                <ActionBtn icon={Pencil} label="Edit" onClick={() => openEdit(n)} />
+                <ActionBtn icon={Pencil} label={t("common.edit")} onClick={() => openEdit(n)} />
                 <ActionBtn
                   icon={Trash2}
-                  label="Delete"
+                  label={t("common.delete")}
                   tone="danger"
                   onClick={() => remove(n.id)}
                 />
@@ -553,27 +559,28 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
 
       {filteredRows.length === 0 && (
         <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
-          {rows.length === 0 ? "No news posts yet." : "No matching posts."}
+          {rows.length === 0 ? t("news.emptyNone") : t("news.emptyMatch")}
         </p>
       )}
 
       <AdminModal
         open={draft !== null}
         onClose={() => setDraft(null)}
-        title={draft?.id ? "Edit post" : "New post"}
-        subtitle="Shows live in the User App News section."
+        title={draft?.id ? t("news.editPost") : t("news.newPost")}
+        subtitle={t("news.modalSubtitle")}
         footer={
           <AdminModalActions
             onSave={save}
             onCancel={() => setDraft(null)}
             busy={busy}
-            saveLabel="Save"
+            saveLabel={t("common.save")}
+            cancelLabel={t("common.cancel")}
           />
         }
       >
         {draft && (
           <>
-            <AdminField label="Title (ગુજરાતી)" required>
+            <AdminField label={t("news.titleGu")} required>
               <AdminInput
                 gujarati
                 value={draft.titleGu}
@@ -584,7 +591,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
               />
             </AdminField>
 
-            <AdminField label="Title (English)">
+            <AdminField label={t("news.titleEn")}>
               <AdminInput
                 speech
                 value={draft.titleEn}
@@ -596,7 +603,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
             </AdminField>
 
             <AdminFormRow>
-              <AdminField label="Date">
+              <AdminField label={t("news.colDate")}>
                 <DateField
                   variant="admin"
                   value={draft.publishDate}
@@ -605,17 +612,17 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
               </AdminField>
               {/* Read-only: the author is the admin who posted, taken from the
                   session — News has no free-text author column to save into. */}
-              <AdminField label="Author" hint="The admin who posted this">
+              <AdminField label={t("news.author")} hint={t("news.authorHint")}>
                 <div className="flex min-h-[42px] items-center rounded-xl border border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 text-[13px] font-semibold text-[var(--ink-dim)]">
-                  {draft.author || "સમાજ એડમિન"}
+                  {draft.author || t("news.defaultAuthor")}
                 </div>
               </AdminField>
             </AdminFormRow>
 
-            <AdminField label="Description (ગુજરાતી)" required>
+            <AdminField label={t("news.descGu")} required>
               <Textarea
                 value={draft.contentGu}
-                placeholder="સમાચારની વિગત…"
+                placeholder={t("news.descPlaceholder")}
                 onChange={(e) => {
                   const v = e.target.value;
                   setDraft((d) => (d ? { ...d, contentGu: v } : d));
@@ -625,12 +632,12 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
               />
             </AdminField>
 
-            <AdminField label="Description (English)">
+            <AdminField label={t("news.descEn")}>
               {/* Same classes as the shadcn <Textarea> base, with `px-2.5` split to
                   `pl-2.5` so SpeechTextarea's `pr-11` mic gutter survives the merge. */}
               <SpeechTextarea
                 value={draft.contentEn}
-                placeholder="News description…"
+                placeholder={t("news.descPlaceholder")}
                 onChange={(v) => {
                   setDraft((d) => (d ? { ...d, contentEn: v } : d));
                   fromEn(v, (gu) => setDraft((d) => (d ? { ...d, contentGu: gu } : d)), "content");
@@ -639,39 +646,39 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
               />
             </AdminField>
 
-            <AdminField label="Status">
+            <AdminField label={t("news.status")}>
               <AdminSegmented
                 value={draft.isPublished ? "published" : "draft"}
                 onChange={(v) => setDraft({ ...draft, isPublished: v === "published" })}
                 options={[
-                  { value: "draft", label: "Draft" },
-                  { value: "published", label: "Published" },
+                  { value: "draft", label: t("news.statusDraft") },
+                  { value: "published", label: t("news.statusPublished") },
                 ]}
               />
             </AdminField>
 
-            <AdminField label="Cover image">
+            <AdminField label={t("news.coverImage")}>
               <AdminFilePicker
                 value={draft.imageUrl}
                 folder="news"
-                hint="1200 × 600 px (2:1) recommended"
+                hint={t("news.coverHint")}
                 onChange={(url) => setDraft((d) => (d ? { ...d, imageUrl: url } : d))}
               />
             </AdminField>
 
-            <AdminField label="PDF attachment">
+            <AdminField label={t("news.pdfAttachment")}>
               <AdminFilePicker
                 value={draft.documentUrl}
                 accept="application/pdf"
                 folder="news"
-                label="Choose file"
+                label={t("news.chooseFile")}
                 preview={false}
                 onChange={(url) => setDraft((d) => (d ? { ...d, documentUrl: url } : d))}
               />
             </AdminField>
 
             {draft.documentUrl && (
-              <AdminField label="PDF label" hint="Shown instead of the raw link">
+              <AdminField label={t("news.pdfLabel")} hint={t("news.pdfLabelHint")}>
                 <AdminInput
                   value={draft.documentName}
                   onChange={(v) => setDraft({ ...draft, documentName: v })}
@@ -682,13 +689,13 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
             <div className="flex flex-wrap gap-5">
               <AdminCheck
                 checked={draft.isPinned}
-                label="Pin to top"
+                label={t("news.pinToTop")}
                 onChange={(v) => setDraft({ ...draft, isPinned: v })}
               />
               {!draft.id && (
                 <AdminCheck
                   checked={draft.sendNotification}
-                  label="Send notification"
+                  label={t("news.sendNotification")}
                   onChange={(v) => setDraft({ ...draft, sendNotification: v })}
                 />
               )}
@@ -704,8 +711,8 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
       <AdminModal
         open={preview !== null}
         onClose={() => setPreview(null)}
-        title="Preview"
-        subtitle="How this post appears in the User App."
+        title={t("news.preview")}
+        subtitle={t("news.previewSubtitle")}
         width="lg"
       >
         {preview && (
@@ -722,24 +729,24 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
               <div className="flex flex-wrap items-center gap-2">
                 {preview.isPinned && (
                   <span className="inline-flex items-center gap-1 rounded-lg bg-[var(--gold-tint)] px-2 py-0.5 text-[10.5px] font-extrabold text-[var(--warn)]">
-                    📌 Pinned
+                    📌 {t("news.pinned")}
                   </span>
                 )}
                 {preview.isPublished ? (
-                  <PillActive>Published</PillActive>
+                  <PillActive>{t("news.statusPublished")}</PillActive>
                 ) : (
-                  <PillWarning>Draft</PillWarning>
+                  <PillWarning>{t("news.statusDraft")}</PillWarning>
                 )}
               </div>
               <h3 className="mt-2 font-[family-name:var(--font-noto-serif-gujarati)] text-lg font-bold text-[var(--ink)]">
-                {preview.titleGu || preview.titleEn}
+                {pickText(preview.titleGu, preview.titleEn, lang)}
               </h3>
               <p className="mt-1 text-[11.5px] font-semibold text-[var(--faint)]">
                 {preview.publishedAt}
                 {preview.author ? ` · ${preview.author}` : ""}
               </p>
               <p className="mt-3 whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
-                {preview.contentGu || preview.contentEn}
+                {pickText(preview.contentGu, preview.contentEn, lang)}
               </p>
 
               {preview.documentUrl && (
@@ -753,7 +760,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                     <FileText className="size-[18px]" strokeWidth={1.85} />
                   </div>
                   <span className="text-[13px] font-bold text-[var(--ink)]">
-                    {preview.documentName || "View document"}
+                    {preview.documentName || t("news.viewDocument")}
                   </span>
                 </a>
               )}
