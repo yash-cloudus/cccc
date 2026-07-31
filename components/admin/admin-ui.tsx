@@ -558,7 +558,8 @@ export function AdminSelect({
 }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  /** `dot` marks an option with a small live/status indicator in the open list (e.g. the currently open drive). */
+  options: { value: string; label: string; dot?: boolean }[];
   className?: string;
   ariaLabel?: string;
 }) {
@@ -633,6 +634,12 @@ export function AdminSelect({
                   <SelectPrimitive.ItemText className="flex-1 truncate">
                     {o.label}
                   </SelectPrimitive.ItemText>
+                  {o.dot && (
+                    <span
+                      className="inline-block size-[7px] shrink-0 rounded-full bg-[var(--success)]"
+                      title="Live"
+                    />
+                  )}
                   <SelectPrimitive.ItemIndicator
                     render={
                       <span className="pointer-events-none absolute right-2.5 flex size-4 items-center justify-center opacity-0 group-data-[selected]:opacity-100" />

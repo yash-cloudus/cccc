@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
 import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/community-settings";
 import { getAds, getNews } from "@/lib/tenant-data";
-import { DashboardClient, type AdRow, type FeaturedNews } from "./dashboard-client";
+import { DashboardClient, type AdRow, type FeaturedNews, type LiveResultDrive } from "./dashboard-client";
 
 export const dynamic = "force-dynamic";
 
@@ -10,13 +11,18 @@ export default async function DashboardPage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  const [ads, news, settingsMap] = await Promise.all([
+  const [ads, news, settingsMap, openDrive] = await Promise.all([
     getAds(community.id, true),
     getNews(community.id, true),
     getCommunitySettingsMap(community.id),
+    prisma.resultDrive.findFirst({
+      where: { communityId: community.id, isOpen: true },
+      select: { titleEn: true, titleGu: true, year: true },
+    }),
   ]);
 
   const resultEnabled = getResultModuleSettings(settingsMap).enable;
+  const resultDrive: LiveResultDrive | null = openDrive;
 
   const adRows: AdRow[] = ads.map((a) => ({
     id: a.id,
@@ -39,5 +45,12 @@ export default async function DashboardPage() {
       }
     : null;
 
-  return <DashboardClient ads={adRows} featured={featured} resultEnabled={resultEnabled} />;
+  return (
+    <DashboardClient
+      ads={adRows}
+      featured={featured}
+      resultEnabled={resultEnabled}
+      resultDrive={resultDrive}
+    />
+  );
 }

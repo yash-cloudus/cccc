@@ -465,7 +465,10 @@ export async function getResultDrives(communityId: string) {
 export async function getResultDriveWithEntries(communityId: string, driveId?: string) {
   const drive = driveId
     ? await prisma.resultDrive.findFirst({ where: { id: driveId, communityId } })
-    : await prisma.resultDrive.findFirst({ where: { communityId }, orderBy: { year: "desc" } });
+    : await prisma.resultDrive.findFirst({
+        where: { communityId },
+        orderBy: [{ isOpen: "desc" }, { year: "desc" }],
+      });
   if (!drive) return { drive: null, entries: [] };
   const entries = await prisma.resultEntry.findMany({
     where: { driveId: drive.id },
@@ -551,6 +554,10 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       status: entry ? (entry.status as import("@/lib/result-drive").RosterStatus) : "none",
       rejectReason: entry?.rejectReason ?? null,
       updatedAt: entry?.updatedAt.toISOString() ?? null,
+      nextStandard: entry?.nextStandard ?? null,
+      nextStream: entry?.nextStream ?? null,
+      nextCourse: entry?.nextCourse ?? null,
+      studyOutcome: (entry?.studyOutcome as import("@/lib/result-drive").StudyOutcome | null) ?? null,
     });
   }
 
@@ -579,6 +586,10 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       status: e.status as import("@/lib/result-drive").RosterRow["status"],
       rejectReason: e.rejectReason,
       updatedAt: e.updatedAt.toISOString(),
+      nextStandard: e.nextStandard,
+      nextStream: e.nextStream,
+      nextCourse: e.nextCourse,
+      studyOutcome: e.studyOutcome as import("@/lib/result-drive").StudyOutcome | null,
     });
   }
 

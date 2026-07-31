@@ -31,7 +31,9 @@ import {
   PillExpired,
   SearchInput,
 } from "@/components/admin/admin-ui";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 import {
+  CloseDriveModal,
   RejectResultModal,
   UploadResultModal,
   VerifyResultModal,
@@ -50,6 +52,7 @@ import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 import {
   STREAM_STANDARDS,
   meritGroups,
+  nextStatusLabel,
   rankApproved,
   rosterKey,
   rosterStatusMeta,
@@ -89,6 +92,15 @@ function levelLabel(value: string, lang: string): string {
 function streamLabel(value: string, lang: string): string {
   const m = DEFAULT_STREAMS.find((s) => s.nameEn === value || s.nameGu === value);
   return m ? (lang === "gu" ? m.nameGu : m.nameEn) : value;
+}
+
+/**
+ * "2026" -> "2025-26" — the fixed academic-year range shown next to every drive title.
+ * The selected year is the END of the academic session (results declared in
+ * 2026 belong to the 2025-26 session), so the range runs backward from it.
+ */
+function yearRangeSuffix(year: number): string {
+  return `${year - 1}-${String(year).slice(-2)}`;
 }
 
 /**
@@ -158,11 +170,10 @@ export function ResultsClient({
   const [verify, setVerify] = useState<{ row: RosterRow; viewOnly: boolean } | null>(null);
   const [rejectRow, setRejectRow] = useState<RosterRow | null>(null);
   const [uploadRow, setUploadRow] = useState<RosterRow | null>(null);
+  const [closeDriveOpen, setCloseDriveOpen] = useState(false);
+  const [closingDrive, setClosingDrive] = useState(false);
 
-  const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [levelFilter, setLevelFilter] = useState("all");
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [standardQuery, setStandardQuery] = useState("");
 
   const [stdSearch, setStdSearch] = useState("");
   const [stdStatusFilter, setStdStatusFilter] = useState("all");
@@ -193,34 +204,9 @@ export function ResultsClient({
     [params, router],
   );
 
-  const q = query.trim().toLowerCase();
-  const filtered = useMemo(
-    () =>
-      roster.filter((r) => {
-        if (statusFilter !== "all" && r.status !== statusFilter) return false;
-        if (
-          q &&
-          ![
-            r.studentName,
-            r.studentNameEn,
-            r.studentNameGu,
-            r.familyLabel,
-            r.familyLabelEn,
-            r.familyLabelGu,
-            r.mobile,
-            r.schoolName,
-          ].some((v) => v?.toLowerCase().includes(q))
-        ) {
-          return false;
-        }
-        return true;
-      }),
-    [roster, statusFilter, q],
-  );
-
   const standards = useMemo(() => {
     const map = new Map<string, { total: number; approved: number; pending: number; rejected: number; uploaded: number }>();
-    for (const r of filtered) {
+    for (const r of roster) {
       const row = map.get(r.standard) ?? { total: 0, approved: 0, pending: 0, rejected: 0, uploaded: 0 };
       row.total += 1;
       if (r.status !== "none") row.uploaded += 1;
@@ -230,22 +216,28 @@ export function ResultsClient({
       map.set(r.standard, row);
     }
     const extra = [...map.keys()].filter((s) => !LEVELS.includes(s)).sort();
-    return [...LEVELS, ...extra]
-      .filter((s) => levelFilter === "all" || s === levelFilter)
-      .map((standard) => ({
-        standard,
-        ...(map.get(standard) ?? { total: 0, approved: 0, pending: 0, rejected: 0, uploaded: 0 }),
-      }));
-  }, [filtered, levelFilter]);
+    return [...LEVELS, ...extra].map((standard) => ({
+      standard,
+      ...(map.get(standard) ?? { total: 0, approved: 0, pending: 0, rejected: 0, uploaded: 0 }),
+    }));
+  }, [roster]);
+
+  // The overview search box narrows down which standard cards show — it
+  // never touches the counts on them, so it stays a pure display filter.
+  const visibleStandards = useMemo(() => {
+    const q = standardQuery.trim().toLowerCase();
+    if (!q) return standards;
+    return standards.filter((s) => s.standard.toLowerCase().includes(q));
+  }, [standards, standardQuery]);
 
   const stdRows = useMemo(() => {
     if (!activeStd) return [];
-    let rows = filtered.filter((r) => r.standard === activeStd);
+    let rows = roster.filter((r) => r.standard === activeStd);
     if (STREAM_STANDARDS.has(activeStd) && streamFilter !== "all") {
       rows = rows.filter((r) => (r.stream || "") === streamFilter);
     }
     return rows;
-  }, [filtered, activeStd, streamFilter]);
+  }, [roster, activeStd, streamFilter]);
 
   const displayStdRows = useMemo(() => {
     const sq = stdSearch.trim().toLowerCase();
@@ -303,6 +295,14 @@ export function ResultsClient({
   const merit = activeStd ? meritOf(activeStd) : [];
   const pending = roster.filter((r) => r.status === "PENDING").length;
 
+  const overviewSummary = useMemo(() => {
+    const uploaded = roster.filter((r) => r.status !== "none").length;
+    const approved = roster.filter((r) => r.status === "APPROVED").length;
+    const rejected = roster.filter((r) => r.status === "REJECTED" || r.status === "RESUBMIT").length;
+    const nextSet = roster.filter((r) => r.studyOutcome != null).length;
+    return { total: roster.length, uploaded, approved, rejected, nextSet };
+  }, [roster]);
+
   const driveOptions = useMemo(() => {
     const perYear = new Map<number, number>();
     for (const d of drives) perYear.set(d.year, (perYear.get(d.year) ?? 0) + 1);
@@ -314,6 +314,7 @@ export function ResultsClient({
           (perYear.get(d.year) ?? 0) > 1
             ? `${d.year} — ${pickText(d.titleGu, d.titleEn, lang)}`
             : String(d.year),
+        dot: d.isOpen,
       }));
   }, [drives, lang]);
 
@@ -394,14 +395,52 @@ export function ResultsClient({
     router.refresh();
   }
 
+  /** Only one drive may be live at a time — ask before silently closing whichever other one is open. */
+  async function confirmIfAnotherLive(excludeId?: string) {
+    const other = drives.find((d) => d.isOpen && d.id !== excludeId);
+    if (!other) return true;
+    return confirmDialog({
+      title: "Another drive is already live",
+      description: `"${other.titleGu || other.titleEn}" (${other.year}) is currently open for uploads. Continuing will close it — only one drive can be live at a time.`,
+      confirmLabel: "Close it & continue",
+      cancelLabel: "Cancel",
+      tone: "danger",
+    });
+  }
+
+  async function reopenDrive() {
+    if (!currentDrive) return;
+    if (!(await confirmIfAnotherLive(currentDrive.id))) return;
+    await toggleDrive("isOpen");
+  }
+
+  const notUploaded = useMemo(() => roster.filter((r) => r.status === "none"), [roster]);
+  const incompleteUploaded = useMemo(
+    () => roster.filter((r) => r.status !== "none" && !(r.status === "APPROVED" && r.studyOutcome != null)),
+    [roster],
+  );
+
+  async function confirmCloseDrive() {
+    if (!currentDrive) return;
+    setClosingDrive(true);
+    const res = await api.patch(`/api/admin/result-drives`, { id: currentDrive.id, isOpen: false });
+    setClosingDrive(false);
+    if (!res.ok) return setError(res.error);
+    setCloseDriveOpen(false);
+    router.refresh();
+  }
+
   async function createDrive() {
     if (!draft.titleEn.trim()) return setError(t("res.titleRequired"));
+    if (!(await confirmIfAnotherLive())) return;
     setBusy(true);
     setError(null);
+    const year = Number(draft.year);
+    const suffix = yearRangeSuffix(year);
     const res = await api.post<{ id: string }>(`/api/admin/result-drives`, {
-      titleEn: draft.titleEn.trim(),
-      titleGu: draft.titleGu.trim() || undefined,
-      year: Number(draft.year),
+      titleEn: `${draft.titleEn.trim()} ${suffix}`,
+      titleGu: draft.titleGu.trim() ? `${draft.titleGu.trim()} ${suffix}` : undefined,
+      year,
       isOpen: true,
     });
     setBusy(false);
@@ -461,7 +500,7 @@ export function ResultsClient({
           <div className="flex flex-wrap gap-2">
             <AdminBtn
               variant={currentDrive.isOpen ? "danger" : "success"}
-              onClick={() => toggleDrive("isOpen")}
+              onClick={() => (currentDrive.isOpen ? setCloseDriveOpen(true) : void reopenDrive())}
               className="whitespace-nowrap"
             >
               {currentDrive.isOpen ? (
@@ -485,96 +524,23 @@ export function ResultsClient({
             </AdminBtn>
           </div>
 
-          <div className="flex w-full items-center gap-2.5 md:w-auto">
+          <div className="flex w-full flex-wrap items-center gap-2.5 md:w-auto">
             <SearchInput
-              value={query}
-              onChange={setQuery}
-              placeholder={t("res.searchPlaceholder")}
+              value={standardQuery}
+              onChange={setStandardQuery}
+              placeholder={t("res.searchStandard")}
               className="min-w-0 flex-1 md:w-[220px] md:flex-none"
             />
-            <FilterButton
-              className="md:hidden"
-              active={statusFilter !== "all" || levelFilter !== "all"}
-              onClick={() => setFiltersOpen(true)}
+            <AdminSelect
+              value={currentDrive.id}
+              onChange={(v) => router.push(`/admin/results?drive=${v}`)}
+              ariaLabel={t("res.selectDriveYear")}
+              className="w-[190px] shrink-0"
+              options={driveOptions}
             />
-            <div className="hidden items-center gap-2.5 md:flex">
-              <AdminSelect
-                value={currentDrive.id}
-                onChange={(v) => router.push(`/admin/results?drive=${v}`)}
-                ariaLabel={t("res.selectDriveYear")}
-                className="w-[110px] shrink-0"
-                options={driveOptions}
-              />
-              <AdminSelect
-                value={statusFilter}
-                onChange={setStatusFilter}
-                ariaLabel={t("res.filterByStatus")}
-                className="w-[150px] shrink-0"
-                options={[
-                  { value: "all", label: t("res.stAll") },
-                  { value: "none", label: t("res.stNone") },
-                  { value: "PENDING", label: t("res.stPending") },
-                  { value: "APPROVED", label: t("res.stApproved") },
-                  { value: "REJECTED", label: t("res.stRejected") },
-                ]}
-              />
-              <AdminSelect
-                value={levelFilter}
-                onChange={setLevelFilter}
-                ariaLabel={t("res.filterByLevel")}
-                className="w-[180px] shrink-0"
-                options={[
-                  { value: "all", label: t("res.allLevels") },
-                  ...LEVELS.map((l) => ({ value: l, label: levelLabel(l, lang) })),
-                ]}
-              />
-            </div>
           </div>
         </div>
       )}
-
-      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="bottom" className="md:hidden">
-          <SheetHeader>
-            <SheetTitle>{t("res.filters")}</SheetTitle>
-          </SheetHeader>
-          <div className="flex flex-col gap-3 px-4 pb-4">
-            <div>
-              <AdminLabel>{t("res.driveYear")}</AdminLabel>
-              <AdminSelect
-                value={currentDrive?.id ?? ""}
-                onChange={(v) => router.push(`/admin/results?drive=${v}`)}
-                ariaLabel={t("res.selectDriveYear")}
-                className="w-full"
-                options={driveOptions}
-              />
-            </div>
-            <AdminSelect
-              value={statusFilter}
-              onChange={setStatusFilter}
-              ariaLabel={t("res.filterByStatus")}
-              className="w-full"
-              options={[
-                { value: "all", label: t("res.stAll") },
-                { value: "none", label: t("res.stNone") },
-                { value: "PENDING", label: t("res.stPending") },
-                { value: "APPROVED", label: t("res.stApproved") },
-                { value: "REJECTED", label: t("res.stRejected") },
-              ]}
-            />
-            <AdminSelect
-              value={levelFilter}
-              onChange={setLevelFilter}
-              ariaLabel={t("res.filterByLevel")}
-              className="w-full"
-              options={[
-                { value: "all", label: t("res.allLevels") },
-                ...LEVELS.map((l) => ({ value: l, label: levelLabel(l, lang) })),
-              ]}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
 
       {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
@@ -586,17 +552,33 @@ export function ResultsClient({
         <>
           {view === "overview" && (
             <>
-              <AdminH3>
-                {tf("res.standardsSummary", {
-                  pending,
-                  uploaded: roster.filter((r) => r.status !== "none").length,
-                })}
-              </AdminH3>
-              {standards.length === 0 ? (
-                <p className="py-6 text-[13px] text-[var(--faint)]">{t("res.noStandards")}</p>
+              <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                {(
+                  [
+                    ["res.statStudents", overviewSummary.total, "var(--ink)"],
+                    ["res.statUploaded", overviewSummary.uploaded, "var(--info)"],
+                    ["res.stPending", pending, "var(--warn)"],
+                    ["res.stApproved", overviewSummary.approved, "var(--success)"],
+                    ["res.stRejected", overviewSummary.rejected, "var(--danger)"],
+                    ["res.statNextSet", overviewSummary.nextSet, "var(--brand)"],
+                  ] as const
+                ).map(([label, value, color]) => (
+                  <div key={label} className="rounded-[14px] border border-[var(--line-admin)] bg-[#FBFAF7] p-3">
+                    <div className="text-[22px] font-extrabold" style={{ color }}>
+                      {value}
+                    </div>
+                    <div className="text-[11.5px] text-[var(--faint)]">{t(label)}</div>
+                  </div>
+                ))}
+              </div>
+              <AdminH3>{t("res.standardsHeading")}</AdminH3>
+              {visibleStandards.length === 0 ? (
+                <p className="py-6 text-[13px] text-[var(--faint)]">
+                  {standards.length === 0 ? t("res.noStandards") : t("res.noStandardMatch")}
+                </p>
               ) : (
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-3.5">
-                  {standards.map((s) => {
+                  {visibleStandards.map((s) => {
                     const completion = s.uploaded
                       ? Math.round(((s.approved + s.rejected) / s.uploaded) * 100)
                       : 0;
@@ -848,6 +830,7 @@ export function ResultsClient({
                         <AdminTh>{t("res.thVerification")}</AdminTh>
                         <AdminTh>%</AdminTh>
                         <AdminTh>{t("res.thRank")}</AdminTh>
+                        <AdminTh>{t("res.thNextStatus")}</AdminTh>
                         <AdminTh>{t("res.thUpdated")}</AdminTh>
                         <AdminTh className="text-right whitespace-nowrap">{t("res.thActions")}</AdminTh>
                       </tr>
@@ -915,6 +898,18 @@ export function ResultsClient({
                               )}
                             </AdminTd>
                             <AdminTd>{rank ? `#${rank}` : "—"}</AdminTd>
+                            <AdminTd>
+                              {r.status === "none" ? (
+                                "—"
+                              ) : (
+                                <span
+                                  className="font-semibold"
+                                  style={{ color: r.studyOutcome ? "#1E9E52" : "#B0801E" }}
+                                >
+                                  {nextStatusLabel(r, lang)}
+                                </span>
+                              )}
+                            </AdminTd>
                             <AdminTd>{r.updatedAt ? formatDate(r.updatedAt, lang) : "—"}</AdminTd>
                             <AdminTd className="whitespace-nowrap">
                               {r.status === "none" ? (
@@ -1010,12 +1005,30 @@ export function ResultsClient({
         />
       )}
 
+      {currentDrive && (
+        <CloseDriveModal
+          open={closeDriveOpen}
+          driveTitle={currentDrive.titleGu || currentDrive.titleEn}
+          notUploaded={notUploaded}
+          incomplete={incompleteUploaded}
+          onClose={() => setCloseDriveOpen(false)}
+          onConfirm={() => void confirmCloseDrive()}
+          busy={closingDrive}
+        />
+      )}
+
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-[380px] rounded-2xl sm:max-w-[380px]">
           <DialogHeader>
             <DialogTitle className="text-base font-extrabold text-[var(--ink)]">{t("res.newDriveTitle")}</DialogTitle>
           </DialogHeader>
           <div>
+            <AdminLabel>{t("res.year")}</AdminLabel>
+            <AdminInput
+              type="number"
+              value={draft.year}
+              onChange={(v) => setDraft((prev) => ({ ...prev, year: v }))}
+            />
             <AdminLabel>{t("res.titleEn")}</AdminLabel>
             <AdminInput
               value={draft.titleEn}
@@ -1033,8 +1046,13 @@ export function ResultsClient({
                 guInput(v, (gu) => setDraft((prev) => ({ ...prev, titleGu: gu })), "gu");
               }}
             />
-            <AdminLabel>{t("res.year")}</AdminLabel>
-            <AdminInput type="number" value={draft.year} onChange={(v) => setDraft({ ...draft, year: v })} />
+            <p className="mt-2 text-[12px] font-medium text-[var(--faint)]">
+              {t("res.savedAs")}{" "}
+              <b className="text-[var(--ink)]">
+                {draft.titleEn.trim() || "…"}{" "}
+                {yearRangeSuffix(Number(draft.year) || new Date().getFullYear())}
+              </b>
+            </p>
             {error && <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
             <div className="mt-4 flex gap-2.5">
               <AdminBtn className="flex-1 justify-center" onClick={createDrive}>

@@ -2,14 +2,17 @@
 
 import { useMemo, useRef, useState } from "react";
 import { FileText, ImagePlus, Loader2 } from "lucide-react";
+import { AdminModal, AdminModalActions } from "@/components/admin/admin-form";
 import { AdminBtn, AdminInput, AdminLabel } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { NextStandardModal, type NextStandardValue } from "@/components/results/next-standard-modal";
 import {
   HIGHER_STANDARDS,
   REJECT_REASON_CHIPS,
   STREAM_STANDARDS,
   calcPct,
   isPdf,
+  nextStatusLabel,
   rosterStatusMeta,
   streamColors,
   type RosterRow,
@@ -157,6 +160,7 @@ export function VerifyResultModal({
                     ],
                     [t("res.totalMarks"), row.totalMarks ?? "—"],
                     [t("res.obtained"), row.obtainedMarks ?? "—"],
+                    [t("res.nextStatus"), nextStatusLabel(row, lang)],
                   ].map(([label, val]) => (
                     <tr key={String(label)}>
                       <td className="w-[110px] py-1.5 text-[#938C80]">{label}</td>
@@ -301,6 +305,7 @@ export function UploadResultModal({
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showNextStandard, setShowNextStandard] = useState(false);
 
   const pct = useMemo(() => {
     const p = calcPct(Number(total), Number(obtained));
@@ -320,7 +325,7 @@ export function UploadResultModal({
     setMarksheetUrl(res.data.url);
   }
 
-  async function save() {
+  function save() {
     setError(null);
     if (!isHigher) {
       const tot = Number(total);
@@ -330,8 +335,13 @@ export function UploadResultModal({
     } else if (!course.trim()) {
       return setError(t("res.errCourseName"));
     }
+    // Current result is ready — ask what's next before actually saving.
+    setShowNextStandard(true);
+  }
 
+  async function finalizeSave(next: NextStandardValue | null) {
     setBusy(true);
+    setError(null);
     const common = {
       memberId: row.memberId ?? undefined,
       studentName: row.studentName,
@@ -341,6 +351,16 @@ export function UploadResultModal({
       schoolName: school.trim() || undefined,
       ...(isHigher ? {} : { totalMarks: Number(total), obtainedMarks: Number(obtained) }),
       marksheetUrl: marksheetUrl || undefined,
+      // Skipping ("Decide later") omits these entirely — on an edit that
+      // leaves whatever next-standard decision was already recorded alone.
+      ...(next
+        ? {
+            studyOutcome: next.studyOutcome,
+            nextStandard: next.nextStandard ?? undefined,
+            nextStream: next.nextStream ?? undefined,
+            nextCourse: next.nextCourse ?? undefined,
+          }
+        : {}),
     };
 
     type EntryPayload = {
@@ -348,6 +368,10 @@ export function UploadResultModal({
       percentage: number | null;
       marksheetUrl: string | null;
       status: string;
+      nextStandard: string | null;
+      nextStream: string | null;
+      nextCourse: string | null;
+      studyOutcome: string | null;
     };
 
     let entry: EntryPayload;
@@ -371,6 +395,7 @@ export function UploadResultModal({
       entry = res.data;
     }
 
+    setShowNextStandard(false);
     onSaved({
       ...row,
       entryId: entry.id,
@@ -383,6 +408,10 @@ export function UploadResultModal({
       status: "PENDING",
       rejectReason: null,
       updatedAt: new Date().toISOString(),
+      nextStandard: entry.nextStandard,
+      nextStream: entry.nextStream,
+      nextCourse: entry.nextCourse,
+      studyOutcome: entry.studyOutcome as RosterRow["studyOutcome"],
     });
   }
 
@@ -460,13 +489,21 @@ export function UploadResultModal({
             )}
           </button>
 
-          <AdminLabel>School / College</AdminLabel>
-          <AdminInput value={school} onChange={setSchool} placeholder="School name" />
+          <AdminLabel>{t("res.schoolCollege")}</AdminLabel>
+          <AdminInput
+            value={school}
+            onChange={setSchool}
+            placeholder={t("res.schoolNamePlaceholder")}
+          />
 
           {isHigher && (
             <>
-              <AdminLabel>Degree / Course name *</AdminLabel>
-              <AdminInput value={course} onChange={setCourse} placeholder="e.g. B.Com, Mechanical Engineering" />
+              <AdminLabel>{t("res.degreeCourse")}</AdminLabel>
+              <AdminInput
+                value={course}
+                onChange={setCourse}
+                placeholder={t("res.degreeCoursePlaceholder")}
+              />
             </>
           )}
 
@@ -474,11 +511,11 @@ export function UploadResultModal({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <AdminLabel>Total marks</AdminLabel>
+                  <AdminLabel>{t("res.totalMarks")}</AdminLabel>
                   <AdminInput type="number" value={total} onChange={setTotal} />
                 </div>
                 <div>
-                  <AdminLabel>Obtained marks</AdminLabel>
+                  <AdminLabel>{t("res.obtainedMarks")}</AdminLabel>
                   <AdminInput type="number" value={obtained} onChange={setObtained} />
                 </div>
               </div>
@@ -505,6 +542,25 @@ export function UploadResultModal({
           </div>
         </div>
       </div>
+
+      {showNextStandard && (
+        <NextStandardModal
+          studentName={row.studentName}
+          busy={busy}
+          initial={
+            row.studyOutcome
+              ? {
+                  studyOutcome: row.studyOutcome,
+                  nextStandard: row.nextStandard,
+                  nextStream: row.nextStream,
+                  nextCourse: row.nextCourse,
+                }
+              : null
+          }
+          onSkip={() => void finalizeSave(null)}
+          onConfirm={(value) => void finalizeSave(value)}
+        />
+      )}
     </div>
   );
 }
@@ -514,4 +570,126 @@ export function openWhatsAppNotify(mobile: string | null | undefined, message: s
   if (!d) return;
   const url = `${waLink(mobile)}?text=${encodeURIComponent(message)}`;
   window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/**
+ * Only one result drive is ever live at a time, so closing one is a real
+ * decision — this shows exactly who is still incomplete before it happens,
+ * instead of silently locking them out.
+ */
+export function CloseDriveModal({
+  open,
+  driveTitle,
+  notUploaded,
+  incomplete,
+  onClose,
+  onConfirm,
+  busy,
+}: {
+  open: boolean;
+  driveTitle: string;
+  /** Students with no result uploaded at all. */
+  notUploaded: RosterRow[];
+  /** Students with a result uploaded that isn't fully processed (still pending/rejected, or approved without a next-standard decision). */
+  incomplete: RosterRow[];
+  onClose: () => void;
+  onConfirm: () => void;
+  busy: boolean;
+}) {
+  const { t, tf } = useAdminT();
+  const allClear = notUploaded.length === 0 && incomplete.length === 0;
+
+  return (
+    <AdminModal
+      open={open}
+      onClose={onClose}
+      title={t("res.closeDriveTitle")}
+      subtitle={tf("res.closeDriveSubtitle", { title: driveTitle })}
+      width="lg"
+      footer={
+        <AdminModalActions
+          onSave={onConfirm}
+          onCancel={onClose}
+          saveLabel={t("res.closeDrive")}
+          cancelLabel={t("common.cancel")}
+          variant="danger"
+          busy={busy}
+        />
+      }
+    >
+      {allClear ? (
+        <p className="rounded-xl border border-[#B7E6C6] bg-[#F0FBF3] px-4 py-3 text-[13px] font-semibold text-[#1E7A44]">
+          {t("res.allClearSafeToClose")}
+        </p>
+      ) : (
+        <div className="max-h-[50vh] overflow-y-auto">
+          {notUploaded.length > 0 && (
+            <RosterWarningSection
+              title={tf("res.notUploadedYet", { n: notUploaded.length })}
+              rows={notUploaded}
+              tone="danger"
+            />
+          )}
+          {incomplete.length > 0 && (
+            <RosterWarningSection
+              title={tf("res.uploadedIncomplete", { n: incomplete.length })}
+              subtitle={t("res.incompleteSubtitle")}
+              rows={incomplete}
+              tone="warn"
+            />
+          )}
+        </div>
+      )}
+    </AdminModal>
+  );
+}
+
+function RosterWarningSection({
+  title,
+  subtitle,
+  rows,
+  tone,
+}: {
+  title: string;
+  subtitle?: string;
+  rows: RosterRow[];
+  tone: "danger" | "warn";
+}) {
+  const color = tone === "danger" ? "#B0303A" : "#B0801E";
+  const bg = tone === "danger" ? "#FCE7E7" : "#FCEFD6";
+  return (
+    <div className="mb-3.5 last:mb-0">
+      <div className="mb-1.5 text-[12.5px] font-extrabold" style={{ color }}>
+        {title}
+      </div>
+      {subtitle && <div className="mb-2 text-[11.5px] text-[#938C80]">{subtitle}</div>}
+      <div className="flex flex-col gap-1.5">
+        {rows.map((r) => {
+          const meta = rosterStatusMeta(r.status);
+          return (
+            <div
+              key={r.entryId ?? r.memberId ?? r.studentName}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-[11px] px-3 py-2 text-[12.5px]"
+              style={{ background: bg }}
+            >
+              <span className="font-bold text-[#2A2620]">
+                {r.studentName} <span className="font-medium text-[#8B8375]">· {r.standard}</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                {r.mobile && <span className="text-[#8B8375]">{r.mobile}</span>}
+                {r.status !== "none" && (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+                    style={{ background: meta.bg, color: meta.fg }}
+                  >
+                    {meta.label}
+                  </span>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

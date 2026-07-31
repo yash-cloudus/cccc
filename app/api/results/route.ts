@@ -24,6 +24,13 @@ function scoreOf(total?: number | null, obtained?: number | null) {
   return { percentage, isEligible: percentage >= 80 };
 }
 
+/** WhatsApp note appended to the approval message for terminal (non-promotion) outcomes. */
+const STUDY_OUTCOME_NOTIFY: Record<"STUDY_COMPLETE" | "FAILED_REPEAT" | "DROPPED_OUT", string> = {
+  STUDY_COMPLETE: "Studies marked complete — congratulations on finishing!",
+  FAILED_REPEAT: "Marked to repeat this standard next year.",
+  DROPPED_OUT: "Marked as having discontinued studies.",
+};
+
 export async function GET(req: Request) {
   try {
     const communityId = await getActiveCommunityId();
@@ -44,7 +51,7 @@ export async function GET(req: Request) {
         ? await prisma.resultDrive.findFirst({ where: { id: driveId, communityId } })
         : await prisma.resultDrive.findFirst({
             where: { communityId },
-            orderBy: { year: "desc" },
+            orderBy: [{ isOpen: "desc" }, { year: "desc" }],
           })) || null;
 
     if (!drive) return ok({ drive: null, entries: [] });
@@ -68,6 +75,8 @@ export async function GET(req: Request) {
   }
 }
 
+const studyOutcomeSchema = z.enum(["PROMOTED", "STUDY_COMPLETE", "FAILED_REPEAT", "DROPPED_OUT"]);
+
 const schema = z.object({
   driveId: z.string(),
   memberId: z.string().optional(),
@@ -79,6 +88,12 @@ const schema = z.object({
   totalMarks: z.number().positive().optional(),
   obtainedMarks: z.number().nonnegative().optional(),
   marksheetUrl: z.string().optional(),
+  // What's next for the student — decided alongside the upload, applied to
+  // their record only once the result itself is approved (see PATCH below).
+  nextStandard: z.string().optional(),
+  nextStream: z.string().optional(),
+  nextCourse: z.string().optional(),
+  studyOutcome: studyOutcomeSchema.optional(),
 });
 
 export async function POST(req: Request) {
@@ -110,6 +125,10 @@ export async function POST(req: Request) {
       body.obtainedMarks > body.totalMarks
     ) {
       return fail("Obtained marks cannot exceed total marks");
+    }
+
+    if (body.studyOutcome === "PROMOTED" && !body.nextStandard) {
+      return fail("Pick the next standard");
     }
 
     if (body.memberId) {
@@ -148,6 +167,10 @@ export async function POST(req: Request) {
             status: "PENDING",
             rejectReason: null,
             userId: isAdmin ? existing.userId : session.sub,
+            nextStandard: body.nextStandard,
+            nextStream: body.nextStream,
+            nextCourse: body.nextCourse,
+            studyOutcome: body.studyOutcome,
           },
         });
         return ok(entry);
@@ -199,6 +222,10 @@ export async function PATCH(req: Request) {
         // `rejectReason: null` to clear it, and `.optional()` alone rejects
         // null outright — which surfaced as a bare "Validation failed".
         rejectReason: z.string().nullable().optional(),
+        nextStandard: z.string().optional(),
+        nextStream: z.string().optional(),
+        nextCourse: z.string().optional(),
+        studyOutcome: studyOutcomeSchema.optional(),
       })
       .parse(await req.json());
 
@@ -214,41 +241,82 @@ export async function PATCH(req: Request) {
     const obtained = body.obtainedMarks ?? existing.obtainedMarks;
     const { percentage, isEligible } = scoreOf(total, obtained);
 
-    const entry = await prisma.resultEntry.update({
-      where: { id: body.id },
-      data: {
-        memberId: body.memberId ?? existing.memberId,
-        studentName: body.studentName ?? existing.studentName,
-        standard: body.standard ?? existing.standard,
-        stream: body.stream ?? existing.stream,
-        course: body.course ?? existing.course,
-        schoolName: body.schoolName ?? existing.schoolName,
-        totalMarks: body.totalMarks ?? existing.totalMarks,
-        obtainedMarks: body.obtainedMarks ?? existing.obtainedMarks,
-        marksheetUrl: body.marksheetUrl ?? existing.marksheetUrl,
-        percentage,
-        isEligible,
-        status: body.status ?? existing.status,
-        // `??` would treat an explicit null as "not supplied" and keep the old
-        // reason, so a re-edited entry would still carry the rejection it was
-        // just fixed for. Only `undefined` means "leave it alone".
-        rejectReason:
-          body.rejectReason !== undefined
-            ? body.rejectReason
-            : body.status === "APPROVED"
-              ? null
-              : existing.rejectReason,
-      },
+    const finalStatus = body.status ?? existing.status;
+    const memberId = body.memberId ?? existing.memberId;
+    const studyOutcome = body.studyOutcome ?? existing.studyOutcome;
+    const nextStandard = body.nextStandard ?? existing.nextStandard;
+    const nextStream = body.nextStream ?? existing.nextStream;
+    const nextCourse = body.nextCourse ?? existing.nextCourse;
+
+    const entry = await prisma.$transaction(async (tx) => {
+      const updated = await tx.resultEntry.update({
+        where: { id: body.id },
+        data: {
+          memberId,
+          studentName: body.studentName ?? existing.studentName,
+          standard: body.standard ?? existing.standard,
+          stream: body.stream ?? existing.stream,
+          course: body.course ?? existing.course,
+          schoolName: body.schoolName ?? existing.schoolName,
+          totalMarks: body.totalMarks ?? existing.totalMarks,
+          obtainedMarks: body.obtainedMarks ?? existing.obtainedMarks,
+          marksheetUrl: body.marksheetUrl ?? existing.marksheetUrl,
+          percentage,
+          isEligible,
+          status: finalStatus,
+          // `??` would treat an explicit null as "not supplied" and keep the old
+          // reason, so a re-edited entry would still carry the rejection it was
+          // just fixed for. Only `undefined` means "leave it alone".
+          rejectReason:
+            body.rejectReason !== undefined
+              ? body.rejectReason
+              : body.status === "APPROVED"
+                ? null
+                : existing.rejectReason,
+          nextStandard,
+          nextStream,
+          nextCourse,
+          studyOutcome,
+        },
+      });
+
+      // The next-standard choice only ever touches the student's actual record
+      // once the result itself is approved — a rejected or still-pending entry
+      // must never promote/graduate/drop someone off the strength of an
+      // unverified marksheet.
+      if (finalStatus === "APPROVED" && studyOutcome && memberId) {
+        if (studyOutcome === "PROMOTED") {
+          await tx.familyMember.update({
+            where: { id: memberId },
+            data: { education: nextStandard, course: nextStream || nextCourse || null },
+          });
+        } else if (studyOutcome === "STUDY_COMPLETE" || studyOutcome === "DROPPED_OUT") {
+          // No longer an active student — drops out of future drive rosters.
+          await tx.familyMember.update({
+            where: { id: memberId },
+            data: { education: null, course: null },
+          });
+        }
+        // FAILED_REPEAT: no change — the student repeats the same standard.
+      }
+
+      return updated;
     });
 
     const mobile = existing.member?.mobile ?? null;
     const studentName = existing.member?.fullNameGu || existing.member?.fullNameEn || existing.studentName;
+    const nextNote =
+      body.status === "APPROVED" && studyOutcome
+        ? studyOutcome === "PROMOTED"
+          ? ` Promoted to ${nextStandard}${nextStream || nextCourse ? ` (${nextStream || nextCourse})` : ""}.`
+          : ` ${STUDY_OUTCOME_NOTIFY[studyOutcome]}`
+        : "";
 
     return ok({
       entry,
       notify:
         body.status === "APPROVED" && settings.waApprove
-          ? { mobile, message: `Congratulations ${studentName}! Your result has been approved.` }
+          ? { mobile, message: `Congratulations ${studentName}! Your result has been approved.${nextNote}` }
           : (body.status === "REJECTED" || body.status === "RESUBMIT") && settings.waReject
             ? {
                 mobile,

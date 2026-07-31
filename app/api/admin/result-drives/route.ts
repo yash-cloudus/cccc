@@ -28,14 +28,24 @@ export async function POST(req: Request) {
   try {
     const { communityId } = await requireAdmin(["OWNER", "DATA_MANAGER", "ADMIN"]);
     const body = createSchema.parse(await req.json());
-    const item = await prisma.resultDrive.create({
-      data: {
-        communityId,
-        titleEn: body.titleEn.trim(),
-        titleGu: body.titleGu?.trim(),
-        year: body.year,
-        isOpen: body.isOpen ?? true,
-      },
+    const isOpen = body.isOpen ?? true;
+    // Only one drive may be live at a time — opening a new one closes any other.
+    const item = await prisma.$transaction(async (tx) => {
+      if (isOpen) {
+        await tx.resultDrive.updateMany({
+          where: { communityId, isOpen: true },
+          data: { isOpen: false },
+        });
+      }
+      return tx.resultDrive.create({
+        data: {
+          communityId,
+          titleEn: body.titleEn.trim(),
+          titleGu: body.titleGu?.trim(),
+          year: body.year,
+          isOpen,
+        },
+      });
     });
     return created(item);
   } catch (e) {
@@ -61,7 +71,16 @@ export async function PATCH(req: Request) {
       select: { id: true },
     });
     if (!existing) return fail("Result drive not found", 404);
-    const item = await prisma.resultDrive.update({ where: { id }, data });
+    // Only one drive may be live at a time — (re)opening this one closes every other.
+    const item = await prisma.$transaction(async (tx) => {
+      if (data.isOpen) {
+        await tx.resultDrive.updateMany({
+          where: { communityId, isOpen: true, id: { not: id } },
+          data: { isOpen: false },
+        });
+      }
+      return tx.resultDrive.update({ where: { id }, data });
+    });
     return ok(item);
   } catch (e) {
     return handleApiError(e, "Failed to update result drive");

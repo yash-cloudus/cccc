@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE `ResultEntry`
+    ADD COLUMN `nextStandard` VARCHAR(191) NULL,
+    ADD COLUMN `nextStream` VARCHAR(191) NULL,
+    ADD COLUMN `nextCourse` VARCHAR(191) NULL,
+    ADD COLUMN `studyOutcome` ENUM('PROMOTED', 'STUDY_COMPLETE', 'FAILED_REPEAT', 'DROPPED_OUT') NULL;

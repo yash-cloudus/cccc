@@ -35,6 +35,12 @@ export type FeaturedNews = {
   isPinned: boolean;
 };
 
+export type LiveResultDrive = {
+  titleEn: string;
+  titleGu: string | null;
+  year: number;
+};
+
 const tileDefs = [
   { key: "blood", href: "/blood-group", labelKey: "bloodGroup" as const, bg: "var(--danger-tint)", fg: "var(--danger)", Icon: Droplet },
   { key: "edu", href: "/education", labelKey: "education" as const, bg: "var(--info-tint)", fg: "var(--info)", Icon: GraduationCap },
@@ -57,10 +63,13 @@ export function DashboardClient({
   ads,
   featured,
   resultEnabled = true,
+  resultDrive = null,
 }: {
   ads: AdRow[];
   featured: FeaturedNews | null;
   resultEnabled?: boolean;
+  /** Present only when a drive is actually open — the banner below is a "come upload now" call to action, not a status readout. */
+  resultDrive?: LiveResultDrive | null;
 }) {
   const { t, lang } = useLang();
   const visibleTiles = resultEnabled ? tileDefs : tileDefs.filter((t) => t.key !== "results");
@@ -132,7 +141,7 @@ export function DashboardClient({
 
         <div className="mt-4 md:grid md:grid-cols-[1.35fr_1fr] md:items-start md:gap-6">
           <div>
-            {resultEnabled && (
+            {resultEnabled && resultDrive && (
             <Link
               href="/results?focus=upload"
               className="flex items-center gap-3.5 rounded-[20px] border border-[var(--gold-border)] bg-gradient-to-r from-[var(--gold-tint)] to-[var(--surface)] p-[15px]"
@@ -144,7 +153,10 @@ export function DashboardClient({
                 <Award className="h-[27px] w-[27px]" strokeWidth={1.9} />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-[14.5px] font-extrabold text-[#7A4E10]">{t("resTitle")}</div>
+                <div className="text-[14.5px] font-extrabold text-[#7A4E10]">
+                  {pickText(resultDrive.titleGu, resultDrive.titleEn, lang)} {resultDrive.year}{" "}
+                  — {lang === "gu" ? "અપલોડ ચાલુ છે" : "upload is open"}
+                </div>
                 <div className="mt-0.5 text-xs font-medium text-[#A98A50]">{t("resSub")}</div>
               </div>
               <div className="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[11px] bg-[var(--gold)] text-white">
