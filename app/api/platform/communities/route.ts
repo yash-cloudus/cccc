@@ -154,10 +154,6 @@ export async function POST(req: Request) {
           data: { userId: admin.id, fullNameEn: body.adminName, isHead: true },
         });
       }
-      await tx.setting.create({
-        data: { communityId: community.id, key: "ad_banner_price", value: "2000" },
-      });
-
       await seedCommunityDefaults(tx, community.id, {
         type: body.type,
         primarySurnameEn: body.primarySurnameEn,

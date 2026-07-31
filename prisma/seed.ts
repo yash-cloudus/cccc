@@ -352,12 +352,10 @@ async function seedCommunityData(
     });
   }
 
-  // Settings (feature flags default)
-  await prisma.setting.upsert({
-    where: { communityId_key: { communityId, key: "ad_banner_price" } },
-    update: {},
-    create: { communityId, key: "ad_banner_price", value: "2000" },
-  });
+  // No Setting rows are seeded: every surviving setting resolves to a sensible
+  // default via `settingValue()` when its row is absent, and premium ad pricing
+  // now lives under `ads.pricing` (the old `ad_banner_price` row was read by
+  // nothing).
 
   if (opts.minimal) return;
 

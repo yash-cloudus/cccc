@@ -114,6 +114,7 @@ export async function PATCH(req: Request) {
           businessId: existing.businessId,
           type: existing.type,
         },
+        communityId,
         body.status === "ACTIVE" ? "APPROVED" : "REJECTED",
         body.status === "REJECTED" ? body.rejectReason : null,
         businessWasLive,

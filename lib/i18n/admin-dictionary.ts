@@ -842,6 +842,88 @@ export const adminDict = {
   "set.info": { gu: "કમ્યુનિટી મોબાઇલ એપમાં કઈ સુવિધાઓ ચાલુ, બંધ કે દેખાય તે અહીંથી નક્કી કરો. દરેક વિભાગ સાચવ્યા પછી જ ફેરફાર લાગુ થશે.", en: "Control which features are enabled, disabled or visible in the Community Mobile App. Changes apply only after you save each section." },
   "set.saveError": { gu: "{section} સેટિંગ સાચવી શકાયું નહીં", en: "Could not save {section} settings" },
   "set.saveSuccess": { gu: "{section} સેટિંગ સફળતાપૂર્વક સાચવાયું", en: "{section} settings saved successfully" },
+  "set.saveButton": { gu: "{section} સાચવો", en: "Save {section}" },
+
+  // Result Drive
+  "set.result.title": { gu: "રિઝલ્ટ ડ્રાઇવ", en: "Result Drive" },
+  "set.result.desc": {
+    gu: "યુઝર એપમાં રિઝલ્ટ ડ્રાઇવ મોડ્યુલ નિયંત્રિત કરો.",
+    en: "Control the Result Drive module in the User App.",
+  },
+  "set.result.enable": { gu: "રિઝલ્ટ ડ્રાઇવ ચાલુ કરો", en: "Enable Result Drive" },
+  "set.result.enable.help": {
+    gu: "બંધ કરવાથી રિઝલ્ટ ડ્રાઇવ યુઝર એપમાંથી સંપૂર્ણપણે છુપાઈ જાય છે — કોઈ પરિણામ અપલોડ કે જોઈ શકતું નથી.",
+    en: "When disabled, the Result Drive is completely hidden from the User App — nobody can upload or view results.",
+  },
+  "set.result.studentUpload": {
+    gu: "વિદ્યાર્થીઓને પરિણામ અપલોડ કરવા દો",
+    en: "Allow students to upload results",
+  },
+  "set.result.studentUpload.help": {
+    gu: "વિદ્યાર્થીઓ (અથવા તેમના પરિવારના લોગિન) પોતાની માર્કશીટ અપલોડ કરી શકે છે.",
+    en: "Students (or their family logins) can upload their own marksheets.",
+  },
+  "set.result.adminUpload": {
+    gu: "એડમિનને પરિણામ અપલોડ કરવા દો",
+    en: "Allow admins to upload results",
+  },
+  "set.result.adminUpload.help": {
+    gu: "એડમિન વિદ્યાર્થીઓ વતી પરિણામ અપલોડ કરી શકે છે.",
+    en: "Admins can upload results on behalf of students.",
+  },
+  "set.result.showMerit": { gu: "મેરિટ યાદી બતાવો", en: "Show merit list" },
+  "set.result.showMerit.help": {
+    gu: "ધોરણ પ્રમાણેની મેરિટ યાદી વપરાશકર્તાઓને દેખાય છે.",
+    en: "The standard-wise merit list is visible to users.",
+  },
+  "set.result.waApprove": {
+    gu: "મંજૂરી પછી WhatsApp સૂચના",
+    en: "WhatsApp notification after approval",
+  },
+  "set.result.waApprove.help": {
+    gu: "પરિણામ મંજૂર થાય ત્યારે વિદ્યાર્થીને WhatsApp સંદેશ મોકલો.",
+    en: "Send a WhatsApp message to the student when their result is approved.",
+  },
+  "set.result.waReject": {
+    gu: "નામંજૂરી પછી WhatsApp સૂચના",
+    en: "WhatsApp notification after rejection",
+  },
+  "set.result.waReject.help": {
+    gu: "પરિણામ નામંજૂર થાય ત્યારે કારણ સાથે WhatsApp સંદેશ મોકલો.",
+    en: "Send a WhatsApp message with the reason when a result is rejected.",
+  },
+
+  // Advertisements
+  "set.ads.title": { gu: "જાહેરાતો", en: "Advertisements" },
+  "set.ads.desc": {
+    gu: "પ્રીમિયમ બેનર જાહેરાતના ભાવ નક્કી કરો.",
+    en: "Set the price of premium banner advertisements.",
+  },
+  "set.ads.pricing": { gu: "પ્રીમિયમ જાહેરાતનો ભાવ", en: "Premium advertisement price" },
+  "set.ads.pricing.help": {
+    gu: "પ્રીમિયમ બેનર જાહેરાત માટે લેવાતી રકમ — દરેક મુદત માટે અલગ.",
+    en: "Amount charged for a premium banner advertisement — set separately for each validity period.",
+  },
+
+  // Notifications
+  "set.notifications.title": { gu: "સૂચનાઓ", en: "Notifications" },
+  "set.notifications.desc": {
+    gu: "કઈ ઇન-એપ સૂચનાઓ મોકલવી તે નક્કી કરો.",
+    en: "Choose which in-app notifications are sent.",
+  },
+  "set.notifications.newsPublished": { gu: "સમાચાર પ્રકાશિત", en: "News published" },
+  "set.notifications.newsPublished.help": {
+    gu: "નવા સમાચાર પ્રકાશિત થાય ત્યારે સભ્યોને સૂચના મોકલો.",
+    en: "Notify members when new news is published.",
+  },
+  "set.notifications.adApproved": {
+    gu: "જાહેરાત મંજૂર / નામંજૂર",
+    en: "Advertisement approved / rejected",
+  },
+  "set.notifications.adApproved.help": {
+    gu: "જાહેરાત કે ધંધા અંગે નિર્ણય લેવાય ત્યારે મોકલનારને સૂચના મોકલો.",
+    en: "Notify the submitter when their advertisement or business is decided on.",
+  },
 
   // ── shared admin widgets ──────────────────────────────────────────────
   "ui.chooseImage": { gu: "ફોટો પસંદ કરો", en: "Choose image" },

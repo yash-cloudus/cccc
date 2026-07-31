@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { isOn, settingKey, settingValue, SETTINGS_SECTIONS } from "@/lib/admin-settings";
+import { isOn, settingValue, SETTINGS_SECTIONS } from "@/lib/admin-settings";
 
 /** All Setting rows for one community, keyed `<section>.<item>`. */
 export async function getCommunitySettingsMap(communityId: string): Promise<Record<string, string>> {
@@ -21,7 +21,6 @@ export type ResultModuleSettings = {
   enable: boolean;
   studentUpload: boolean;
   adminUpload: boolean;
-  showFinal: boolean;
   showMerit: boolean;
   waApprove: boolean;
   waReject: boolean;
@@ -32,7 +31,6 @@ export function getResultModuleSettings(stored: Record<string, string>): ResultM
     enable: communitySettingOn(stored, "result", "enable"),
     studentUpload: communitySettingOn(stored, "result", "studentUpload"),
     adminUpload: communitySettingOn(stored, "result", "adminUpload"),
-    showFinal: communitySettingOn(stored, "result", "showFinal"),
     showMerit: communitySettingOn(stored, "result", "showMerit"),
     waApprove: communitySettingOn(stored, "result", "waApprove"),
     waReject: communitySettingOn(stored, "result", "waReject"),

@@ -3,13 +3,7 @@
 import { useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  AdminBtn,
-  AdminH2,
-  AdminInput,
-  AdminSelect,
-  AdminToggle,
-} from "@/components/admin/admin-ui";
+import { AdminBtn, AdminH2, AdminInput, AdminToggle } from "@/components/admin/admin-ui";
 import {
   AD_DURATIONS,
   SETTINGS_SECTIONS,
@@ -21,20 +15,8 @@ import {
   settingValue,
   type SettingSection,
 } from "@/lib/admin-settings";
-import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
+import { useAdminT } from "@/lib/i18n/admin-dictionary";
 import { api } from "@/lib/http";
-
-/**
- * Section / item copy lives in the dictionary, keyed off the same ids the
- * `Setting` rows use — `set.<section>.title`, `set.<section>.<item>` and
- * `set.<section>.<item>.help`.
- */
-const sectionTitleKey = (id: string) => `set.${id}.title` as AdminKey;
-const sectionDescKey = (id: string) => `set.${id}.desc` as AdminKey;
-const itemLabelKey = (sectionId: string, itemKey: string) =>
-  `set.${sectionId}.${itemKey}` as AdminKey;
-const itemHelpKey = (sectionId: string, itemKey: string) =>
-  `set.${sectionId}.${itemKey}.help` as AdminKey;
 
 export function SettingsClient({ stored }: { stored: Record<string, string> }) {
   const { t, tf } = useAdminT();
@@ -70,7 +52,7 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
     }
     const res = await api.patch("/api/admin/settings", { settings: payload });
     setSavingId(null);
-    const name = t(sectionTitleKey(section.id));
+    const name = t(section.titleKey);
     if (!res.ok) {
       toast.error(res.error || tf("set.saveError", { section: name }));
       return;
@@ -90,18 +72,14 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
             key={section.id}
             className="rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4"
           >
-            <h3 className="text-base font-extrabold text-[var(--ink)]">
-              {t(sectionTitleKey(section.id))}
-            </h3>
-            <p className="mt-0.5 text-[12.5px] text-[var(--faint)]">
-              {t(sectionDescKey(section.id))}
-            </p>
+            <h3 className="text-base font-extrabold text-[var(--ink)]">{t(section.titleKey)}</h3>
+            <p className="mt-0.5 text-[12.5px] text-[var(--faint)]">{t(section.descKey)}</p>
 
             <div className="mt-4 flex flex-col">
               {section.items.map((item) => {
                 const k = settingKey(section.id, item.key);
                 const v = values[k] ?? "";
-                const label = t(itemLabelKey(section.id, item.key));
+                const label = t(item.labelKey);
                 return (
                   <div
                     key={item.key}
@@ -110,31 +88,16 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
                     <div className="min-w-0 flex-1">
                       <div className="text-[13.5px] font-bold text-[var(--ink)]">{label}</div>
                       <div className="mt-0.5 text-[12px] leading-relaxed text-[var(--faint)]">
-                        {t(itemHelpKey(section.id, item.key))}
+                        {t(item.helpKey)}
                       </div>
                     </div>
 
-                    {item.type === "number" ? (
-                      <AdminInput
-                        type="number"
-                        value={v}
-                        onChange={(next) => set(k, next.replace(/[^0-9]/g, ""))}
-                        className="w-[140px] max-md:w-full"
-                      />
-                    ) : item.type === "select" ? (
-                      <AdminSelect
-                        value={v}
-                        ariaLabel={label}
-                        onChange={(next) => set(k, next)}
-                        options={(item.options ?? []).map((o) => ({ value: o, label: o }))}
-                        className="w-[160px] max-md:w-full"
-                      />
-                    ) : item.type === "adPricing" ? (
+                    {item.type === "adPricing" ? (
                       <AdPricingControl value={v} onChange={(next) => set(k, next)} />
                     ) : (
                       <AdminToggle
                         on={isOn(v)}
-                        label={item.label}
+                        label={label}
                         onChange={(next) => set(k, next ? "true" : "false")}
                       />
                     )}
@@ -151,7 +114,7 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
                 {savingId === section.id ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  `Save ${section.title}`
+                  tf("set.saveButton", { section: t(section.titleKey) })
                 )}
               </AdminBtn>
             </div>

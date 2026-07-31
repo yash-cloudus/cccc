@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
+import { communitySettingOn, getCommunitySettingsMap } from "@/lib/community-settings";
 
-/** Fan out an in-app notification for a news post to every approved member of the community. */
+/**
+ * Fan out an in-app notification for a news post to every approved member.
+ *
+ * The Settings toggle is enforced here rather than at each call site, so both
+ * the create and the update route obey it without repeating the check.
+ */
 export async function notifyNewsPost(
   news: {
     id: string;
@@ -11,6 +17,9 @@ export async function notifyNewsPost(
   },
   communityId: string,
 ) {
+  const settings = await getCommunitySettingsMap(communityId);
+  if (!communitySettingOn(settings, "notifications", "newsPublished")) return;
+
   const notification = await prisma.notification.create({
     data: {
       titleEn: news.titleEn,
@@ -46,6 +55,7 @@ export async function notifyAdDecision(
     businessId: string | null;
     type: string;
   },
+  communityId: string,
   decision: "APPROVED" | "REJECTED",
   rejectReason?: string | null,
   /**
@@ -58,6 +68,10 @@ export async function notifyAdDecision(
   businessWasLive = false,
 ) {
   if (!ad.ownerId) return;
+
+  const settings = await getCommunitySettingsMap(communityId);
+  if (!communitySettingOn(settings, "notifications", "adApproved")) return;
+
   const isBusiness =
     Boolean(ad.businessId) && (ad.type !== "premium" || (decision === "REJECTED" && !businessWasLive));
 
