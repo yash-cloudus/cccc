@@ -20,14 +20,12 @@ import {
   AdminInput,
   AdminLabel,
   AdminSelect,
-  AdminTable,
-  AdminTd,
-  AdminTh,
   FilterButton,
   PillActive,
   PillWarning,
   SearchInput,
 } from "@/components/admin/admin-ui";
+import { AdminDataTable } from "@/components/admin/admin-data-table";
 import {
   AdminCheck,
   AdminField,
@@ -441,99 +439,117 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         </SheetContent>
       </Sheet>
 
-      <AdminTable>
-        <thead>
-          <tr>
-            <AdminTh>Title</AdminTh>
-            <AdminTh>Date</AdminTh>
-            <AdminTh>Status</AdminTh>
-            <AdminTh>Cover</AdminTh>
-            <AdminTh>PDF</AdminTh>
-            <AdminTh>Pinned</AdminTh>
-            <AdminTh>Notify?</AdminTh>
-            <AdminTh className="text-right">Actions</AdminTh>
-          </tr>
-        </thead>
-        <tbody>
-          {filteredRows.map((n) => (
-            <tr key={n.id}>
-              <AdminTd className="font-semibold text-[var(--ink)]">
-                {n.titleGu || n.titleEn}
-              </AdminTd>
-              <AdminTd className="whitespace-nowrap">{n.publishedAt}</AdminTd>
-              <AdminTd>
-                {n.isPublished ? (
-                  <PillActive>Published</PillActive>
-                ) : (
-                  <PillWarning>Draft</PillWarning>
-                )}
-              </AdminTd>
-              <AdminTd>
-                {n.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={n.imageUrl}
-                    alt=""
-                    className="h-8 w-[52px] rounded-md border border-[var(--line)] object-cover"
-                  />
-                ) : (
-                  <span className="text-[var(--faint)]">—</span>
-                )}
-              </AdminTd>
-              <AdminTd>
-                <HasCell
-                  on={!!n.documentUrl}
-                  href={n.documentUrl}
-                  label={n.documentName || "PDF"}
+      <AdminDataTable
+        rows={filteredRows}
+        rowKey={(n) => n.id}
+        empty={
+          <p className="py-8 text-center text-[13px] text-[var(--faint)]">
+            No news posts match your filters.
+          </p>
+        }
+        columns={[
+          {
+            key: "title",
+            header: "Title",
+            primary: true,
+            tdClassName: "font-semibold text-[var(--ink)]",
+            cell: (n) => n.titleGu || n.titleEn,
+          },
+          {
+            key: "date",
+            header: "Date",
+            tdClassName: "whitespace-nowrap",
+            cell: (n) => n.publishedAt,
+          },
+          {
+            key: "status",
+            header: "Status",
+            badge: true,
+            cell: (n) =>
+              n.isPublished ? <PillActive>Published</PillActive> : <PillWarning>Draft</PillWarning>,
+          },
+          {
+            key: "cover",
+            header: "Cover",
+            // A 52px thumbnail adds nothing to a card that already has the title.
+            desktopOnly: true,
+            cell: (n) =>
+              n.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={n.imageUrl}
+                  alt=""
+                  className="h-8 w-[52px] rounded-md border border-[var(--line)] object-cover"
                 />
-              </AdminTd>
-              <AdminTd>
-                <StatusPillButton
-                  icon={Pin}
-                  active={n.isPinned}
-                  activeLabel="Pinned"
-                  inactiveLabel="Pin"
-                  activeTitle="Click to unpin"
-                  inactiveTitle="Click to pin to top"
-                  onClick={() => togglePinned(n)}
-                  tone="warn"
+              ) : (
+                <span className="text-[var(--faint)]">—</span>
+              ),
+          },
+          {
+            key: "pdf",
+            header: "PDF",
+            cell: (n) => (
+              <HasCell on={!!n.documentUrl} href={n.documentUrl} label={n.documentName || "PDF"} />
+            ),
+          },
+          {
+            key: "pinned",
+            header: "Pinned",
+            cell: (n) => (
+              <StatusPillButton
+                icon={Pin}
+                active={n.isPinned}
+                activeLabel="Pinned"
+                inactiveLabel="Pin"
+                activeTitle="Click to unpin"
+                inactiveTitle="Click to pin to top"
+                onClick={() => togglePinned(n)}
+                tone="warn"
+              />
+            ),
+          },
+          {
+            key: "notify",
+            header: "Notify?",
+            cell: (n) => (
+              <StatusPillButton
+                icon={Bell}
+                active={n.notificationSent}
+                activeLabel="Sent"
+                inactiveLabel="Notify"
+                activeTitle="Notification already sent"
+                inactiveTitle="Send notification now"
+                onClick={() => notifyNow(n)}
+                disabled={n.notificationSent}
+                tone="info"
+              />
+            ),
+          },
+          {
+            key: "actions",
+            header: "Actions",
+            actions: true,
+            cell: (n) => (
+              <span className="flex flex-wrap gap-1.5 md:justify-end">
+                <ActionBtn icon={Eye} label="Preview" onClick={() => setPreview(n)} />
+                <ActionBtn
+                  icon={n.isPublished ? EyeOff : Send}
+                  label={n.isPublished ? "Unpublish" : "Publish"}
+                  tone={n.isPublished ? "warn" : "success"}
+                  onClick={() => togglePublished(n)}
                 />
-              </AdminTd>
-              <AdminTd>
-                <StatusPillButton
-                  icon={Bell}
-                  active={n.notificationSent}
-                  activeLabel="Sent"
-                  inactiveLabel="Notify"
-                  activeTitle="Notification already sent"
-                  inactiveTitle="Send notification now"
-                  onClick={() => notifyNow(n)}
-                  disabled={n.notificationSent}
-                  tone="info"
+                <ActionBtn icon={Pencil} label="Edit" onClick={() => openEdit(n)} />
+                <ActionBtn
+                  icon={Trash2}
+                  label="Delete"
+                  tone="danger"
+                  onClick={() => remove(n.id)}
                 />
-              </AdminTd>
-              <AdminTd className="text-right">
-                <span className="flex flex-wrap justify-end gap-1.5">
-                  <ActionBtn icon={Eye} label="Preview" onClick={() => setPreview(n)} />
-                  <ActionBtn
-                    icon={n.isPublished ? EyeOff : Send}
-                    label={n.isPublished ? "Unpublish" : "Publish"}
-                    tone={n.isPublished ? "warn" : "success"}
-                    onClick={() => togglePublished(n)}
-                  />
-                  <ActionBtn icon={Pencil} label="Edit" onClick={() => openEdit(n)} />
-                  <ActionBtn
-                    icon={Trash2}
-                    label="Delete"
-                    tone="danger"
-                    onClick={() => remove(n.id)}
-                  />
-                </span>
-              </AdminTd>
-            </tr>
-          ))}
-        </tbody>
-      </AdminTable>
+              </span>
+            ),
+          },
+        ]}
+      />
 
       {filteredRows.length === 0 && (
         <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">

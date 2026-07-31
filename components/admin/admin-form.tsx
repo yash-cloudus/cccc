@@ -33,6 +33,7 @@ export function AdminModal({
   children,
   footer,
   width = "md",
+  dismissible = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -43,6 +44,8 @@ export function AdminModal({
   children: React.ReactNode;
   footer?: React.ReactNode;
   width?: "sm" | "md" | "lg";
+  /** Opt back in to closing on a backdrop click. Off by default — see below. */
+  dismissible?: boolean;
 }) {
   const max = { sm: "380px", md: "520px", lg: "680px" }[width];
   const heading = (
@@ -58,7 +61,18 @@ export function AdminModal({
     </>
   );
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(o, details) => {
+        if (o) return;
+        // A stray click on the backdrop must not throw away a half-filled
+        // form. Closing is left to the X, an explicit Cancel, or a successful
+        // submit. Escape still works — that is a deliberate keypress, not an
+        // accident, and screen-reader users rely on it.
+        if (!dismissible && details.reason === "outside-press") return;
+        onClose();
+      }}
+    >
       <DialogContent
         className="max-h-[90vh] overflow-y-auto rounded-2xl"
         style={{ maxWidth: max }}

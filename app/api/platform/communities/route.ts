@@ -3,7 +3,13 @@ import bcrypt from "bcryptjs";
 import { fail, fromZod, ok, created } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { assertPlatform } from "@/lib/tenant";
-import { isValidSlug, normalizeSlug, groupingLabel } from "@/lib/platform";
+import {
+  MAX_LOGO_LETTERS,
+  groupingLabel,
+  isValidSlug,
+  logoTextTooLong,
+  normalizeSlug,
+} from "@/lib/platform";
 import { seedCommunityDefaults } from "@/lib/community-defaults";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null {
@@ -60,7 +66,11 @@ const createSchema = z
   .object({
     nameEn: z.string().min(2).max(120),
     nameGu: z.string().max(120).optional().default(""),
-    logoText: z.string().max(3).optional().default(""),
+    logoText: z
+      .string()
+      .refine((v) => !logoTextTooLong(v), `Logo text must be at most ${MAX_LOGO_LETTERS} letters`)
+      .optional()
+      .default(""),
     logoUrl: z.string().max(500).nullable().optional(),
     type: z.enum(["PARIVAR", "GAM"]).default("PARIVAR"),
     primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#A62A38"),

@@ -11,11 +11,11 @@ import {
   AdminSelect,
   AdminTable,
   AdminTd,
-  AdminTh,
   FilterButton,
   LinkAction,
   SearchInput,
 } from "@/components/admin/admin-ui";
+import { AdminDataTable } from "@/components/admin/admin-data-table";
 import {
   AdminField,
   AdminFormRow,
@@ -699,83 +699,96 @@ export function FamiliesClient({
         <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>
       )}
 
-      <AdminTable>
-        <thead>
-          <tr>
-            <AdminTh>Head</AdminTh>
-            <AdminTh>Mobile</AdminTh>
-            <AdminTh>Surname</AdminTh>
-            <AdminTh>City</AdminTh>
-            <AdminTh>Members</AdminTh>
-            <AdminTh>Status</AdminTh>
-            <AdminTh className="text-right whitespace-nowrap">Actions</AdminTh>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((f) => (
-            <tr key={f.id}>
-              <AdminTd>
+      <AdminDataTable
+        rows={filtered}
+        rowKey={(f) => f.id}
+        empty={
+          <p className="py-8 text-center text-[13px] text-[var(--faint)]">
+            No families match your filters.
+          </p>
+        }
+        columns={[
+          {
+            key: "head",
+            header: "Head",
+            primary: true,
+            cell: (f) => (
+              <>
                 <b>{f.headEn}</b>
                 {f.headGu ? (
                   <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{f.headGu}</div>
                 ) : null}
-              </AdminTd>
-              <AdminTd className="whitespace-nowrap">
-                {f.mobile ? (
-                  <a href={`tel:${f.mobile}`} className="font-semibold text-[var(--ink)]">
-                    {f.mobile}
-                  </a>
-                ) : (
-                  <span className="text-[var(--faint)]">—</span>
-                )}
-              </AdminTd>
-              <AdminTd>
+              </>
+            ),
+          },
+          {
+            key: "mobile",
+            header: "Mobile",
+            tdClassName: "whitespace-nowrap",
+            cell: (f) =>
+              f.mobile ? (
+                <a href={`tel:${f.mobile}`} className="font-semibold text-[var(--ink)]">
+                  {f.mobile}
+                </a>
+              ) : (
+                <span className="text-[var(--faint)]">—</span>
+              ),
+          },
+          {
+            key: "surname",
+            header: "Surname",
+            cell: (f) => (
+              <>
                 <span>{f.surnameEn}</span>
                 {f.surnameGu ? (
                   <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{f.surnameGu}</div>
                 ) : null}
-              </AdminTd>
-              <AdminTd>{f.city}</AdminTd>
-              <AdminTd>{f.members}</AdminTd>
-              <AdminTd>
-                <FamilyStatusPill status={f.status} />
-              </AdminTd>
-              <AdminTd className="text-right">
-                <div className="flex flex-wrap items-center justify-end gap-1.5">
-                  <ActionBtn
-                    icon={Eye}
-                    label="View"
-                    onClick={() => openMembers(f)}
-                  />
-                  <ActionBtn
-                    icon={Pencil}
-                    label="Edit"
-                    onClick={() => router.push(`/admin/queue/${f.id}?from=families`)}
-                  />
-                  <ActionBtn
-                    icon={UserPlus}
-                    label="Add member"
-                    onClick={() => router.push(`/admin/queue/${f.id}?from=families&add=1`)}
-                  />
-
-                  <ActionBtn
-                    icon={f.status === "APPROVED" ? ZapOff : Zap}
-                    label={f.status === "APPROVED" ? "Deactivate" : "Activate"}
-                    tone={f.status === "APPROVED" ? "warn" : "success"}
-                    onClick={() => toggleStatus(f)}
-                  />
-                  <ActionBtn
-                    icon={Trash2}
-                    label="Delete"
-                    tone="danger"
-                    onClick={() => deleteFamily(f)}
-                  />
-                </div>
-              </AdminTd>
-            </tr>
-          ))}
-        </tbody>
-      </AdminTable>
+              </>
+            ),
+          },
+          { key: "city", header: "City", cell: (f) => f.city },
+          { key: "members", header: "Members", cell: (f) => f.members },
+          {
+            key: "status",
+            header: "Status",
+            badge: true,
+            cell: (f) => <FamilyStatusPill status={f.status} />,
+          },
+          {
+            key: "actions",
+            header: "Actions",
+            actions: true,
+            thClassName: "whitespace-nowrap",
+            cell: (f) => (
+              <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
+                <ActionBtn icon={Eye} label="View" onClick={() => openMembers(f)} />
+                <ActionBtn
+                  icon={Pencil}
+                  label="Edit"
+                  onClick={() => router.push(`/admin/queue/${f.id}?from=families`)}
+                />
+                <ActionBtn
+                  icon={UserPlus}
+                  label="Add member"
+                  onClick={() => router.push(`/admin/queue/${f.id}?from=families&add=1`)}
+                />
+                <ActionBtn
+                  icon={f.status === "APPROVED" ? ZapOff : Zap}
+                  label={f.status === "APPROVED" ? "Deactivate" : "Activate"}
+                  tone={f.status === "APPROVED" ? "warn" : "success"}
+                  onClick={() => toggleStatus(f)}
+                />
+                <ActionBtn
+                  icon={Trash2}
+                  label="Delete"
+                  tone="danger"
+                  onClick={() => deleteFamily(f)}
+                />
+              </div>
+            ),
+          },
+        ]}
+      />
 
       {filtered.length === 0 && (
         <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">

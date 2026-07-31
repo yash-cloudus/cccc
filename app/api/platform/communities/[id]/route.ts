@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { fail, fromZod, ok } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { assertPlatform } from "@/lib/tenant";
-import { groupingLabel } from "@/lib/platform";
+import { MAX_LOGO_LETTERS, groupingLabel, logoTextTooLong } from "@/lib/platform";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null | undefined {
   if (raw === undefined) return undefined;
@@ -18,7 +18,11 @@ function normalizeLogoUrl(raw: string | null | undefined): string | null | undef
 const patchSchema = z.object({
   nameEn: z.string().min(2).max(120).optional(),
   nameGu: z.string().max(120).nullable().optional(),
-  logoText: z.string().max(3).nullable().optional(),
+  logoText: z
+    .string()
+    .refine((v) => !logoTextTooLong(v), `Logo text must be at most ${MAX_LOGO_LETTERS} letters`)
+    .nullable()
+    .optional(),
   logoUrl: z.string().max(500).nullable().optional(),
   type: z.enum(["PARIVAR", "GAM"]).optional(),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),

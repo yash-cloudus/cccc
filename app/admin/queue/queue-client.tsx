@@ -1,22 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Check, Eye, Loader2, Pencil, X } from "lucide-react";
+import { Check, Eye, Loader2, X } from "lucide-react";
 import {
   ActionBtn,
   AdminBtn,
   AdminH2,
-  AdminSelect,
   AdminTable,
   AdminTd,
-  AdminTh,
-  FilterButton,
   FilterChip,
   QStat,
-  SearchInput,
   StatusPill,
 } from "@/components/admin/admin-ui";
 import { AdminModal } from "@/components/admin/admin-form";
+import { AdminDataTable } from "@/components/admin/admin-data-table";
+import { AdminFilterBar } from "@/components/admin/admin-filter-bar";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +22,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { storedOccupationPath } from "@/lib/cascading-occupation";
 import { REJECT_REASONS } from "@/lib/constants";
@@ -139,7 +136,6 @@ export function QueueClient({
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<QueueRow["status"] | "all">("all");
   const [city, setCity] = useState<string>("all");
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [approveId, setApproveId] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
@@ -283,159 +279,130 @@ export function QueueClient({
         </div>
 
         {tab === "new" && (
-          <div className="flex w-full items-center gap-2.5 md:w-auto">
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              placeholder="Search family / surname / city…"
-              className="min-w-0 flex-1 md:w-[210px] md:flex-none"
-            />
-            <FilterButton
-              className="md:hidden"
-              active={Boolean(status !== "all" || city !== "all")}
-              onClick={() => setFiltersOpen(true)}
-            />
-            <div className="hidden items-center gap-2.5 md:flex">
-              <AdminSelect
-                value={status}
-                onChange={(v) => setStatus(v as "all" | QueueRow["status"])}
-                ariaLabel="Filter by status"
-                className="w-[140px] shrink-0"
-                options={[
+          <AdminFilterBar
+            className="w-full md:w-auto"
+            search={{
+              value: query,
+              onChange: setQuery,
+              placeholder: "Search family / surname / city…",
+            }}
+            filters={[
+              {
+                key: "status",
+                label: "Status",
+                value: status,
+                onChange: (v) => setStatus(v as "all" | QueueRow["status"]),
+                width: "w-[140px]",
+                options: [
                   { value: "all", label: "All statuses" },
                   { value: "PENDING", label: "Pending" },
                   { value: "APPROVED", label: "Approved" },
                   { value: "REJECTED", label: "Rejected" },
-                ]}
-              />
-              {cities.length > 0 && (
-                <AdminSelect
-                  value={city}
-                  onChange={setCity}
-                  ariaLabel="Filter by city"
-                  className="w-[160px] shrink-0"
-                  options={[
-                    { value: "all", label: "All cities" },
-                    ...cities.map((c) => ({ value: c, label: c })),
-                  ]}
-                />
-              )}
-            </div>
-          </div>
+                ],
+              },
+              ...(cities.length > 0
+                ? [
+                    {
+                      key: "city",
+                      label: "City",
+                      value: city,
+                      onChange: setCity,
+                      options: [
+                        { value: "all", label: "All cities" },
+                        ...cities.map((c) => ({ value: c, label: c })),
+                      ],
+                    },
+                  ]
+                : []),
+            ]}
+          />
         )}
       </div>
 
       {tab === "new" && (
       <>
-      {/* Mobile-only bottom sheet mirroring the desktop filters */}
-      <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <SheetContent side="bottom" className="md:hidden">
-          <SheetHeader>
-            <SheetTitle>Filters</SheetTitle>
-          </SheetHeader>
-          <div className="flex flex-col gap-3 px-4 pb-4">
-            <AdminSelect
-              value={status}
-              onChange={(v) => setStatus(v as "all" | QueueRow["status"])}
-              ariaLabel="Filter by status"
-              className="w-full"
-              options={[
-                { value: "all", label: "All statuses" },
-                { value: "PENDING", label: "Pending" },
-                { value: "APPROVED", label: "Approved" },
-                { value: "REJECTED", label: "Rejected" },
-              ]}
-            />
-            {cities.length > 0 && (
-              <AdminSelect
-                value={city}
-                onChange={setCity}
-                ariaLabel="Filter by city"
-                className="w-full"
-                options={[
-                  { value: "all", label: "All cities" },
-                  ...cities.map((c) => ({ value: c, label: c })),
-                ]}
-              />
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
 
-      <AdminTable>
-        <thead>
-          <tr>
-            <AdminTh>Family (head)</AdminTh>
-            <AdminTh>Surname</AdminTh>
-            <AdminTh>City</AdminTh>
-            <AdminTh>Members</AdminTh>
-            <AdminTh>Submitted</AdminTh>
-            <AdminTh>Status</AdminTh>
-            <AdminTh className="text-right whitespace-nowrap">Action</AdminTh>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((r) => (
-            <tr key={r.id}>
-              <AdminTd>
+      <AdminDataTable
+        rows={filtered}
+        rowKey={(r) => r.id}
+        empty={
+          <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
+            No families match the current filters.
+          </p>
+        }
+        columns={[
+          {
+            key: "head",
+            header: "Family (head)",
+            primary: true,
+            cell: (r) => (
+              <>
                 <b>{r.headEn}</b>
                 {r.headGu && r.headGu !== r.headEn ? (
                   <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{r.headGu}</div>
                 ) : null}
-              </AdminTd>
-              <AdminTd>
+              </>
+            ),
+          },
+          {
+            key: "surname",
+            header: "Surname",
+            cell: (r) => (
+              <>
                 {r.surnameEn}
                 {r.surnameGu && r.surnameGu !== r.surnameEn ? (
                   <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{r.surnameGu}</div>
                 ) : null}
-              </AdminTd>
-              <AdminTd>{r.city}</AdminTd>
-              <AdminTd>{r.members}</AdminTd>
-              <AdminTd>{r.submitted}</AdminTd>
-              <AdminTd>
-                <StatusPill status={lower(r.status)} />
-              </AdminTd>
-              <AdminTd className="text-right">
-                {r.status === "PENDING" ? (
-                  <div className="flex flex-wrap items-center justify-end gap-1.5">
-                    <ActionBtn
-                      icon={Eye}
-                      label="View"
-                      onClick={() => { window.location.href = `/admin/queue/${r.id}`; }}
-                    />
-                    <ActionBtn
-                      icon={Check}
-                      label="Approve"
-                      tone="success"
-                      onClick={() => openApprove(r.id)}
-                    />
-                    <ActionBtn
-                      icon={X}
-                      label="Reject"
-                      tone="danger"
-                      onClick={() => {
-                        setRejectId(r.id);
-                        setRejectReason("");
-                        setError(null);
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <span className="flex justify-end text-[11.5px] text-[var(--faint)]">
-                    {r.status === "APPROVED" ? "Approved" : "Rejected"}
-                  </span>
-                )}
-              </AdminTd>
-            </tr>
-          ))}
-        </tbody>
-      </AdminTable>
-
-      {filtered.length === 0 && (
-        <p className="py-6 text-center text-[11.5px] text-[var(--faint)]">
-          No families match the current filters.
-        </p>
-      )}
+              </>
+            ),
+          },
+          { key: "city", header: "City", cell: (r) => r.city },
+          { key: "members", header: "Members", cell: (r) => r.members },
+          { key: "submitted", header: "Submitted", cell: (r) => r.submitted },
+          {
+            key: "status",
+            header: "Status",
+            badge: true,
+            cell: (r) => <StatusPill status={lower(r.status)} />,
+          },
+          {
+            key: "action",
+            header: "Action",
+            actions: true,
+            thClassName: "whitespace-nowrap",
+            cell: (r) =>
+              r.status === "PENDING" ? (
+                <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
+                  <ActionBtn
+                    icon={Eye}
+                    label="View"
+                    onClick={() => { window.location.href = `/admin/queue/${r.id}`; }}
+                  />
+                  <ActionBtn
+                    icon={Check}
+                    label="Approve"
+                    tone="success"
+                    onClick={() => openApprove(r.id)}
+                  />
+                  <ActionBtn
+                    icon={X}
+                    label="Reject"
+                    tone="danger"
+                    onClick={() => {
+                      setRejectId(r.id);
+                      setRejectReason("");
+                      setError(null);
+                    }}
+                  />
+                </div>
+              ) : (
+                <span className="text-[11.5px] text-[var(--faint)] md:flex md:justify-end">
+                  {r.status === "APPROVED" ? "Approved" : "Rejected"}
+                </span>
+              ),
+          },
+        ]}
+      />
 
       </>
       )}
@@ -443,35 +410,54 @@ export function QueueClient({
       {/* ── Profile update requests ─────────────────────────────────── */}
       {tab === "updates" && (
       <>
-      <AdminTable>
-        <thead>
-          <tr>
-            <AdminTh>Member</AdminTh>
-            <AdminTh>Surname</AdminTh>
-            <AdminTh>Changes</AdminTh>
-            <AdminTh>Submitted</AdminTh>
-            <AdminTh>Status</AdminTh>
-            <AdminTh className="text-right">Action</AdminTh>
-          </tr>
-        </thead>
-        <tbody>
-          {updates.map((u) => (
-            <tr key={u.id}>
-              <AdminTd className="font-semibold text-[var(--ink)]">
+      <AdminDataTable
+        rows={updates}
+        rowKey={(u) => u.id}
+        empty={
+          <p className="py-8 text-center text-[13px] text-[var(--faint)]">
+            No pending update requests.
+          </p>
+        }
+        columns={[
+          {
+            key: "member",
+            header: "Member",
+            primary: true,
+            tdClassName: "font-semibold text-[var(--ink)]",
+            cell: (u) => (
+              <>
                 {u.memberEn}
                 {u.memberGu && u.memberGu !== u.memberEn ? (
                   <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{u.memberGu}</div>
                 ) : null}
-              </AdminTd>
-              <AdminTd>
+              </>
+            ),
+          },
+          {
+            key: "surname",
+            header: "Surname",
+            cell: (u) => (
+              <>
                 {u.surnameEn}
                 {u.surnameGu && u.surnameGu !== u.surnameEn ? (
                   <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{u.surnameGu}</div>
                 ) : null}
-              </AdminTd>
-              <AdminTd>{u.changes.length}</AdminTd>
-              <AdminTd className="whitespace-nowrap">{u.submitted}</AdminTd>
-              <AdminTd>
+              </>
+            ),
+          },
+          { key: "changes", header: "Changes", cell: (u) => u.changes.length },
+          {
+            key: "submitted",
+            header: "Submitted",
+            tdClassName: "whitespace-nowrap",
+            cell: (u) => u.submitted,
+          },
+          {
+            key: "status",
+            header: "Status",
+            badge: true,
+            cell: (u) => (
+              <>
                 <StatusPill
                   status={
                     u.status === "APPROVED"
@@ -484,49 +470,47 @@ export function QueueClient({
                 {u.status === "REJECTED" && u.rejectReason && (
                   <div className="mt-1 text-[11px] text-[var(--faint)]">{u.rejectReason}</div>
                 )}
-              </AdminTd>
-              <AdminTd className="text-right">
-                <span className="flex flex-wrap justify-end gap-2">
-                  <AdminBtn variant="ghost" onClick={() => setDiff(u)}>
-                    View changes
-                  </AdminBtn>
-                  {u.status === "PENDING" && (
-                    <>
-                      <AdminBtn
-                        variant="success"
-                        disabled={updateBusy === u.id}
-                        onClick={() => reviewUpdate(u, "apply")}
-                      >
-                        {updateBusy === u.id ? (
-                          <Loader2 className="size-4 animate-spin" />
-                        ) : (
-                          <>
-                            <Check className="size-4" /> Apply
-                          </>
-                        )}
-                      </AdminBtn>
-                      <AdminBtn
-                        variant="danger"
-                        disabled={updateBusy === u.id}
-                        onClick={() => reviewUpdate(u, "reject")}
-                      >
-                        <X className="size-4" /> Reject
-                      </AdminBtn>
-                    </>
-                  )}
-                </span>
-              </AdminTd>
-            </tr>
-          ))}
-          {updates.length === 0 && (
-            <tr>
-              <AdminTd colSpan={6} className="py-8 text-center text-[var(--faint)]">
-                No pending update requests.
-              </AdminTd>
-            </tr>
-          )}
-        </tbody>
-      </AdminTable>
+              </>
+            ),
+          },
+          {
+            key: "action",
+            header: "Action",
+            actions: true,
+            cell: (u) => (
+              <span className="flex flex-wrap gap-2 md:justify-end">
+                <AdminBtn variant="ghost" onClick={() => setDiff(u)}>
+                  View changes
+                </AdminBtn>
+                {u.status === "PENDING" && (
+                  <>
+                    <AdminBtn
+                      variant="success"
+                      disabled={updateBusy === u.id}
+                      onClick={() => reviewUpdate(u, "apply")}
+                    >
+                      {updateBusy === u.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Check className="size-4" /> Apply
+                        </>
+                      )}
+                    </AdminBtn>
+                    <AdminBtn
+                      variant="danger"
+                      disabled={updateBusy === u.id}
+                      onClick={() => reviewUpdate(u, "reject")}
+                    >
+                      <X className="size-4" /> Reject
+                    </AdminBtn>
+                  </>
+                )}
+              </span>
+            ),
+          },
+        ]}
+      />
       </>
       )}
 

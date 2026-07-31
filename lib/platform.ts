@@ -76,6 +76,33 @@ export function plural(n: number, one: string, many = `${one}s`): string {
   return n === 1 ? one : many;
 }
 
+const graphemes = (s: string) => [
+  ...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(s),
+];
+
+/**
+ * Visible letters, not UTF-16 code units.
+ *
+ * `"શ્રી"` is a single Gujarati letter written with four code units (શ + virama
+ * + ર + ી), so `.length` counts it as 4. That is the seeded default logo text
+ * for these communities, and a plain `.max(3)` rejected it — every save on the
+ * app failed validation over a field the admin never touched.
+ */
+export function letterCount(s: string): number {
+  return graphemes(s).length;
+}
+
+/** Trim to `max` visible letters without splitting a conjunct in half. */
+export function truncateLetters(s: string, max: number): string {
+  const parts = graphemes(s);
+  if (parts.length <= max) return s;
+  return parts.slice(0, max).map((p) => p.segment).join("");
+}
+
+/** Shared rule for the 1–3 letter app logo, in both create and edit. */
+export const MAX_LOGO_LETTERS = 3;
+export const logoTextTooLong = (s: string) => letterCount(s) > MAX_LOGO_LETTERS;
+
 /** Display-only website host (no scheme), e.g. saurashtra_patel.community.in */
 /**
  * Address the CURRENT viewer would actually use.

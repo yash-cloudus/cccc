@@ -6,12 +6,14 @@ import { ROOT_DOMAIN } from "@/lib/constants";
 import { BrandColorsPicker } from "@/components/shared/brand-colors-picker";
 import { HostLabel } from "@/components/host-label";
 import {
+  MAX_LOGO_LETTERS,
   communityAdminUrl,
   communityUrl,
   defaultAdminUsername,
   generateNamePhonePassword,
   normalizeSlug,
   plural,
+  truncateLetters,
 } from "@/lib/platform";
 import { downloadCredentialsPdf } from "@/lib/credentials-pdf";
 import { tintPrimary } from "@/lib/platform-types";
@@ -46,6 +48,17 @@ type ApiCommunity = {
     name: string;
   } | null;
 };
+
+/**
+ * "Validation failed" alone left the admin guessing which of ~15 fields the
+ * server rejected. `fromZod` already ships a per-field `issues` array — this
+ * just stops throwing it away.
+ */
+function apiError(json: unknown, fallback: string): string {
+  const j = json as { error?: string; issues?: { path: string; message: string }[] };
+  const detail = j?.issues?.map((i) => (i.path ? `${i.path}: ${i.message}` : i.message)).join(" · ");
+  return detail || j?.error || fallback;
+}
 
 type View = "apps" | "create" | "settings";
 type UIType = "parivar" | "gam";
@@ -381,7 +394,7 @@ export default function PlatformPage() {
           }),
         });
         const json = await res.json();
-        if (!json.success) return setError(json.error || "Failed to save.");
+        if (!json.success) return setError(apiError(json, "Failed to save."));
         await load();
         setView("apps");
         setEditingId(null);
@@ -457,7 +470,7 @@ export default function PlatformPage() {
             }, 1200);
             return;
           }
-          return setError(json.error || "Failed to create app.");
+          return setError(apiError(json, "Failed to create app."));
         }
         await load();
         setView("apps");
@@ -1036,12 +1049,17 @@ export default function PlatformPage() {
                         </button>
                       )}
                       <div className="mb-1 mt-2.5 text-xs font-bold text-[var(--platform-muted)]">…or logo text</div>
+                      {/* Trimmed by visible letters, not maxLength — "શ્રી" is
+                          one Gujarati letter in four UTF-16 units, so
+                          maxLength={3} made the app's own default logo
+                          untypeable. */}
                       <input
                         className="mafld"
-                        maxLength={3}
                         placeholder="શ્રી"
                         value={f.logoText}
-                        onChange={(e) => setField("logoText", e.target.value)}
+                        onChange={(e) =>
+                          setField("logoText", truncateLetters(e.target.value, MAX_LOGO_LETTERS))
+                        }
                       />
                     </div>
                   </div>

@@ -56,6 +56,9 @@ export async function getAdminDashboard(communityId: string) {
     newsPosts,
     albums,
     pendingUpdates,
+    recentFamiliesRaw,
+    recentNewsRaw,
+    recentAdsRaw,
   ] = await Promise.all([
     prisma.family.count({ where: { communityId, status: "APPROVED" } }),
     prisma.familyMember.count({
@@ -89,6 +92,34 @@ export async function getAdminDashboard(communityId: string) {
     prisma.news.count({ where: { communityId } }),
     prisma.galleryAlbum.count({ where: { communityId } }),
     prisma.profileUpdateRequest.count({ where: { communityId, status: "PENDING" } }),
+    // Recent families for the dashboard "recent registrations" panel
+    prisma.family.findMany({
+      where: { communityId, status: "APPROVED" },
+      orderBy: { submittedAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        headNameEn: true,
+        headNameGu: true,
+        surnameEn: true,
+        submittedAt: true,
+        _count: { select: { familyMembers: true } },
+      },
+    }),
+    // Recent news for activity feed
+    prisma.news.findMany({
+      where: { communityId },
+      orderBy: { publishedAt: "desc" },
+      take: 3,
+      select: { id: true, titleEn: true, titleGu: true, publishedAt: true },
+    }),
+    // Recent ads for activity feed
+    prisma.advertisement.findMany({
+      where: { communityId },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      select: { id: true, name: true, createdAt: true, status: true },
+    }),
   ]);
 
   const adStatus = (s: string) =>
@@ -103,6 +134,37 @@ export async function getAdminDashboard(communityId: string) {
     if (e.status !== "PENDING") row.reviewed += 1;
     byStandard.set(e.standard, row);
   }
+
+  // Build activity feed: merge recent families, news, ads and sort by date
+  type ActivityItem = {
+    type: "family" | "news" | "ad" | "result";
+    label: string;
+    sublabel: string;
+    at: Date;
+  };
+  const activity: ActivityItem[] = [
+    ...recentFamiliesRaw.map((f) => ({
+      type: "family" as const,
+      label: "નવું પરિવાર ઉમેરાયું",
+      sublabel: (f.headNameGu || f.headNameEn || "") + (f.surnameEn ? ` ${f.surnameEn}` : "") + " પરિવાર",
+      at: f.submittedAt,
+    })),
+    ...recentNewsRaw.map((n) => ({
+      type: "news" as const,
+      label: "સમાચાર પ્રકાશિત",
+      sublabel: n.titleGu || n.titleEn || "સમાચાર",
+      at: n.publishedAt ?? new Date(0),
+    })),
+    ...recentAdsRaw.map((a) => ({
+      type: "ad" as const,
+      label: "જાહેરાત બનાવાઈ",
+      sublabel: a.name,
+      at: a.createdAt,
+    })),
+  ]
+    .filter((a) => a.at && a.at.getTime() > 0)
+    .sort((a, b) => b.at.getTime() - a.at.getTime())
+    .slice(0, 8);
 
   return {
     stats: {
@@ -130,6 +192,19 @@ export async function getAdminDashboard(communityId: string) {
         }
       : null,
     adPerformance,
+    recentFamilies: recentFamiliesRaw.map((f) => ({
+      id: f.id,
+      headName: f.headNameGu || f.headNameEn || "—",
+      surname: f.surnameEn || "",
+      memberCount: f._count.familyMembers,
+      submittedAt: f.submittedAt.toISOString(),
+    })),
+    recentActivity: activity.map((a) => ({
+      type: a.type,
+      label: a.label,
+      sublabel: a.sublabel,
+      at: a.at.toISOString(),
+    })),
   };
 }
 

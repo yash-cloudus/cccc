@@ -7,13 +7,11 @@ import {
   AdminBtn,
   AdminH2,
   AdminHint,
-  AdminTable,
-  AdminTd,
-  AdminTh,
   FilterChip,
   LinkAction,
   SearchInput,
 } from "@/components/admin/admin-ui";
+import { AdminDataTable } from "@/components/admin/admin-data-table";
 import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
@@ -254,110 +252,131 @@ export function AdminsClient({
         ))}
       </div>
 
-      <AdminTable>
-        <thead>
-          <tr>
-            <AdminTh>Admin</AdminTh>
-            <AdminTh>Login ID</AdminTh>
-            <AdminTh>Mobile</AdminTh>
-            <AdminTh>Role</AdminTh>
-            <AdminTh>Status</AdminTh>
-            <AdminTh>Last login</AdminTh>
-            <AdminTh>Created</AdminTh>
-            <AdminTh className="text-right">Actions</AdminTh>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((a) => (
-            <tr key={a.id}>
-              <AdminTd>
-                <span className="flex items-center gap-2.5">
-                  <AvatarInitial name={a.nameGu || a.name} />
-                  <span className="min-w-0">
-                    <b>{a.nameGu || a.name}</b>
-                    {a.id === currentUserId && (
-                      <span className="ml-1.5 rounded-full bg-[var(--brand-tint)] px-1.5 py-px text-[9.5px] font-extrabold tracking-wide text-[var(--brand)]">
-                        YOU
-                      </span>
-                    )}
-                  </span>
-                </span>
-              </AdminTd>
-              <AdminTd className="font-mono text-[12px]">{a.username || "—"}</AdminTd>
-              <AdminTd className="font-mono text-[12px]">
-                {/^[6-9]\d{9}$/.test(a.mobile) ? a.mobile : "—"}
-              </AdminTd>
-              <AdminTd>
-                {a.roles.map((r) => (
-                  <span
-                    key={r}
-                    className={cn(
-                      "mr-1 inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold",
-                      r === "OWNER"
-                        ? "bg-[var(--success-tint)] text-[var(--success)]"
-                        : "bg-[#EEF1F6] text-[#4A5B72]",
-                    )}
-                  >
-                    {roleLabel(r)}
-                  </span>
-                ))}
-              </AdminTd>
-              <AdminTd>
-                <span
-                  className={
-                    a.status === "APPROVED" ? "text-[var(--success)]" : "text-[var(--danger)]"
-                  }
-                >
-                  {a.status === "APPROVED" ? "Active" : "Inactive"}
-                </span>
-              </AdminTd>
-              <AdminTd className="whitespace-nowrap">{fmtDate(a.lastLoginAt)}</AdminTd>
-              <AdminTd className="whitespace-nowrap">{fmtDate(a.createdAt)}</AdminTd>
-              <AdminTd className="text-right">
-                {(() => {
-                  const blocked = guardReason(a);
-                  const active = a.status === "APPROVED";
-                  // Deactivate and delete are the destructive pair the guard covers;
-                  // view / edit / reset stay available on every row.
-                  const guarded = (label: string, run: () => void) =>
-                    blocked ? (
-                      <span
-                        title={blocked}
-                        className="cursor-not-allowed text-xs font-bold text-[var(--faint)]"
-                      >
-                        {label}
-                      </span>
-                    ) : (
-                      <LinkAction danger onClick={run}>
-                        {label}
-                      </LinkAction>
-                    );
-                  return (
-                    <span className="flex flex-wrap justify-end gap-2">
-                      <LinkAction onClick={() => setViewRow(a)}>view</LinkAction>
-                      <LinkAction onClick={() => openEdit(a)}>edit</LinkAction>
-                      <LinkAction onClick={() => setResetRow(a)}>reset</LinkAction>
-                      {active ? (
-                        guarded("deactivate", () => setStatus(a, "SUSPENDED"))
-                      ) : (
-                        <LinkAction onClick={() => setStatus(a, "APPROVED")}>activate</LinkAction>
-                      )}
-                      {guarded("delete", () => remove(a))}
+      <AdminDataTable
+        rows={visible}
+        rowKey={(a) => a.id}
+        empty={
+          <p className="py-8 text-center text-[13px] text-[var(--faint)]">
+            {rows.length === 0 ? "No admins yet." : "No admins match your filters."}
+          </p>
+        }
+        columns={[
+          {
+            key: "admin",
+            header: "Admin",
+            primary: true,
+            cell: (a) => (
+              <span className="flex items-center gap-2.5">
+                <AvatarInitial name={a.nameGu || a.name} />
+                <span className="min-w-0">
+                  <b>{a.nameGu || a.name}</b>
+                  {a.id === currentUserId && (
+                    <span className="ml-1.5 rounded-full bg-[var(--brand-tint)] px-1.5 py-px text-[9.5px] font-extrabold tracking-wide text-[var(--brand)]">
+                      YOU
                     </span>
-                  );
-                })()}
-              </AdminTd>
-            </tr>
-          ))}
-          {visible.length === 0 && (
-            <tr>
-              <AdminTd colSpan={8} className="py-8 text-center text-[var(--faint)]">
-                {rows.length === 0 ? "No admins yet." : "No admins match your filters."}
-              </AdminTd>
-            </tr>
-          )}
-        </tbody>
-      </AdminTable>
+                  )}
+                </span>
+              </span>
+            ),
+          },
+          {
+            key: "username",
+            header: "Login ID",
+            tdClassName: "font-mono text-[12px]",
+            cell: (a) => a.username || "—",
+          },
+          {
+            key: "mobile",
+            header: "Mobile",
+            tdClassName: "font-mono text-[12px]",
+            cell: (a) => (/^[6-9]\d{9}$/.test(a.mobile) ? a.mobile : "—"),
+          },
+          {
+            key: "roles",
+            header: "Role",
+            cell: (a) =>
+              a.roles.map((r) => (
+                <span
+                  key={r}
+                  className={cn(
+                    "mr-1 inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                    r === "OWNER"
+                      ? "bg-[var(--success-tint)] text-[var(--success)]"
+                      : "bg-[#EEF1F6] text-[#4A5B72]",
+                  )}
+                >
+                  {roleLabel(r)}
+                </span>
+              )),
+          },
+          {
+            key: "status",
+            header: "Status",
+            badge: true,
+            cell: (a) => (
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                  a.status === "APPROVED"
+                    ? "bg-[var(--success-tint)] text-[var(--success)]"
+                    : "bg-[var(--danger-tint-soft)] text-[var(--danger)]",
+                )}
+              >
+                {a.status === "APPROVED" ? "Active" : "Inactive"}
+              </span>
+            ),
+          },
+          {
+            key: "lastLogin",
+            header: "Last login",
+            tdClassName: "whitespace-nowrap",
+            cell: (a) => fmtDate(a.lastLoginAt),
+          },
+          {
+            key: "created",
+            header: "Created",
+            tdClassName: "whitespace-nowrap",
+            cell: (a) => fmtDate(a.createdAt),
+          },
+          {
+            key: "actions",
+            header: "Actions",
+            actions: true,
+            cell: (a) => {
+              const blocked = guardReason(a);
+              const active = a.status === "APPROVED";
+              // Deactivate and delete are the destructive pair the guard covers;
+              // view / edit / reset stay available on every row.
+              const guarded = (label: string, run: () => void) =>
+                blocked ? (
+                  <span
+                    title={blocked}
+                    className="cursor-not-allowed text-xs font-bold text-[var(--faint)]"
+                  >
+                    {label}
+                  </span>
+                ) : (
+                  <LinkAction danger onClick={run}>
+                    {label}
+                  </LinkAction>
+                );
+              return (
+                <span className="flex flex-wrap gap-2 md:justify-end">
+                  <LinkAction onClick={() => setViewRow(a)}>view</LinkAction>
+                  <LinkAction onClick={() => openEdit(a)}>edit</LinkAction>
+                  <LinkAction onClick={() => setResetRow(a)}>reset</LinkAction>
+                  {active ? (
+                    guarded("deactivate", () => setStatus(a, "SUSPENDED"))
+                  ) : (
+                    <LinkAction onClick={() => setStatus(a, "APPROVED")}>activate</LinkAction>
+                  )}
+                  {guarded("delete", () => remove(a))}
+                </span>
+              );
+            },
+          },
+        ]}
+      />
 
       <AdminFormModal
         open={formOpen}
