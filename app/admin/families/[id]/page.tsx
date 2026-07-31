@@ -1,0 +1,79 @@
+import { notFound } from "next/navigation";
+import { getActiveCommunity } from "@/lib/tenant";
+import { getFamily } from "@/lib/tenant-data";
+import { FamilyDetailClient, type FamilyDetail } from "./family-detail-client";
+
+export const dynamic = "force-dynamic";
+
+function iso(d: Date | null) {
+  return d ? new Date(d).toISOString() : null;
+}
+
+/**
+ * Read-only view of one family — the same field set the edit form
+ * (`/admin/queue/[id]?from=families`) collects, so an admin can check a record
+ * without opening it for editing. Replaces the old cramped "View" dialog.
+ */
+export default async function FamilyDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const community = await getActiveCommunity();
+  if (!community) notFound();
+
+  const family = await getFamily(community.id, id);
+  if (!family) notFound();
+
+  const data: FamilyDetail = {
+    id: family.id,
+    status: family.status,
+    headNameEn: family.headNameEn,
+    headNameGu: family.headNameGu,
+    surnameEn: family.surnameEn,
+    surnameGu: family.surnameGu,
+    surnameGroupEn: family.surnameGroup?.nameEn ?? null,
+    surnameGroupGu: family.surnameGroup?.nameGu ?? null,
+    addressEn: family.addressEn,
+    addressGu: family.addressGu,
+    city: family.city,
+    villageEn: family.villageArea?.nameEn ?? null,
+    villageGu: family.villageArea?.nameGu ?? null,
+    nativePlace: family.nativePlace,
+    email: family.email,
+    businessGu: family.businessGu,
+    nativeElderNameEn: family.nativeElderNameEn,
+    nativeElderNameGu: family.nativeElderNameGu,
+    nativeElderPhone: family.nativeElderPhone,
+    latitude: family.latitude,
+    longitude: family.longitude,
+    rejectReason: family.rejectReason,
+    consentAccepted: family.consentAccepted,
+    submittedAt: iso(family.submittedAt),
+    approvedAt: iso(family.approvedAt),
+    members: family.familyMembers.map((m) => ({
+      id: m.id,
+      fullNameEn: m.fullNameEn,
+      fullNameGu: m.fullNameGu,
+      relation: m.relation,
+      gender: m.gender,
+      mobile: m.mobile,
+      dateOfBirth: iso(m.dateOfBirth),
+      bloodGroup: m.bloodGroup,
+      occupation: m.occupation,
+      occupationOther: m.occupationOther,
+      education: m.education,
+      course: m.course,
+      currentlyAt: m.currentlyAt,
+      hasWhatsApp: m.hasWhatsApp,
+      whatsapp: m.whatsapp,
+      showPhone: m.showPhone,
+      isHead: m.isHead,
+      isVisible: m.isVisible,
+      isDeceased: m.isDeceased,
+    })),
+  };
+
+  return <FamilyDetailClient family={data} communityType={community.type} />;
+}

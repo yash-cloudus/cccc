@@ -2,17 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Loader2, Pencil, Plus, Trash2, UserPlus, Users, X, ZapOff, Zap } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2, UserPlus, ZapOff, Zap } from "lucide-react";
 import {
   ActionBtn,
   AdminBtn,
   AdminH2,
   AdminInput,
   AdminSelect,
-  AdminTable,
-  AdminTd,
   FilterButton,
-  LinkAction,
   SearchInput,
 } from "@/components/admin/admin-ui";
 import { AdminDataTable } from "@/components/admin/admin-data-table";
@@ -23,7 +20,6 @@ import {
   AdminModal,
   AdminModalActions,
 } from "@/components/admin/admin-form";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api } from "@/lib/http";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
@@ -78,27 +74,6 @@ function FamilyStatusPill({ status }: { status: FamilyStatus }) {
 
 type SurnameOption = { id: string; nameEn: string; nameGu: string };
 
-type Member = {
-  id: string;
-  fullNameEn: string;
-  fullNameGu: string | null;
-  relation: string | null;
-  mobile: string | null;
-  isHead: boolean;
-  isVisible: boolean;
-  isDeceased: boolean;
-};
-
-type FamilyExtra = {
-  addressEn: string;
-  addressGu: string | null;
-  nativePlace: string | null;
-  businessGu: string | null;
-  nativeElderNameEn: string | null;
-  nativeElderNameGu: string | null;
-  nativeElderPhone: string | null;
-};
-
 type CreatedFamily = {
   id: string;
   headNameEn: string;
@@ -110,14 +85,6 @@ type CreatedFamily = {
   surnameGroup: SurnameOption;
   surnameGroupCreated: boolean;
 };
-
-const MEMBER_COLORS = [
-  { c: "var(--danger)", bg: "var(--danger-tint)" },
-  { c: "var(--violet)", bg: "var(--violet-tint)" },
-  { c: "var(--leaf)", bg: "var(--leaf-tint)" },
-  { c: "var(--ochre)", bg: "var(--ochre-tint)" },
-  { c: "#2A6FA0", bg: "var(--info-tint)" },
-];
 
 /** Blood groups offered in the member editor (BloodGroupType enum labels). */
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"].map((b) => ({
@@ -302,10 +269,6 @@ export function FamiliesClient({
     router.refresh();
   }
 
-  const [membersOf, setMembersOf] = useState<FamilyRow | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [extra, setExtra] = useState<FamilyExtra | null>(null);
-  const [loadingMembers, setLoadingMembers] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -513,60 +476,6 @@ export function FamiliesClient({
     router.refresh();
   }
 
-  async function openMembers(row: FamilyRow) {
-    setMembersOf(row);
-    setError(null);
-    setLoadingMembers(true);
-    setMembers([]);
-    setExtra(null);
-    const res = await api.get<{ familyMembers: Member[] } & FamilyExtra>(`/api/families/${row.id}`);
-    setLoadingMembers(false);
-    if (res.ok) {
-      setMembers(res.data.familyMembers);
-      setExtra(res.data);
-    } else {
-      setError(res.error);
-    }
-  }
-
-  async function toggleMember(m: Member, field: "isVisible" | "isDeceased") {
-    const next = !m[field];
-    setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, [field]: next } : x)));
-    const res = await api.patch(`/api/admin/family-members`, { id: m.id, [field]: next });
-    if (!res.ok) {
-      setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, [field]: !next } : x)));
-      setError(res.error);
-    }
-  }
-
-  async function makeHead(m: Member) {
-    setMembers((prev) => prev.map((x) => ({ ...x, isHead: x.id === m.id })));
-    const res = await api.patch(`/api/admin/family-members`, { id: m.id, isHead: true });
-    if (!res.ok) setError(res.error);
-  }
-
-  async function changeLogin(m: Member) {
-    const value = window.prompt(t("fam.newLoginPrompt"), m.mobile || "");
-    if (value === null) return;
-    const mobile = value.trim();
-    setMembers((prev) => prev.map((x) => (x.id === m.id ? { ...x, mobile: mobile || null } : x)));
-    const res = await api.patch(`/api/admin/family-members`, { id: m.id, mobile: mobile || null });
-    if (!res.ok) setError(res.error);
-  }
-
-  async function removeMember(m: Member) {
-    if (!membersOf) return;
-    const res = await api.del(`/api/admin/family-members?id=${m.id}`);
-    if (res.ok) {
-      setMembers((prev) => prev.filter((x) => x.id !== m.id));
-      setRows((prev) =>
-        prev.map((r) =>
-          r.id === membersOf.id ? { ...r, members: Math.max(0, r.members - 1) } : r,
-        ),
-      );
-    } else setError(res.error);
-  }
-
   async function deleteFamily(row: FamilyRow) {
     const label = lang === "en" ? row.headEn || row.headGu : row.headGu || row.headEn;
     const ok = await confirmDialog({
@@ -691,7 +600,7 @@ export function FamiliesClient({
         </SheetContent>
       </Sheet>
 
-      {error && !membersOf && !addOpen && (
+      {error && !addOpen && (
         <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>
       )}
 
@@ -757,7 +666,11 @@ export function FamiliesClient({
             thClassName: "whitespace-nowrap",
             cell: (f) => (
               <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
-                <ActionBtn icon={Eye} label={t("common.view")} onClick={() => openMembers(f)} />
+                <ActionBtn
+                  icon={Eye}
+                  label={t("common.view")}
+                  onClick={() => router.push(`/admin/families/${f.id}`)}
+                />
                 <ActionBtn
                   icon={Pencil}
                   label={t("common.edit")}
@@ -1082,157 +995,6 @@ export function FamiliesClient({
         {error && <p className="mt-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
       </AdminModal>
 
-      <Dialog open={membersOf !== null} onOpenChange={(open) => !open && setMembersOf(null)}>
-        <DialogContent
-          className="max-h-[88vh] max-w-[460px] overflow-y-auto rounded-2xl p-0 sm:max-w-[460px]"
-          showCloseButton={false}
-        >
-          <div className="sticky top-0 flex items-center justify-between border-b border-[var(--line-soft)] bg-white px-6 py-5">
-            <div>
-              <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
-                {membersOf
-                  ? `${membersOf.headEn}${membersOf.headGu ? ` · ${membersOf.headGu}` : ""} — ${membersOf.surnameEn}${membersOf.surnameGu ? ` · ${membersOf.surnameGu}` : ""}`
-                  : t("fam.members")}
-              </DialogTitle>
-              <p className="mt-0.5 text-xs text-[var(--faint)]">
-                {t("fam.detailsSubtitle")}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setMembersOf(null)}
-              className="cursor-pointer text-xl leading-none text-[var(--faint-soft)]"
-            >
-              <X className="size-5" />
-            </button>
-          </div>
-
-          <div className="px-6 py-4 pb-5">
-            {loadingMembers ? (
-              <div className="flex items-center gap-2 py-8 text-[13px] text-[var(--faint)]">
-                <Loader2 className="size-4 animate-spin" /> {t("fam.loadingMembers")}
-              </div>
-            ) : (
-              <>
-                {error && <p className="mb-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
-
-                {extra && membersOf && (
-                  <AdminTable className="mb-4">
-                    <tbody>
-                      <tr>
-                        <AdminTd className="w-[110px] text-[var(--faint)]">{t("fam.city")}</AdminTd>
-                        <AdminTd>{membersOf.city || "—"}</AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">{t("fam.mobile")}</AdminTd>
-                        <AdminTd>{membersOf.mobile || "—"}</AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">{t("fam.address")}</AdminTd>
-                        <AdminTd>{extra.addressGu || extra.addressEn || "—"}</AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">{t("fam.nativePlace")}</AdminTd>
-                        <AdminTd>{extra.nativePlace || "—"}</AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">{t("fam.business")}</AdminTd>
-                        <AdminTd>{extra.businessGu || "—"}</AdminTd>
-                      </tr>
-                      <tr>
-                        <AdminTd className="text-[var(--faint)]">{t("fam.nativeElder")}</AdminTd>
-                        <AdminTd>
-                          {extra.nativeElderNameGu || extra.nativeElderNameEn || "—"}
-                          {extra.nativeElderPhone ? ` · ${extra.nativeElderPhone}` : ""}
-                        </AdminTd>
-                      </tr>
-                    </tbody>
-                  </AdminTable>
-                )}
-
-                <h4 className="mb-2 text-sm font-extrabold text-[var(--ink)]">
-                  {t("fam.members")} ({members.length})
-                </h4>
-                {members.map((m, i) => {
-                  const col = MEMBER_COLORS[i % 5];
-                  const name = lang === "en" ? m.fullNameEn || m.fullNameGu || "" : m.fullNameGu || m.fullNameEn;
-                  return (
-                    <div
-                      key={m.id}
-                      className={cn(
-                        "mb-2.5 rounded-[14px] border border-[var(--line)] p-3",
-                        m.isDeceased ? "bg-[#F6F4F0]" : "bg-white",
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] text-sm font-extrabold"
-                          style={{ background: col.bg, color: col.c }}
-                        >
-                          {name.trim()[0]}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13.5px] font-bold text-[var(--ink)]">
-                            {name}
-                            {m.isHead && (
-                              <span className="ml-1 rounded-[7px] bg-[var(--brand-tint)] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[var(--brand)]">
-                                {t("fam.head")}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-[11.5px] text-[var(--faint)]">
-                            {(m.relation || t("fam.memberFallback"))} · {m.mobile || t("fam.noLogin")}
-                          </div>
-                        </div>
-
-                      </div>
-                      <div className="mt-2.5 flex flex-wrap gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => toggleMember(m, "isVisible")}
-                          className={cn(
-                            "cursor-pointer rounded-[9px] px-[11px] py-1.5 text-[11.5px] font-bold",
-                            m.isVisible ? "bg-[var(--success-tint)] text-[var(--success)]" : "bg-[var(--line-soft)] text-[var(--muted)]",
-                          )}
-                        >
-                          {m.isVisible ? t("fam.visible") : t("fam.hidden")}
-                        </button>
-                        {!m.isHead && (
-                          <button
-                            type="button"
-                            onClick={() => makeHead(m)}
-                            className="cursor-pointer rounded-[9px] bg-[var(--brand-tint)] px-[11px] py-1.5 text-[11.5px] font-bold text-[var(--brand)]"
-                          >
-                            {t("fam.makeHead")}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => changeLogin(m)}
-                          className="cursor-pointer rounded-[9px] bg-[#EEF1F6] px-[11px] py-1.5 text-[11.5px] font-bold text-[#4A5B72]"
-                        >
-                          {t("fam.changeLogin")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleMember(m, "isDeceased")}
-                          className={cn(
-                            "cursor-pointer rounded-[9px] px-[11px] py-1.5 text-[11.5px] font-bold",
-                            m.isDeceased ? "bg-[var(--ink)] text-white" : "bg-[var(--line-soft)] text-[var(--muted)]",
-                          )}
-                        >
-                          {m.isDeceased ? t("fam.deceased") : t("fam.markDeceased")}
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
