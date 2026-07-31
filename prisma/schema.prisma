@@ -43,6 +43,16 @@ enum ResultStatus {
   RESUBMIT
 }
 
+/// What happens to a student after this result — decided alongside the
+/// upload, but only applied to the student's record once the result itself
+/// is approved (see ResultEntry.studyOutcome).
+enum StudyOutcome {
+  PROMOTED
+  STUDY_COMPLETE
+  FAILED_REPEAT
+  DROPPED_OUT
+}
+
 enum PaymentStatus {
   CREATED
   PENDING
@@ -764,6 +774,13 @@ model ResultEntry {
   status        ResultStatus @default(PENDING)
   rejectReason  String?      @db.Text
   isEligible    Boolean      @default(false)
+  /// Next standard the student moves into — only meaningful when studyOutcome is PROMOTED.
+  nextStandard  String?
+  /// Stream for a next standard of Std 11 / Std 12.
+  nextStream    String?
+  /// Degree / course name for a next standard of College / Diploma.
+  nextCourse    String?
+  studyOutcome  StudyOutcome?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   drive         ResultDrive  @relation(fields: [driveId], references: [id], onDelete: Cascade)

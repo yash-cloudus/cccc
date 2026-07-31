@@ -22,11 +22,13 @@ export default async function ResultsPage({
 
   const session = await getSessionPayload();
 
-  // The newest drive — not only published ones, because uploading opens well
-  // before the admin publishes the toppers list.
+  // The live drive if one is open — not only published ones, because
+  // uploading opens well before the admin publishes the toppers list. Falls
+  // back to the most recent drive once none are open, so results/toppers
+  // stay visible after a drive closes.
   const drive = await prisma.resultDrive.findFirst({
     where: { communityId: community.id },
-    orderBy: { year: "desc" },
+    orderBy: [{ isOpen: "desc" }, { year: "desc" }],
   });
 
   if (!drive) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
@@ -22,21 +22,42 @@ import { api } from "@/lib/http";
 import { pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { AD_DURATIONS, AD_DURATION_MONTHS, adDurationLabel, type AdDuration } from "@/lib/admin-settings";
 
-const serviceLinks = [
-  { href: "/business/add", labelKey: "addBusiness" as const, subGu: "ડિરેક્ટરીમાં તમારો ધંધો ઉમેરો", subEn: "List your business in the directory", bg: "var(--brand-tint)", fg: "var(--brand)", Icon: Plus },
-  { href: "/business", labelKey: "bizDir" as const, bg: "var(--ochre-tint)", fg: "var(--ochre)", Icon: Building2 },
-  { href: "/ads", labelKey: "postAd" as const, subGu: "₹2,000/બેનર · હોમ સ્ક્રીન ટોપ પર", subEn: "₹2,000/banner · top of home screen", paid: true, bg: "var(--danger-tint)", fg: "var(--danger)", Icon: Megaphone },
-  { href: "/gallery", labelKey: "gallery" as const, bg: "var(--leaf-tint)", fg: "var(--leaf)", Icon: ImageIcon },
-  { href: "/results", labelKey: "uploadResults" as const, bg: "var(--warn-tint)", fg: "#B08A1E", Icon: Award },
-  { href: "/about", labelKey: "aboutSamaj" as const, bg: "var(--violet-tint)", fg: "var(--violet)", Icon: Building2 },
-];
+/** Both plan prices joined for one language, e.g. "₹2,000/6 months · ₹4,000/1 year". */
+function adPriceLine(tiers: Record<AdDuration, number>, lang: "gu" | "en") {
+  const T = (g: string, e: string) => (lang === "gu" ? g : e);
+  return AD_DURATIONS.map(
+    (d) => `₹${tiers[d].toLocaleString("en-IN")}/${adDurationLabel(AD_DURATION_MONTHS[d], T)}`,
+  ).join(" · ");
+}
+
+function buildServiceLinks(adTiers: Record<AdDuration, number>) {
+  const priceGu = adPriceLine(adTiers, "gu");
+  const priceEn = adPriceLine(adTiers, "en");
+  return [
+    { href: "/business/add", labelKey: "addBusiness" as const, subGu: "ડિરેક્ટરીમાં તમારો ધંધો ઉમેરો", subEn: "List your business in the directory", bg: "var(--brand-tint)", fg: "var(--brand)", Icon: Plus },
+    { href: "/business", labelKey: "bizDir" as const, bg: "var(--ochre-tint)", fg: "var(--ochre)", Icon: Building2 },
+    { href: "/ads", labelKey: "postAd" as const, subGu: `${priceGu} · હોમ સ્ક્રીન ટોપ પર`, subEn: `${priceEn} · top of home screen`, paid: true, bg: "var(--danger-tint)", fg: "var(--danger)", Icon: Megaphone },
+    { href: "/gallery", labelKey: "gallery" as const, bg: "var(--leaf-tint)", fg: "var(--leaf)", Icon: ImageIcon },
+    { href: "/results", labelKey: "uploadResults" as const, bg: "var(--warn-tint)", fg: "#B08A1E", Icon: Award },
+    { href: "/about", labelKey: "aboutSamaj" as const, bg: "var(--violet-tint)", fg: "var(--violet)", Icon: Building2 },
+  ];
+}
 
 type MeProfile = { fullNameEn: string; fullNameGu: string | null } | null;
 
-export function MenuClient({ resultEnabled = true }: { resultEnabled?: boolean }) {
+export function MenuClient({
+  resultEnabled = true,
+  adTiers,
+}: {
+  resultEnabled?: boolean;
+  /** Both premium banner plan prices, from Admin → Settings → Advertisements. */
+  adTiers: Record<AdDuration, number>;
+}) {
   const { t, lang } = useLang();
   const router = useRouter();
+  const serviceLinks = useMemo(() => buildServiceLinks(adTiers), [adTiers]);
   const links = resultEnabled ? serviceLinks : serviceLinks.filter((l) => l.href !== "/results");
   const [newsNotif, setNewsNotif] = useState(true);
   const [feedNotif, setFeedNotif] = useState(false);

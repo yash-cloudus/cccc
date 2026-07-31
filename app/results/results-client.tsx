@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { PickerWithAdd } from "@/components/ui/picker-with-add";
+import { NextStandardModal, type NextStandardValue } from "@/components/results/next-standard-modal";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
@@ -221,6 +222,7 @@ function UploadTab({
   const [marksheetUrl, setMarksheetUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showNextStandard, setShowNextStandard] = useState(false);
 
   const selectedChild = childOptions.find((c) => c.id === memberId) ?? null;
   const isHigher = HIGHER_STANDARDS.has(standard);
@@ -268,7 +270,7 @@ function UploadTab({
     setMarksheetUrl(res.data.url);
   }
 
-  async function submit() {
+  function submit() {
     const child = childOptions.find((c) => c.id === memberId);
     if (!child) return toast.error(T("બાળક પસંદ કરો", "Pick a child"));
     if (!standard) return toast.error(T("ધોરણ પસંદ કરો", "Pick a standard"));
@@ -286,6 +288,13 @@ function UploadTab({
           : T("માર્કશીટ અપલોડ કરો", "Upload the marksheet"),
       );
     }
+    // Current result is ready — ask what's next before actually submitting.
+    setShowNextStandard(true);
+  }
+
+  async function submitWithNext(next: NextStandardValue | null) {
+    const child = childOptions.find((c) => c.id === memberId);
+    if (!child) return;
 
     setBusy(true);
     const res = await api.post("/api/results", {
@@ -302,9 +311,18 @@ function UploadTab({
             obtainedMarks: Number(obtained),
           }),
       marksheetUrl,
+      ...(next
+        ? {
+            studyOutcome: next.studyOutcome,
+            nextStandard: next.nextStandard ?? undefined,
+            nextStream: next.nextStream ?? undefined,
+            nextCourse: next.nextCourse ?? undefined,
+          }
+        : {}),
     });
     setBusy(false);
     if (!res.ok) return toast.error(res.error);
+    setShowNextStandard(false);
     toast.success(T("પરિણામ મોકલાયું — ચકાસણી બાકી", "Result submitted — pending verification"));
     setMemberId("");
     setStandard("");
@@ -499,6 +517,16 @@ function UploadTab({
           T("પરિણામ મોકલો (1 બાળક)", "Submit result (1 child)")
         )}
       </button>
+
+      {showNextStandard && selectedChild && (
+        <NextStandardModal
+          studentName={childName(selectedChild, lang)}
+          lang={lang}
+          busy={busy}
+          onSkip={() => void submitWithNext(null)}
+          onConfirm={(value) => void submitWithNext(value)}
+        />
+      )}
     </>
   );
 }

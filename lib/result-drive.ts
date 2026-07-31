@@ -4,6 +4,9 @@ import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 
 export type RosterStatus = "none" | "PENDING" | "APPROVED" | "REJECTED" | "RESUBMIT";
 
+/** What happens to a student after this result — applied to their record on approval. */
+export type StudyOutcome = "PROMOTED" | "STUDY_COMPLETE" | "FAILED_REPEAT" | "DROPPED_OUT";
+
 export type RosterRow = {
   memberId: string | null;
   entryId: string | null;
@@ -26,7 +29,36 @@ export type RosterRow = {
   status: RosterStatus;
   rejectReason: string | null;
   updatedAt: string | null;
+  nextStandard: string | null;
+  nextStream: string | null;
+  nextCourse: string | null;
+  studyOutcome: StudyOutcome | null;
 };
+
+export const STUDY_OUTCOME_LABELS: Record<StudyOutcome, { en: string; gu: string }> = {
+  PROMOTED: { en: "Promoted", gu: "આગળના ધોરણમાં" },
+  STUDY_COMPLETE: { en: "Study complete", gu: "અભ્યાસ પૂર્ણ" },
+  FAILED_REPEAT: { en: "Failed / repeat year", gu: "નાપાસ / ફરી એ જ ધોરણ" },
+  DROPPED_OUT: { en: "Dropped out", gu: "અભ્યાસ છોડ્યો" },
+};
+
+/** Whether a roster row's next-standard decision is fully recorded (any outcome counts, not just PROMOTED). */
+export function hasNextStatus(r: Pick<RosterRow, "studyOutcome">): boolean {
+  return r.studyOutcome != null;
+}
+
+/** A short label for what's next, for admin tables and the close-drive summary. */
+export function nextStatusLabel(
+  r: Pick<RosterRow, "studyOutcome" | "nextStandard" | "nextStream" | "nextCourse">,
+  lang: "en" | "gu" = "en",
+): string {
+  if (!r.studyOutcome) return lang === "gu" ? "નક્કી નથી" : "Not decided";
+  if (r.studyOutcome === "PROMOTED") {
+    const extra = r.nextStream || r.nextCourse;
+    return `${r.nextStandard ?? ""}${extra ? ` · ${extra}` : ""}`.trim();
+  }
+  return STUDY_OUTCOME_LABELS[r.studyOutcome][lang];
+}
 
 export const STREAM_STANDARDS = new Set(["Std 11", "Std 12"]);
 export const HIGHER_STANDARDS = new Set(["College", "Diploma"]);
