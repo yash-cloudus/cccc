@@ -97,11 +97,19 @@ export async function getMyFamilyId(userId: string): Promise<string | null> {
   if (user.profile?.familyId) return user.profile.familyId;
   if (!user.mobile) return null;
 
+  // Approved only, and oldest first: a mobile can sit in more than one family
+  // (a second registration, a relative's household), so an unfiltered findFirst
+  // could hand back a household still waiting in the queue — or a different one
+  // on every request.
   const member = await prisma.familyMember.findFirst({
     where: {
       mobile: user.mobile,
-      ...(user.communityId ? { family: { communityId: user.communityId } } : {}),
+      family: {
+        status: "APPROVED",
+        ...(user.communityId ? { communityId: user.communityId } : {}),
+      },
     },
+    orderBy: { createdAt: "asc" },
     select: { familyId: true },
   });
   return member?.familyId ?? null;

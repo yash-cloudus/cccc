@@ -4,6 +4,7 @@ import { fail, fromZod, getClientIp, ok } from "@/lib/api";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
+import { ACCESS_DENIAL, checkMemberAccess } from "@/lib/auth/member-access";
 
 const schema = z.object({
   mobile: z.string().regex(/^[6-9]\d{9}$/, "Invalid Indian mobile number"),
@@ -23,21 +24,25 @@ export async function POST(req: Request) {
     if (body.purpose === "login" || body.purpose === "admin") {
       const community = await getActiveCommunity();
       if (!community) return fail("Community not found", 404);
-      const user = await prisma.user.findFirst({
-        where: { mobile, communityId: community.id },
-        include: { roles: { include: { role: true } } },
-      });
-      if (!user) return fail("Mobile number is not registered", 404);
-      if (user.status === "PENDING") {
-        return fail("Registration is pending approval", 403, { pending: true });
+      const access = await checkMemberAccess(community.id, mobile);
+      if (!access.ok) {
+        const denial = ACCESS_DENIAL[access.reason];
+        // `pending` keeps its flag so the login screen can route to /pending
+        // instead of just showing the message.
+        return fail(
+          denial.message,
+          denial.status,
+          access.reason === "pending" ? { pending: true } : undefined,
+        );
       }
-      if (user.status === "REJECTED") return fail("Registration was rejected", 403);
-      if (user.status === "SUSPENDED") return fail("Account suspended", 403);
 
       if (body.purpose === "admin") {
-        const roles = user.roles.map((r: { role: { name: string } }) => r.role.name);
-        const okAdmin = roles.some((r: string) =>
-          ["OWNER", "DATA_MANAGER", "CONTENT_MANAGER", "MODERATOR", "ADMIN"].includes(r),
+        const assigned = await prisma.userRole.findMany({
+          where: { userId: access.userId },
+          include: { role: true },
+        });
+        const okAdmin = assigned.some((r) =>
+          ["OWNER", "DATA_MANAGER", "CONTENT_MANAGER", "MODERATOR", "ADMIN"].includes(r.role.name),
         );
         if (!okAdmin) return fail("Not an admin user", 403);
       }

@@ -7,6 +7,7 @@ import { fail, fromZod, getClientIp, ok } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { getActiveCommunity } from "@/lib/tenant";
+import { ACCESS_DENIAL, checkMemberAccess } from "@/lib/auth/member-access";
 
 const schema = z.object({
   mobile: z.string().regex(/^[6-9]\d{9}$/),
@@ -47,7 +48,15 @@ export async function POST(req: Request) {
       },
     });
     if (!user) return fail("User not found", 404);
-    if (user.status !== "APPROVED") return fail("Account not approved", 403);
+
+    // The real gate. /api/auth/otp checks this too, but a caller can post
+    // straight to /verify with a code it already holds, so the decision has to
+    // be made here as well — and from the family, not the cached User flag.
+    const gate = await checkMemberAccess(community.id, body.mobile);
+    if (!gate.ok) {
+      const denial = ACCESS_DENIAL[gate.reason];
+      return fail(denial.message, denial.status);
+    }
 
     const roles = user.roles.map((r: { role: { name: string } }) => r.role.name);
     const permissions = Array.from(
