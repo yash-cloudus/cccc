@@ -11,7 +11,7 @@ import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 import { HIGHER_STANDARDS, STREAM_STANDARDS, canonicalStream, isPdf } from "@/lib/result-drive";
-import { pickText } from "@/lib/format";
+import { pickText, titleWithYear } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type DriveInfo = {
@@ -104,7 +104,7 @@ export function ResultsClient({
   const [tab, setTab] = useState<Tab>("upload");
 
   const title = drive
-    ? `${pickText(drive.titleGu, drive.titleEn, lang)} ${drive.year}`
+    ? titleWithYear(pickText(drive.titleGu, drive.titleEn, lang), drive.year)
     : T("પરિણામ", "Results");
 
   const tabs: { key: Tab; label: string }[] =

@@ -599,6 +599,7 @@ export async function getEducationMembers(communityId: string) {
       fullNameEn: true,
       fullNameGu: true,
       education: true,
+      course: true,
       occupation: true,
       currentlyAt: true,
       mobile: true,

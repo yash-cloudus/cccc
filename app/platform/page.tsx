@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
 import { ROOT_DOMAIN } from "@/lib/constants";
 import { BrandColorsPicker } from "@/components/shared/brand-colors-picker";
 import { HostLabel } from "@/components/host-label";
@@ -119,6 +119,7 @@ export default function PlatformPage() {
   const [logoUploading, setLogoUploading] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<ApiCommunity | null>(null);
   const translitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const translitToken = useRef(0);
   const logoFileRef = useRef<HTMLInputElement | null>(null);
@@ -863,6 +864,16 @@ export default function PlatformPage() {
                             >
                               Open app
                             </button>
+                            <WithTooltip label="Delete app" side="top">
+                              <button
+                                type="button"
+                                onClick={() => setDeleting(a)}
+                                aria-label={`Delete ${a.nameEn}`}
+                                className="flex cursor-pointer items-center justify-center rounded-[10px] border-[1.5px] border-[var(--danger-line)] bg-white p-2 text-[var(--danger)] transition hover:bg-[var(--danger-tint-soft)]"
+                              >
+                                <Trash2 className="size-4" strokeWidth={2.1} />
+                              </button>
+                            </WithTooltip>
                           </div>
 
                           <div className="mt-2.5 flex items-center">
@@ -1353,6 +1364,21 @@ export default function PlatformPage() {
 
       {creds && <CredentialsModal creds={creds} onClose={() => setCreds(null)} />}
 
+      {deleting && (
+        <DeleteAppModal
+          app={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={(id) => {
+            setApps((prev) => prev.filter((x) => x.id !== id));
+            setDeleting(null);
+            if (editingId === id) {
+              setEditingId(null);
+              setView("apps");
+            }
+          }}
+        />
+      )}
+
       {/* Mobile bottom bar */}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-[#262A34] bg-[var(--platform-ink-deep)]/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-4px_20px_rgba(0,0,0,.35)] backdrop-blur md:hidden">
         {navItems.map((item) => {
@@ -1480,6 +1506,196 @@ function CredentialsModal({
         >
           Close
         </button>
+      </div>
+    </div>
+  );
+}
+
+type DeleteImpact = Record<string, number>;
+
+/** Rows in the order a platform admin cares about, with the label to print.
+ * Keys must match the `impact` object returned by GET /api/platform/communities/[id]. */
+const IMPACT_ROWS: { key: string; singular: string; plural?: string }[] = [
+  { key: "families", singular: "family", plural: "families" },
+  { key: "members", singular: "member" },
+  { key: "users", singular: "login account" },
+  { key: "surnameGroups", singular: "surname" },
+  { key: "villageAreas", singular: "village area" },
+  { key: "businesses", singular: "business listing" },
+  { key: "news", singular: "news post" },
+  { key: "galleryAlbums", singular: "gallery album" },
+  { key: "advertisements", singular: "advertisement" },
+  { key: "committees", singular: "committee" },
+  { key: "resultDrives", singular: "result drive" },
+  { key: "infoSections", singular: "info section" },
+  { key: "cmsPages", singular: "CMS page" },
+  { key: "dropdownOptions", singular: "dropdown option" },
+  { key: "profileUpdateRequests", singular: "profile update request" },
+];
+
+/**
+ * Delete confirmation for an entire app.
+ *
+ * Deleting a Community cascades through every table it owns and there is no
+ * undo, so this does two things a plain yes/no cannot: it fetches and lists the
+ * real row counts that are about to go, and it makes the admin type the
+ * subdomain — the one string that is unique per app, so a muscle-memory
+ * double-click on the wrong card cannot go through.
+ */
+function DeleteAppModal({
+  app,
+  onClose,
+  onDeleted,
+}: {
+  app: ApiCommunity;
+  onClose: () => void;
+  onDeleted: (id: string) => void;
+}) {
+  const [impact, setImpact] = useState<DeleteImpact | null>(null);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/platform/communities/${app.id}`, { cache: "no-store" });
+        const json = await res.json();
+        if (cancelled) return;
+        if (json.success) setImpact(json.data.impact as DeleteImpact);
+        else setError(json.error || "Could not read what this delete would remove.");
+      } catch {
+        if (!cancelled) setError("Could not read what this delete would remove.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [app.id]);
+
+  const rows = impact ? IMPACT_ROWS.filter((r) => (impact[r.key] ?? 0) > 0) : [];
+  const total = impact ? Object.values(impact).reduce((sum, n) => sum + n, 0) : 0;
+  const matches = typed.trim() === app.slug;
+
+  async function doDelete() {
+    if (!matches || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/platform/communities/${app.id}?confirm=${encodeURIComponent(app.slug)}`,
+        { method: "DELETE" },
+      );
+      const json = await res.json();
+      if (!json.success) {
+        setError(json.error || "Failed to delete app.");
+        return;
+      }
+      onDeleted(app.id);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex size-11 items-center justify-center rounded-full bg-[var(--danger-tint-soft)]">
+          <AlertTriangle className="size-6 text-[var(--danger)]" strokeWidth={2.3} />
+        </div>
+        <h3 className="mt-3 text-lg font-extrabold text-[var(--danger)]">
+          Delete {app.nameGu || app.nameEn}?
+        </h3>
+        <p className="mt-1 text-[13px] leading-relaxed text-[var(--platform-muted)]">
+          This permanently deletes the app at{" "}
+          <span className="font-bold text-[var(--platform-ink)]">
+            <HostLabel slug={app.slug} />
+          </span>{" "}
+          and everything inside it. This cannot be undone.
+        </p>
+
+        <div className="mt-4 rounded-xl border border-[var(--danger-line)] bg-[var(--danger-tint-soft)] p-4">
+          <div className="mb-2.5 text-[11.5px] font-extrabold tracking-wide text-[var(--danger)]">
+            THIS WILL ALSO BE DELETED
+          </div>
+          {!impact ? (
+            <div className="flex items-center gap-2 py-2 text-[13px] text-[var(--platform-muted)]">
+              <Loader2 className="size-4 animate-spin" /> Checking what this app holds…
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="text-[13px] font-semibold text-[var(--platform-ink)]">
+              This app is empty — no families, members, or content have been added yet.
+            </p>
+          ) : (
+            <>
+              <ul className="space-y-1.5">
+                {rows.map((r) => (
+                  <li key={r.key} className="flex items-baseline justify-between gap-3 text-[13px]">
+                    <span className="font-semibold text-[var(--platform-ink)]">
+                      {plural(impact[r.key], r.singular, r.plural)}
+                    </span>
+                    <span className="font-mono font-extrabold text-[var(--danger)]">
+                      {impact[r.key]}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-2.5 border-t border-[var(--danger-line)] pt-2 text-[12.5px] font-extrabold text-[var(--danger)]">
+                {total} {plural(total, "record")} in total
+              </div>
+            </>
+          )}
+        </div>
+
+        <label className="mt-4 block">
+          <span className="mb-1.5 block text-xs font-bold text-[var(--platform-muted)]">
+            Type <span className="font-mono font-extrabold text-[var(--platform-ink)]">{app.slug}</span> to
+            confirm
+          </span>
+          <input
+            className="mafld font-mono"
+            value={typed}
+            autoComplete="off"
+            spellCheck={false}
+            placeholder={app.slug}
+            onChange={(e) => setTyped(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void doDelete();
+            }}
+          />
+        </label>
+
+        {error && (
+          <div className="mt-3 rounded-[11px] border border-[var(--danger-line)] bg-[var(--danger-tint-soft)] px-3.5 py-2.5 text-[13px] font-semibold text-[var(--danger)]">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4 flex gap-2.5">
+          <button
+            type="button"
+            onClick={doDelete}
+            disabled={!matches || busy}
+            className="inline-flex min-w-[150px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[var(--danger)] px-4 py-3 text-[13px] font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            {busy ? "Deleting…" : "Delete permanently"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="cursor-pointer rounded-xl border-[1.5px] border-[var(--line-input)] bg-white px-5 py-3 text-[13px] font-extrabold text-[var(--ink-mid)] disabled:opacity-60"
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );

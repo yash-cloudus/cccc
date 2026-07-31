@@ -160,6 +160,16 @@ export function relationLabel(relation: string | null | undefined, lang: Lang): 
   return lang === "gu" ? found.nameGu : found.nameEn;
 }
 
+/** Title with its year appended — unless the title already states it. Admins
+ * routinely type the year into the title ("Results 2026", "વડડોરીયા ૨૦૨૭"), so
+ * check Gujarati digits too before deciding to append. */
+export function titleWithYear(title: string, year: number): string {
+  const ascii = title.replace(/[૦-૯]/g, (d) =>
+    String(d.charCodeAt(0) - 0x0ae6),
+  );
+  return ascii.includes(String(year)) ? title : `${title} ${year}`;
+}
+
 /** Format a 10-digit mobile for display (e.g. "98765 43210"). */
 export function formatMobile(mobile: string | null | undefined): string {
   const d = (mobile || "").replace(/\D/g, "");

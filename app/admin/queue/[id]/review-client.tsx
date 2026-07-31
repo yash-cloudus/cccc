@@ -388,7 +388,7 @@ export function ReviewClient({
             onClick={handleBack}
             aria-label={backLabel.replace(/^‹\s*/, "")}
             title={backLabel.replace(/^‹\s*/, "")}
-            className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--brand)] transition-colors hover:bg-[var(--brand-tint)]"
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--line-admin)] bg-white text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]"
           >
             <ChevronLeft className="size-5" strokeWidth={2.4} />
           </button>

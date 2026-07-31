@@ -102,6 +102,12 @@ function isBareLocal(hostname: string): boolean {
 /** Which panel a path belongs to, used only in single-host mode. */
 function kindFromPath(pathname?: string): HostKind {
   if (!pathname) return "main";
+  // An API call belongs to whichever panel called it — /api/... says nothing
+  // about the tenant. Claiming "main" here made getActiveCommunity refuse to
+  // resolve a community at all ("Community not found" on submit, even though
+  // the page that posted rendered fine), and sent a signed-in member's API
+  // calls to /login because the apex guard demands a platform JWT.
+  if (pathname === "/api" || pathname.startsWith("/api/")) return "unknown";
   if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
   if (pathname === "/platform" || pathname.startsWith("/platform/")) return "main";
   if (MEMBER_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {

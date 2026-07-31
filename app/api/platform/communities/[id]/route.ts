@@ -132,17 +132,85 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 }
 
+/** Every Community relation that cascades on delete, so the count query and the
+ * confirmation dialog can never drift apart. */
+const IMPACT_COUNTS = {
+  families: true,
+  users: true,
+  surnameGroups: true,
+  villageAreas: true,
+  businesses: true,
+  news: true,
+  galleryAlbums: true,
+  committees: true,
+  resultDrives: true,
+  advertisements: true,
+  infoSections: true,
+  cmsPages: true,
+  dropdownOptions: true,
+  profileUpdateRequests: true,
+} as const;
+
+/**
+ * What deleting this app would destroy.
+ *
+ * Deleting a Community cascades through ~20 tables, and the app card only shows
+ * four of those counts — so a confirmation built from the card alone would
+ * under-report the damage on exactly the action that cannot be undone. The
+ * dialog reads its numbers from here instead.
+ */
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await assertPlatform();
+    const { id } = await params;
+
+    const community = await prisma.community.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        slug: true,
+        nameEn: true,
+        nameGu: true,
+        _count: { select: IMPACT_COUNTS },
+      },
+    });
+    if (!community) return fail("Community not found", 404);
+
+    // FamilyMember hangs off Family, not Community, so it has no _count here —
+    // and it is the row a community actually cares about losing.
+    const members = await prisma.familyMember.count({
+      where: { family: { communityId: id } },
+    });
+
+    const { _count, ...rest } = community;
+    return ok({ community: rest, impact: { ..._count, members } });
+  } catch (e) {
+    if (e instanceof Error && e.message === "FORBIDDEN") return fail("Forbidden", 403);
+    console.error(e);
+    return fail("Failed to load delete impact", 500);
+  }
+}
+
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await assertPlatform();
     const { id } = await params;
     const community = await prisma.community.findUnique({
       where: { id },
-      include: { _count: { select: { families: true } } },
+      select: { slug: true, nameEn: true },
     });
     if (!community) return fail("Community not found", 404);
+
+    // The caller must echo back the subdomain it believes it is deleting. A
+    // stale card or a mis-wired retry then fails loudly instead of wiping the
+    // wrong community — there is no undo for this one.
+    const confirm = new URL(req.url).searchParams.get("confirm");
+    if (confirm !== community.slug) {
+      return fail("Confirmation does not match this app's subdomain", 400);
+    }
+
     await prisma.community.delete({ where: { id } });
-    return ok({ deleted: true });
+    return ok({ deleted: true, slug: community.slug, nameEn: community.nameEn });
   } catch (e) {
     if (e instanceof Error && e.message === "FORBIDDEN") return fail("Forbidden", 403);
     console.error(e);

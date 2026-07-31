@@ -83,6 +83,20 @@ export async function middleware(req: NextRequest) {
   requestHeaders.set("x-host-kind", parsed.kind);
 
   const finish = (res: NextResponse) => {
+    // On a single-host origin the tenant rides on ?c=, but the API calls a page
+    // makes carry no query string of their own — so pin the slug to the
+    // active-community cookie the moment we see it. Without this an anonymous
+    // registration falls back to "first LIVE community" and lands in the wrong
+    // one. The session JWT still outranks this cookie (see getActiveCommunity),
+    // so it can only choose a tenant for a visitor who has none.
+    if (parsed.singleHost && c && c !== cookieSlug) {
+      res.cookies.set(COOKIE_ACTIVE_COMMUNITY, c, {
+        httpOnly: false,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
+    }
     if (pathname.startsWith("/api/")) withCors(res);
     return withSecurityHeaders(res);
   };
