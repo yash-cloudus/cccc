@@ -71,15 +71,17 @@ export default async function ResultsPage({
       ? prisma.resultEntry.findMany({
           where: { driveId: drive.id, userId: session.sub },
           orderBy: { createdAt: "desc" },
+          include: { member: { select: { fullNameEn: true, fullNameGu: true } } },
         })
       : [],
-    // Toppers stay hidden until the admin publishes the drive.
-    drive.isPublished
+    // Toppers only show while their drive is open — a closed drive's list disappears too.
+    drive.isOpen
       ? prisma.resultEntry.findMany({
           where: { driveId: drive.id, status: "APPROVED", isEligible: true },
           orderBy: [{ percentage: "desc" }, { createdAt: "asc" }],
           include: {
             user: { select: { profile: { select: { family: { select: { city: true } } } } } },
+            member: { select: { fullNameEn: true, fullNameGu: true } },
           },
         })
       : [],
@@ -101,6 +103,8 @@ export default async function ResultsPage({
   const mine: MyEntry[] = myEntries.map((e) => ({
     id: e.id,
     studentName: e.studentName,
+    studentNameEn: e.member?.fullNameEn ?? null,
+    studentNameGu: e.member?.fullNameGu ?? null,
     standard: e.standard,
     percentage: e.percentage,
     status: e.status,
@@ -111,6 +115,8 @@ export default async function ResultsPage({
   const toppers: TopperRow[] = topperEntries.map((e) => ({
     id: e.id,
     studentName: e.studentName,
+    studentNameEn: e.member?.fullNameEn ?? null,
+    studentNameGu: e.member?.fullNameGu ?? null,
     standard: e.standard,
     percentage: e.percentage,
     city: e.user?.profile?.family?.city ?? null,
@@ -124,7 +130,6 @@ export default async function ResultsPage({
         titleGu: drive.titleGu,
         year: drive.year,
         isOpen: drive.isOpen,
-        isPublished: drive.isPublished,
       }}
       childOptions={childOptions}
       myEntries={mine}

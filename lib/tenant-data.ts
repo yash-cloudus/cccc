@@ -489,7 +489,6 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
         mobile: true,
         education: true,
         course: true,
-        currentlyAt: true,
         family: { select: { headNameEn: true, headNameGu: true } },
       },
       orderBy: { fullNameEn: "asc" },
@@ -546,7 +545,6 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
           ? memberStream
           : null),
       course: entry?.course ?? (HIGHER_STANDARDS.has(std) ? m.course : null),
-      schoolName: entry?.schoolName ?? m.currentlyAt,
       totalMarks: entry?.totalMarks ?? null,
       obtainedMarks: entry?.obtainedMarks ?? null,
       percentage: entry?.percentage ?? null,
@@ -578,7 +576,6 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       standard: canonicalStandard(e.standard),
       stream: canonicalStream(e.stream),
       course: e.course,
-      schoolName: e.schoolName,
       totalMarks: e.totalMarks,
       obtainedMarks: e.obtainedMarks,
       percentage: e.percentage,
@@ -719,10 +716,10 @@ export async function getEducationMembers(communityId: string) {
   });
 }
 
-/** Latest published result drive + its approved (public) entries, ranked by percentage. */
+/** Currently open result drive + its approved (public) entries, ranked by percentage. */
 export async function getPublishedResults(communityId: string) {
   const drive = await prisma.resultDrive.findFirst({
-    where: { communityId, isPublished: true },
+    where: { communityId, isOpen: true },
     orderBy: { year: "desc" },
   });
   if (!drive) return { drive: null, entries: [] };

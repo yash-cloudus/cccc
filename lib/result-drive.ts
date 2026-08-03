@@ -21,7 +21,6 @@ export type RosterRow = {
   standard: string;
   stream: string | null;
   course: string | null;
-  schoolName: string | null;
   totalMarks: number | null;
   obtainedMarks: number | null;
   percentage: number | null;
@@ -128,14 +127,6 @@ export function rosterStatusMeta(status: RosterStatus): { label: string; bg: str
 export function calcPct(total: number | null | undefined, obtained: number | null | undefined): number | null {
   if (total == null || obtained == null || total <= 0) return null;
   return Math.round((obtained / total) * 10000) / 100;
-}
-
-/** Infer stream from legacy rows that stored stream inside schoolName. */
-export function inferStream(entry: { stream?: string | null; schoolName?: string | null; standard: string }): string | null {
-  if (entry.stream) return entry.stream;
-  const sn = entry.schoolName || "";
-  if (STREAM_STANDARDS.has(entry.standard) && ["Science", "Commerce", "Arts"].includes(sn)) return sn;
-  return null;
 }
 
 /** Stable identity for a roster row, used as the rank-map key. */

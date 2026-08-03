@@ -4,14 +4,18 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronUp,
   Eye,
-  EyeOff,
-  FileOutput,
+  GraduationCap,
   Loader2,
   Lock,
   Pencil,
   Plus,
+  Printer,
   RotateCw,
+  Trophy,
   Unlock,
   Upload,
 } from "lucide-react";
@@ -62,6 +66,7 @@ import {
 } from "@/lib/result-drive";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { formatDate, pickText } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 export type DriveInfo = {
   id: string;
@@ -69,11 +74,10 @@ export type DriveInfo = {
   titleGu: string | null;
   year: number;
   isOpen: boolean;
-  isPublished: boolean;
   entries: number;
 };
 
-const LEVELS = EDUCATION_LEVELS.map((l) => l.nameEn);
+const ALL_LEVELS = EDUCATION_LEVELS.map((l) => l.nameEn);
 
 const STATUS_KEYS = {
   none: "res.stNone",
@@ -103,46 +107,105 @@ function yearRangeSuffix(year: number): string {
   return `${year - 1}-${String(year).slice(-2)}`;
 }
 
+/** How many rows a merit list shows before the admin has to expand it. */
+const MERIT_PREVIEW_ROWS = 3;
+
+/** Gold / silver / bronze — same medal gradients as the public toppers page, so rank 1-3 reads instantly. */
+const RANK_GRADIENTS = [
+  "linear-gradient(150deg,#F0B33A,#D98A1E)",
+  "linear-gradient(150deg,#C3C9D2,#9AA3AF)",
+  "linear-gradient(150deg,#D9A066,#B87A3E)",
+];
+
 /**
- * Ranked merit tables — one per stream for Std 11/12, one overall otherwise.
+ * Ranked merit lists — one per stream for Std 11/12, one overall otherwise.
  * Shared by the per-standard merit list and the whole-drive final report so the
  * two can never disagree about who ranked where.
+ *
+ * Only the top rows show on screen by default — a "Show all" toggle reveals
+ * the rest. Print output always includes every row regardless of that toggle,
+ * since a printed sheet can't be expanded after the fact.
  */
 function MeritSections({ groups }: { groups: MeritGroup[] }) {
-  const { t, lang } = useAdminT();
+  const { t, tf, lang } = useAdminT();
   const split = groups.length > 1 || groups[0]?.stream != null;
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
   return (
-    <>
-      {groups.map((g) => (
-        <section key={g.stream ?? "unassigned"} className={split ? "mb-4 last:mb-0" : undefined}>
-          {split && (
-            <div className="mb-1.5 text-[13px] font-extrabold text-[var(--ink)]">
-              {g.stream ? streamLabel(g.stream, lang) : t("res.streamNotRecorded")}
+    <div className="flex flex-col gap-5">
+      {groups.map((g) => {
+        const key = g.stream ?? "unassigned";
+        const isExpanded = expanded.has(key);
+        const hasMore = g.rows.length > MERIT_PREVIEW_ROWS;
+        const sc = g.stream ? streamColors(g.stream) : null;
+        return (
+          <div key={key}>
+            {split && (
+              <span
+                className="mb-2 inline-block rounded-full px-3 py-1 text-[12px] font-extrabold"
+                style={sc ? { background: sc.bg, color: sc.fg } : { background: "#F0EBE0", color: "#8B8375" }}
+              >
+                {g.stream ? streamLabel(g.stream, lang) : t("res.streamNotRecorded")}
+              </span>
+            )}
+            <div className="flex flex-col gap-1.5">
+              {g.rows.map((m, i) => {
+                const preview = i < MERIT_PREVIEW_ROWS || isExpanded;
+                const medal = m.rank <= 3 ? RANK_GRADIENTS[m.rank - 1] : null;
+                return (
+                  <div
+                    key={rosterKey(m)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-[13px] border border-[var(--line-soft)] bg-[#FBFAF7] px-3.5 py-2.5 print:break-inside-avoid",
+                      !preview && "hidden print:flex",
+                    )}
+                  >
+                    <span
+                      className="flex size-7 flex-none items-center justify-center rounded-full text-[12.5px] font-extrabold text-white"
+                      style={medal ? { background: medal } : { background: "#E4DFD2", color: "#8B8375" }}
+                    >
+                      {m.rank}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-[var(--ink)]">
+                      {pickText(m.studentNameGu, m.studentNameEn, lang) || m.studentName}
+                    </span>
+                    <span className="flex-none text-[14px] font-extrabold text-[var(--brand)]">
+                      {m.percentage?.toFixed(2)}%
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-          )}
-          <AdminTable bordered={false}>
-            <thead>
-              <tr>
-                <AdminTh>{t("res.thRank")}</AdminTh>
-                <AdminTh>{t("res.thStudentName")}</AdminTh>
-                <AdminTh>{t("res.thPercentage")}</AdminTh>
-                <AdminTh>{t("res.thSchool")}</AdminTh>
-              </tr>
-            </thead>
-            <tbody>
-              {g.rows.map((m) => (
-                <tr key={rosterKey(m)}>
-                  <AdminTd className="font-extrabold text-[var(--brand)]">{m.rank}</AdminTd>
-                  <AdminTd className="font-semibold text-[var(--ink)]">{m.studentName}</AdminTd>
-                  <AdminTd>{m.percentage?.toFixed(2)}%</AdminTd>
-                  <AdminTd>{m.schoolName || "—"}</AdminTd>
-                </tr>
-              ))}
-            </tbody>
-          </AdminTable>
-        </section>
-      ))}
-    </>
+            {hasMore && (
+              <button
+                type="button"
+                onClick={() =>
+                  setExpanded((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(key)) next.delete(key);
+                    else next.add(key);
+                    return next;
+                  })
+                }
+                className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1 rounded-[11px] border border-dashed border-[var(--line-admin)] py-1.5 text-[12px] font-bold text-[var(--brand)] transition-colors print:hidden hover:bg-[var(--brand-tint)]"
+              >
+                {isExpanded ? (
+                  <>
+                    <ChevronUp className="size-3.5" strokeWidth={2.4} />
+                    {t("res.showTop3")}
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="size-3.5" strokeWidth={2.4} />
+                    {tf("res.showAllN", { n: g.rows.length })}
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -151,16 +214,32 @@ export function ResultsClient({
   currentDrive,
   roster: initialRoster,
   adminUploadEnabled,
+  enabledStandards,
+  standardStreams,
 }: {
   drives: DriveInfo[];
   currentDrive: DriveInfo | null;
   roster: RosterRow[];
   adminUploadEnabled: boolean;
+  /** Standard names enabled in Dropdown lists → Student. `null` means that
+   *  list isn't set up yet for this community, so nothing is filtered out. */
+  enabledStandards: string[] | null;
+  /** Enabled stream names per standard (Std 11 / Std 12), from Dropdown
+   *  lists' nested Streams section. A standard missing here has no nested
+   *  rows configured, so the full default stream list is used instead. */
+  standardStreams: Record<string, string[]>;
 }) {
   const router = useRouter();
   const { t, tf, lang } = useAdminT();
   const { fromEn, guInput } = useTranslitSync();
   const [roster, setRoster] = useState<RosterRow[]>(initialRoster);
+  // `useState(initialRoster)` only seeds the very first render — switching
+  // drives (or any server refetch) sends a new `initialRoster` prop that this
+  // needs to pick up explicitly, otherwise the roster stays frozen on
+  // whichever drive was loaded first until a hard page reload.
+  useEffect(() => {
+    setRoster(initialRoster);
+  }, [initialRoster]);
   const [error, setError] = useState<string | null>(null);
   const [newOpen, setNewOpen] = useState(false);
   const [draft, setDraft] = useState({ titleEn: "", titleGu: "", year: String(new Date().getFullYear()) });
@@ -172,6 +251,10 @@ export function ResultsClient({
   const [uploadRow, setUploadRow] = useState<RosterRow | null>(null);
   const [closeDriveOpen, setCloseDriveOpen] = useState(false);
   const [closingDrive, setClosingDrive] = useState(false);
+  // Set while a per-standard "print just this section" is in flight — every
+  // other section on the final report gets `print:hidden` so only this one
+  // ends up on paper/PDF, then clears itself once the print dialog closes.
+  const [printOnlyStd, setPrintOnlyStd] = useState<string | null>(null);
 
   const [standardQuery, setStandardQuery] = useState("");
 
@@ -186,11 +269,41 @@ export function ResultsClient({
   const view: "overview" | "standard" | "merit" | "final" =
     viewParam === "final" ? "final" : viewParam === "merit" ? "merit" : activeStd ? "standard" : "overview";
 
+  // The browser's print header prints `document.title` verbatim — on the
+  // report views that's the only place a printout says which drive/standard
+  // it's for, so swap in something readable while it's open and restore
+  // whatever the app normally shows once the admin navigates away.
+  useEffect(() => {
+    if (!currentDrive || (view !== "final" && view !== "merit")) return;
+    const driveTitle = pickText(currentDrive.titleGu, currentDrive.titleEn, lang);
+    const previous = document.title;
+    document.title =
+      view === "final"
+        ? `${t("res.meritReport")} — ${driveTitle}`
+        : `${t("res.meritList")} — ${levelLabel(activeStd || "", lang)} — ${driveTitle}`;
+    return () => {
+      document.title = previous;
+    };
+  }, [view, currentDrive, activeStd, lang, t]);
+
   useEffect(() => {
     setStdSearch("");
     setStdStatusFilter("all");
     setPercentSort("none");
   }, [activeStd]);
+
+  useEffect(() => {
+    if (!printOnlyStd) return;
+    window.print();
+  }, [printOnlyStd]);
+
+  useEffect(() => {
+    function clear() {
+      setPrintOnlyStd(null);
+    }
+    window.addEventListener("afterprint", clear);
+    return () => window.removeEventListener("afterprint", clear);
+  }, []);
 
   const go = useCallback(
     (next: Record<string, string | null>) => {
@@ -204,6 +317,14 @@ export function ResultsClient({
     [params, router],
   );
 
+  // Standards disabled in Dropdown lists → Student drop off the grid — unless
+  // they still carry roster data (e.g. from before they were disabled), in
+  // which case they surface via `extra` below instead of vanishing silently.
+  const levels = useMemo(
+    () => (enabledStandards ? ALL_LEVELS.filter((l) => enabledStandards.includes(l)) : ALL_LEVELS),
+    [enabledStandards],
+  );
+
   const standards = useMemo(() => {
     const map = new Map<string, { total: number; approved: number; pending: number; rejected: number; uploaded: number }>();
     for (const r of roster) {
@@ -215,12 +336,12 @@ export function ResultsClient({
       else if (r.status === "PENDING") row.pending += 1;
       map.set(r.standard, row);
     }
-    const extra = [...map.keys()].filter((s) => !LEVELS.includes(s)).sort();
-    return [...LEVELS, ...extra].map((standard) => ({
+    const extra = [...map.keys()].filter((s) => !levels.includes(s)).sort();
+    return [...levels, ...extra].map((standard) => ({
       standard,
       ...(map.get(standard) ?? { total: 0, approved: 0, pending: 0, rejected: 0, uploaded: 0 }),
     }));
-  }, [roster]);
+  }, [roster, levels]);
 
   // The overview search box narrows down which standard cards show — it
   // never touches the counts on them, so it stays a pure display filter.
@@ -385,7 +506,7 @@ export function ResultsClient({
     setVerify(null);
   }
 
-  async function toggleDrive(field: "isOpen" | "isPublished") {
+  async function toggleDrive(field: "isOpen") {
     if (!currentDrive) return;
     const res = await api.patch(`/api/admin/result-drives`, {
       id: currentDrive.id,
@@ -461,86 +582,110 @@ export function ResultsClient({
 
   const streamTabs = useMemo(() => {
     if (!activeStd || !STREAM_STANDARDS.has(activeStd)) return [];
-    return (["all", "Science", "Commerce"] as const).map((v) => ({
+    const streams = standardStreams[activeStd] ?? DEFAULT_STREAMS.map((s) => s.nameEn);
+    return ["all", ...streams].map((v) => ({
       value: v,
       label: v === "all" ? t("res.tabAll") : streamLabel(v, lang),
       count: roster.filter(
         (r) => r.standard === activeStd && (v === "all" || (r.stream || "") === v),
       ).length,
     }));
-  }, [activeStd, roster, t, lang]);
+  }, [activeStd, roster, t, lang, standardStreams]);
+
+  const headerBack =
+    view === "final"
+      ? { onClick: () => go({ std: null, view: null }), label: t("res.backToDashboard") }
+      : view === "merit"
+        ? { onClick: () => go({ view: null }), label: tf("res.backTo", { name: levelLabel(activeStd || "", lang) }) }
+        : null;
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <AdminH2 className="mb-0">
-          {t("nav.results")}{" "}
-          {currentDrive ? (
+      <div
+        className={cn(
+          "mb-4 flex flex-wrap items-center justify-between gap-3",
+          (view === "final" || view === "merit") && "print:hidden",
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          {headerBack && (
+            <button
+              type="button"
+              onClick={headerBack.onClick}
+              aria-label={headerBack.label}
+              title={headerBack.label}
+              className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--line-admin)] bg-white text-[var(--ink)] shadow-sm transition-colors print:hidden hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]"
+            >
+              <ChevronLeft className="size-5" strokeWidth={2.4} />
+            </button>
+          )}
+          <AdminH2 className="mb-0">
+            {t("nav.results")}{" "}
+            {currentDrive ? (
+              <>
+                — {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)}{" "}
+                {currentDrive.isOpen ? (
+                  <PillActive>{t("res.driveOpen")}</PillActive>
+                ) : (
+                  <PillExpired>{t("res.driveClosed")}</PillExpired>
+                )}
+              </>
+            ) : null}
+          </AdminH2>
+        </div>
+        <span className="flex flex-wrap items-center gap-2 print:hidden">
+          {currentDrive && view === "overview" && (
             <>
-              — {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)}{" "}
-              {currentDrive.isOpen ? (
-                <PillActive>{t("res.driveOpen")}</PillActive>
-              ) : (
-                <PillExpired>{t("res.driveClosed")}</PillExpired>
-              )}
+              <SearchInput
+                value={standardQuery}
+                onChange={setStandardQuery}
+                placeholder={t("res.searchStandard")}
+                className="min-w-0 md:w-[220px]"
+              />
+              <AdminSelect
+                value={currentDrive.id}
+                onChange={(v) => router.push(`/admin/results?drive=${v}`)}
+                ariaLabel={t("res.selectDriveYear")}
+                className="w-[190px] shrink-0"
+                options={driveOptions}
+              />
             </>
-          ) : null}
-        </AdminH2>
-        <span className="flex gap-2">
-          <AdminBtn variant="ghost" onClick={() => { setNewOpen(true); setError(null); }}>
-            <Plus className="size-4" />
-            {t("res.newDrive")}
-          </AdminBtn>
-          <AdminBtn onClick={() => go({ view: "final", std: null })}>🏆 {t("res.finalResult")}</AdminBtn>
+          )}
+          {view === "final" ? (
+            <AdminBtn onClick={() => window.print()}>
+              <Printer className="size-4 shrink-0" />
+              {t("res.printFinal")}
+            </AdminBtn>
+          ) : view === "merit" ? (
+            <AdminBtn onClick={() => window.print()}>
+              <Printer className="size-4 shrink-0" />
+              {t("res.printPdf")}
+            </AdminBtn>
+          ) : (
+            <>
+              {currentDrive && (
+                <AdminBtn
+                  variant={currentDrive.isOpen ? "danger" : "success"}
+                  onClick={() => (currentDrive.isOpen ? setCloseDriveOpen(true) : void reopenDrive())}
+                  className="whitespace-nowrap"
+                >
+                  {currentDrive.isOpen ? (
+                    <Lock className="size-4 shrink-0" />
+                  ) : (
+                    <Unlock className="size-4 shrink-0" />
+                  )}
+                  {currentDrive.isOpen ? t("res.closeDrive") : t("res.reopenDrive")}
+                </AdminBtn>
+              )}
+              <AdminBtn variant="ghost" onClick={() => { setNewOpen(true); setError(null); }}>
+                <Plus className="size-4" />
+                {t("res.newDrive")}
+              </AdminBtn>
+              <AdminBtn onClick={() => go({ view: "final", std: null })}>🏆 {t("res.finalResult")}</AdminBtn>
+            </>
+          )}
         </span>
       </div>
-
-      {currentDrive && view === "overview" && (
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            <AdminBtn
-              variant={currentDrive.isOpen ? "danger" : "success"}
-              onClick={() => (currentDrive.isOpen ? setCloseDriveOpen(true) : void reopenDrive())}
-              className="whitespace-nowrap"
-            >
-              {currentDrive.isOpen ? (
-                <Lock className="size-4 shrink-0" />
-              ) : (
-                <Unlock className="size-4 shrink-0" />
-              )}
-              {currentDrive.isOpen ? t("res.closeDrive") : t("res.reopenDrive")}
-            </AdminBtn>
-            <AdminBtn
-              variant={currentDrive.isPublished ? "danger" : "success"}
-              onClick={() => toggleDrive("isPublished")}
-              className="whitespace-nowrap"
-            >
-              {currentDrive.isPublished ? (
-                <EyeOff className="size-4 shrink-0" />
-              ) : (
-                <FileOutput className="size-4 shrink-0" />
-              )}
-              {currentDrive.isPublished ? t("res.unpublishToppers") : t("res.publishToppers")}
-            </AdminBtn>
-          </div>
-
-          <div className="flex w-full flex-wrap items-center gap-2.5 md:w-auto">
-            <SearchInput
-              value={standardQuery}
-              onChange={setStandardQuery}
-              placeholder={t("res.searchStandard")}
-              className="min-w-0 flex-1 md:w-[220px] md:flex-none"
-            />
-            <AdminSelect
-              value={currentDrive.id}
-              onChange={(v) => router.push(`/admin/results?drive=${v}`)}
-              ariaLabel={t("res.selectDriveYear")}
-              className="w-[190px] shrink-0"
-              options={driveOptions}
-            />
-          </div>
-        </div>
-      )}
 
       {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
@@ -627,68 +772,100 @@ export function ResultsClient({
           )}
 
           {view === "final" && (
-            <>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-                <AdminBtn variant="ghost" onClick={() => go({ std: null, view: null })}>
-                  ‹ {t("res.backToDashboard")}
-                </AdminBtn>
-                <AdminBtn onClick={() => window.print()}>🖨 {t("res.printFinal")}</AdminBtn>
-              </div>
-              <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-6">
-                <h3 className="text-center text-[18px] font-extrabold text-[var(--ink)]">
+            <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-4 shadow-[0_2px_10px_rgba(42,35,32,.04)] sm:p-7">
+              <div className="mb-6 flex flex-col items-center border-b border-[var(--line-soft)] pb-5 text-center">
+                <span
+                  className="mb-2.5 flex size-11 items-center justify-center rounded-full text-white"
+                  style={{ background: "linear-gradient(150deg,#D98A1E,#A62A38)" }}
+                >
+                  <Trophy className="size-5" strokeWidth={2} />
+                </span>
+                <h3 className="text-[19px] font-extrabold text-[var(--ink)]">
                   {t("res.meritReport")} — {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)}
                 </h3>
-                <p className="mb-4 text-center text-[12.5px] text-[var(--faint)]">
+                <p className="mt-1 text-[12.5px] text-[var(--faint)]">
                   {tf("res.academicYearColon", { year: currentDrive.year })}
                 </p>
-                {finalStandards.length === 0 ? (
-                  <p className="py-6 text-center text-[13px] text-[var(--faint)]">{t("res.noApproved")}</p>
-                ) : (
-                  finalStandards.map((std) => (
-                    <section key={std} className="mb-5">
-                      <h4 className="mb-1 rounded-[10px] bg-[#FBFAF7] px-3.5 py-2 text-[14px] font-extrabold text-[var(--ink)]">
-                        {levelLabel(std, lang)}
-                      </h4>
-                      <MeritSections groups={meritOf(std)} />
-                    </section>
-                  ))
-                )}
               </div>
-            </>
+              {finalStandards.length === 0 ? (
+                <p className="py-6 text-center text-[13px] text-[var(--faint)]">{t("res.noApproved")}</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {finalStandards.map((std) => (
+                    <section
+                      key={std}
+                      className={cn(
+                        "overflow-hidden rounded-[16px] border border-[var(--line-soft)] print:break-inside-avoid",
+                        printOnlyStd && printOnlyStd !== std && "print:hidden",
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2 bg-[#FBFAF7] px-4 py-2.5">
+                        <span className="flex min-w-0 items-center gap-2">
+                          <GraduationCap className="size-4 flex-none text-[var(--brand)]" strokeWidth={2.2} />
+                          <h4 className="truncate text-[14.5px] font-extrabold text-[var(--ink)]">
+                            {levelLabel(std, lang)}
+                          </h4>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPrintOnlyStd(std)}
+                          aria-label={tf("res.printStandard", { std: levelLabel(std, lang) })}
+                          title={tf("res.printStandard", { std: levelLabel(std, lang) })}
+                          className="flex size-7 flex-none cursor-pointer items-center justify-center rounded-full text-[var(--faint)] transition-colors print:hidden hover:bg-white hover:text-[var(--brand)]"
+                        >
+                          <Printer className="size-3.5" strokeWidth={2.2} />
+                        </button>
+                      </div>
+                      <div className="p-3.5">
+                        <MeritSections groups={meritOf(std)} />
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {view === "merit" && activeStd && (
-            <>
-              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-                <AdminBtn variant="ghost" onClick={() => go({ view: null })}>
-                  ‹ {tf("res.backTo", { name: levelLabel(activeStd, lang) })}
-                </AdminBtn>
-                <AdminBtn onClick={() => window.print()}>🖨 {t("res.printPdf")}</AdminBtn>
-              </div>
-              <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-6">
-                <h3 className="text-center text-[18px] font-extrabold text-[var(--ink)]">
+            <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-4 shadow-[0_2px_10px_rgba(42,35,32,.04)] sm:p-7">
+              <div className="mb-6 flex flex-col items-center border-b border-[var(--line-soft)] pb-5 text-center">
+                <span
+                  className="mb-2.5 flex size-11 items-center justify-center rounded-full text-white"
+                  style={{ background: "linear-gradient(150deg,#D98A1E,#A62A38)" }}
+                >
+                  <GraduationCap className="size-5" strokeWidth={2} />
+                </span>
+                <h3 className="text-[19px] font-extrabold text-[var(--ink)]">
                   {t("res.meritList")} — {levelLabel(activeStd, lang)}
                 </h3>
-                <p className="mb-4 text-center text-[12.5px] text-[var(--faint)]">
+                <p className="mt-1 text-[12.5px] text-[var(--faint)]">
                   {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)} ·{" "}
                   {tf("res.academicYear", { year: currentDrive.year })}
                 </p>
-                {merit.length === 0 ? (
-                  <p className="py-6 text-center text-[13px] text-[var(--faint)]">{t("res.noApproved")}</p>
-                ) : (
-                  <MeritSections groups={merit} />
-                )}
               </div>
-            </>
+              {merit.length === 0 ? (
+                <p className="py-6 text-center text-[13px] text-[var(--faint)]">{t("res.noApproved")}</p>
+              ) : (
+                <MeritSections groups={merit} />
+              )}
+            </div>
           )}
 
           {view === "standard" && activeStd && (
             <>
-              <AdminBtn variant="ghost" className="mb-2.5" onClick={() => go({ std: null, view: null })}>
-                ‹ {t("res.backToDashboard")}
-              </AdminBtn>
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <AdminH3 className="mb-0">{levelLabel(activeStd, lang)}</AdminH3>
+                <div className="flex min-w-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => go({ std: null, view: null })}
+                    aria-label={t("res.backToDashboard")}
+                    title={t("res.backToDashboard")}
+                    className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--line-admin)] bg-white text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]"
+                  >
+                    <ChevronLeft className="size-5" strokeWidth={2.4} />
+                  </button>
+                  <AdminH3 className="mb-0">{levelLabel(activeStd, lang)}</AdminH3>
+                </div>
                 {stdSummary.allDone && (
                   <AdminBtn onClick={() => go({ view: "merit" })}>🏅 {t("res.viewMeritList")}</AdminBtn>
                 )}

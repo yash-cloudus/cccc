@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Award, FileText, ImagePlus, Loader2 } from "lucide-react";
+import { Award, FileText, ImagePlus, Loader2, Maximize2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
@@ -21,7 +21,6 @@ export type DriveInfo = {
   titleGu: string | null;
   year: number;
   isOpen: boolean;
-  isPublished: boolean;
 };
 
 export type ChildOption = {
@@ -37,6 +36,8 @@ export type ChildOption = {
 export type MyEntry = {
   id: string;
   studentName: string;
+  studentNameEn: string | null;
+  studentNameGu: string | null;
   standard: string;
   percentage: number | null;
   status: "PENDING" | "APPROVED" | "REJECTED" | "RESUBMIT";
@@ -47,6 +48,8 @@ export type MyEntry = {
 export type TopperRow = {
   id: string;
   studentName: string;
+  studentNameEn: string | null;
+  studentNameGu: string | null;
   standard: string;
   percentage: number | null;
   city: string | null;
@@ -288,7 +291,8 @@ function UploadTab({
           : T("માર્કશીટ અપલોડ કરો", "Upload the marksheet"),
       );
     }
-    // Current result is ready — ask what's next before actually submitting.
+    // What's next is compulsory — always ask, even after "Decide later"
+    // backed out of it once. There's no way to submit without answering it.
     setShowNextStandard(true);
   }
 
@@ -434,7 +438,15 @@ function UploadTab({
               </div>
               <div>
                 <Label>{T("મેળવેલ ગુણ", "Obtained marks")}</Label>
-                <NumberInput value={obtained} onChange={setObtained} placeholder="432" />
+                <NumberInput
+                  value={obtained}
+                  onChange={(v) => {
+                    const tot = Number(total);
+                    const o = Number(v);
+                    setObtained(v !== "" && tot > 0 && !Number.isNaN(o) && o > tot ? total : v);
+                  }}
+                  placeholder="432"
+                />
               </div>
             </div>
 
@@ -462,11 +474,15 @@ function UploadTab({
         />
         {/* Show the uploaded file, not just a tick — a parent needs to see that
             the right marksheet went up and that it is legible. */}
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className="mt-3 flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[15px] border-[1.5px] border-dashed border-[var(--brand-line)] bg-[var(--brand-tint-soft)] p-2.5 text-[var(--brand)] disabled:opacity-60"
+        <div
+          role="button"
+          tabIndex={uploading ? -1 : 0}
+          onClick={() => !uploading && fileRef.current?.click()}
+          onKeyDown={(e) => {
+            if (!uploading && (e.key === "Enter" || e.key === " ")) fileRef.current?.click();
+          }}
+          aria-disabled={uploading}
+          className="relative mt-3 flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[15px] border-[1.5px] border-dashed border-[var(--brand-line)] bg-[var(--brand-tint-soft)] p-2.5 text-[var(--brand)] aria-disabled:pointer-events-none aria-disabled:opacity-60"
         >
           {uploading ? (
             <span className="flex h-[120px] flex-col items-center justify-center gap-1.5">
@@ -475,6 +491,18 @@ function UploadTab({
             </span>
           ) : marksheetUrl ? (
             <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(marksheetUrl, "_blank", "noopener,noreferrer");
+                }}
+                aria-label={T("મોટું જુઓ", "View full size")}
+                title={T("મોટું જુઓ", "View full size")}
+                className="absolute right-2.5 top-2.5 z-10 flex size-8 cursor-pointer items-center justify-center rounded-full border border-[var(--brand-line)] bg-white text-[var(--brand)] shadow-sm"
+              >
+                <Maximize2 className="size-4" strokeWidth={2.2} />
+              </button>
               {isPdf(marksheetUrl) ? (
                 <span className="flex h-[120px] w-full flex-col items-center justify-center gap-1.5 rounded-xl bg-white">
                   <FileText className="size-8" strokeWidth={1.6} />
@@ -502,7 +530,7 @@ function UploadTab({
               </span>
             </span>
           )}
-        </button>
+        </div>
       </div>
 
       <button
@@ -523,7 +551,7 @@ function UploadTab({
           studentName={childName(selectedChild, lang)}
           lang={lang}
           busy={busy}
-          onSkip={() => void submitWithNext(null)}
+          onSkip={() => setShowNextStandard(false)}
           onConfirm={(value) => void submitWithNext(value)}
         />
       )}
@@ -585,7 +613,7 @@ function MyUploadsTab({ entries, signedIn }: { entries: MyEntry[]; signedIn: boo
           >
             <div className="min-w-0 flex-1">
               <div className="text-[14px] font-bold text-[var(--ink)]">
-                {e.studentName} · {eduLabel(e.standard, lang)}
+                {pickText(e.studentNameGu, e.studentNameEn, lang) || e.studentName} · {eduLabel(e.standard, lang)}
               </div>
               <div className="mt-0.5 text-[12px] font-medium text-[#938C80]">{note(e)}</div>
             </div>
@@ -622,17 +650,17 @@ function ToppersTab({ drive, rows }: { drive: DriveInfo; rows: TopperRow[] }) {
   const footer = (
     <div className="mt-2 rounded-[14px] border border-[#EFE3CB] bg-[#FDF9F0] px-3.5 py-3 text-[12px] leading-relaxed text-[#8B7A55]">
       {T(
-        "ફક્ત eligible (≥80%) વિદ્યાર્થીઓ દેખાય. Admin publish કરે પછી જ યાદી ખુલે.",
-        "Only eligible (≥80%) students appear. The list opens after the admin publishes it.",
+        "ફક્ત eligible (≥80%) વિદ્યાર્થીઓ દેખાય.",
+        "Only eligible (≥80%) students appear.",
       )}
     </div>
   );
 
-  if (!drive.isPublished || rows.length === 0) {
+  if (!drive.isOpen || rows.length === 0) {
     return (
       <>
         <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
-          {T("પરિણામ હજુ પ્રકાશિત નથી", "Results not published yet")}
+          {T("ટોપર્સ યાદી ઉપલબ્ધ નથી", "Toppers list not available")}
         </p>
         {footer}
       </>
@@ -665,6 +693,7 @@ function ToppersTab({ drive, rows }: { drive: DriveInfo; rows: TopperRow[] }) {
           const rankBg =
             r.rank <= 3 ? RANK_GRADIENTS[r.rank - 1] : "#F0EBE0";
           const rankFg = r.rank <= 3 ? "#fff" : "#8B8375";
+          const name = pickText(r.studentNameGu, r.studentNameEn, lang) || r.studentName;
           return (
             <div
               key={r.id}
@@ -680,11 +709,11 @@ function ToppersTab({ drive, rows }: { drive: DriveInfo; rows: TopperRow[] }) {
                 className="flex size-10 flex-none items-center justify-center rounded-xl text-[15px] font-extrabold"
                 style={{ background: av.bg, color: av.fg }}
               >
-                {r.studentName.trim().charAt(0)}
+                {name.trim().charAt(0)}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[13.5px] font-bold text-[var(--ink)]">
-                  {r.studentName}
+                  {name}
                 </span>
                 {r.city && (
                   <span className="block truncate text-[11.5px] font-medium text-[#938C80]">
