@@ -9,10 +9,12 @@
  * result itself is approved by an admin — see PATCH /api/results.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { PickerWithAdd } from "@/components/ui/picker-with-add";
 import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
 import { HIGHER_STANDARDS, STREAM_STANDARDS, type StudyOutcome } from "@/lib/result-drive";
+import { cn } from "@/lib/utils";
 
 export type NextStandardValue = {
   studyOutcome: StudyOutcome;
@@ -48,6 +50,11 @@ export function NextStandardModal({
   lang?: "en" | "gu";
 }) {
   const T = (en: string, gu: string) => (lang === "gu" ? gu : en);
+  // This modal is its own small scrollable popup — passed to PickerWithAdd
+  // so its open-up/open-down decision is measured against the card, not the
+  // full viewport, or the option list opens downward straight over the
+  // Save / Decide later row instead of flipping up.
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const [outcome, setOutcome] = useState<StudyOutcome | "">(initial?.studyOutcome ?? "");
   const [nextStandard, setNextStandard] = useState(initial?.nextStandard ?? "");
@@ -88,6 +95,7 @@ export function NextStandardModal({
       onClick={onSkip}
     >
       <div
+        ref={cardRef}
         className="max-h-[90vh] w-full max-w-[420px] overflow-y-auto rounded-2xl bg-white shadow-[0_30px_60px_rgba(0,0,0,.34)]"
         onClick={stop}
       >
@@ -128,34 +136,36 @@ export function NextStandardModal({
           {outcome === "PROMOTED" && (
             <>
               <Label>{T("Next standard", "આગળનું ધોરણ")} *</Label>
-              <select
+              <PickerWithAdd
                 value={nextStandard}
-                onChange={(e) => {
-                  setNextStandard(e.target.value);
+                onChange={(v) => {
+                  setNextStandard(v);
                   setNextStream("");
                   setNextCourse("");
                 }}
-                className={FIELD}
-              >
-                <option value="">{T("Select…", "પસંદ કરો…")}</option>
-                {EDUCATION_LEVELS.map((l) => (
-                  <option key={l.nameEn} value={l.nameEn}>
-                    {lang === "gu" ? l.nameGu : l.nameEn}
-                  </option>
-                ))}
-              </select>
+                placeholder={T("Select…", "પસંદ કરો…")}
+                options={EDUCATION_LEVELS.map((l) => ({
+                  value: l.nameEn,
+                  label: lang === "gu" ? l.nameGu : l.nameEn,
+                }))}
+                className={PICKER_CLASS}
+                scrollContainerRef={cardRef}
+              />
 
               {showStream && (
                 <>
                   <Label>{T("Stream", "પ્રવાહ")} *</Label>
-                  <select value={nextStream} onChange={(e) => setNextStream(e.target.value)} className={FIELD}>
-                    <option value="">{T("Select…", "પસંદ કરો…")}</option>
-                    {DEFAULT_STREAMS.map((s) => (
-                      <option key={s.nameEn} value={s.nameEn}>
-                        {lang === "gu" ? `${s.nameGu} (${s.nameEn})` : s.nameEn}
-                      </option>
-                    ))}
-                  </select>
+                  <PickerWithAdd
+                    value={nextStream}
+                    onChange={setNextStream}
+                    placeholder={T("Select…", "પસંદ કરો…")}
+                    options={DEFAULT_STREAMS.map((s) => ({
+                      value: s.nameEn,
+                      label: lang === "gu" ? `${s.nameGu} (${s.nameEn})` : s.nameEn,
+                    }))}
+                    className={PICKER_CLASS}
+                    scrollContainerRef={cardRef}
+                  />
                 </>
               )}
 
@@ -209,3 +219,9 @@ function Label({ children }: { children: React.ReactNode }) {
 
 const FIELD =
   "w-full h-11 rounded-[13px] border-[1.5px] border-[#EDE4D4] bg-[#FCFAF6] px-3.5 text-[13.5px] font-semibold text-[var(--ink)] outline-none";
+
+const PICKER_CLASS = cn(
+  "[&_button]:h-11 [&_button]:rounded-[13px] [&_button]:border-[1.5px]",
+  "[&_button]:border-[#EDE4D4] [&_button]:bg-[#FCFAF6] [&_button]:px-3.5",
+  "[&_button]:text-[13.5px] [&_button]:font-semibold [&_button]:text-[var(--ink)]",
+);

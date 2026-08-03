@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { FileText, ImagePlus, Loader2 } from "lucide-react";
+import { FileText, ImagePlus, Loader2, Maximize2 } from "lucide-react";
 import { AdminModal, AdminModalActions } from "@/components/admin/admin-form";
 import { AdminBtn, AdminInput, AdminLabel } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -141,7 +141,6 @@ export function VerifyResultModal({
                   {[
                     [t("res.thFamily"), row.familyLabel],
                     [t("res.thMobile"), row.mobile || "—"],
-                    [t("res.thSchool"), row.schoolName || "—"],
                     [
                       t("res.standard"),
                       stream && sc ? (
@@ -297,7 +296,6 @@ export function UploadResultModal({
   const fileRef = useRef<HTMLInputElement>(null);
   const isHigher = HIGHER_STANDARDS.has(row.standard);
   const showStream = STREAM_STANDARDS.has(row.standard);
-  const [school, setSchool] = useState(row.schoolName || "");
   const [course, setCourse] = useState(row.course || "");
   const [total, setTotal] = useState(row.totalMarks?.toString() || "");
   const [obtained, setObtained] = useState(row.obtainedMarks?.toString() || "");
@@ -335,7 +333,8 @@ export function UploadResultModal({
     } else if (!course.trim()) {
       return setError(t("res.errCourseName"));
     }
-    // Current result is ready — ask what's next before actually saving.
+    // What's next is compulsory — always ask, even after "Decide later"
+    // backed out of it once. There's no way to save without answering it.
     setShowNextStandard(true);
   }
 
@@ -348,7 +347,6 @@ export function UploadResultModal({
       standard: row.standard,
       stream: row.stream ?? undefined,
       course: isHigher ? course.trim() : undefined,
-      schoolName: school.trim() || undefined,
       ...(isHigher ? {} : { totalMarks: Number(total), obtainedMarks: Number(obtained) }),
       marksheetUrl: marksheetUrl || undefined,
       // Skipping ("Decide later") omits these entirely — on an edit that
@@ -399,7 +397,6 @@ export function UploadResultModal({
     onSaved({
       ...row,
       entryId: entry.id,
-      schoolName: school.trim() || null,
       course: isHigher ? course.trim() : row.course,
       totalMarks: isHigher ? null : Number(total),
       obtainedMarks: isHigher ? null : Number(obtained),
@@ -453,21 +450,37 @@ export function UploadResultModal({
           />
           {/* Show what was actually uploaded — "Uploaded ✓" alone gave no way to
               tell whether the right file went up, or whether it is readable. */}
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="mb-3 flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[13px] border-[1.5px] border-dashed border-[#E1BFC3] bg-[#FDF4F5] p-2 text-[#A62A38] disabled:opacity-60"
+          <div
+            role="button"
+            tabIndex={uploading ? -1 : 0}
+            onClick={() => !uploading && fileRef.current?.click()}
+            onKeyDown={(e) => {
+              if (!uploading && (e.key === "Enter" || e.key === " ")) fileRef.current?.click();
+            }}
+            aria-disabled={uploading}
+            className="relative mb-3 flex w-full cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-[13px] border-[1.5px] border-dashed border-[#E1BFC3] bg-[#FDF4F5] p-2 text-[#A62A38] aria-disabled:pointer-events-none aria-disabled:opacity-60"
           >
             {uploading ? (
-              <span className="flex h-24 items-center justify-center gap-2">
+              <span className="flex h-14 items-center justify-center gap-2">
                 <Loader2 className="size-6 animate-spin" />
                 <span className="text-[13px] font-bold">{t("res.uploading")}</span>
               </span>
             ) : marksheetUrl ? (
               <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(marksheetUrl, "_blank", "noopener,noreferrer");
+                  }}
+                  aria-label={t("res.viewFullSize")}
+                  title={t("res.viewFullSize")}
+                  className="absolute right-2 top-2 z-10 flex size-7 cursor-pointer items-center justify-center rounded-full border border-[#E1BFC3] bg-white text-[#A62A38] shadow-sm transition-colors hover:bg-[#FDF4F5]"
+                >
+                  <Maximize2 className="size-3.5" strokeWidth={2.2} />
+                </button>
                 {isPdf(marksheetUrl) ? (
-                  <span className="flex h-24 w-full flex-col items-center justify-center gap-1.5 rounded-lg bg-white text-[#A62A38]">
+                  <span className="flex h-14 w-full flex-col items-center justify-center gap-1.5 rounded-lg bg-white text-[#A62A38]">
                     <FileText className="size-7" strokeWidth={1.6} />
                     <span className="text-[12px] font-bold">{t("res.pdfUploaded")}</span>
                   </span>
@@ -482,19 +495,12 @@ export function UploadResultModal({
                 <span className="text-[12.5px] font-bold">{t("res.uploadedTapReplace")}</span>
               </>
             ) : (
-              <span className="flex h-24 flex-col items-center justify-center gap-1.5">
+              <span className="flex h-14 flex-col items-center justify-center gap-1.5">
                 <ImagePlus className="size-6" strokeWidth={1.6} />
                 <span className="text-[13px] font-bold">{t("res.tapToUpload")}</span>
               </span>
             )}
-          </button>
-
-          <AdminLabel>{t("res.schoolCollege")}</AdminLabel>
-          <AdminInput
-            value={school}
-            onChange={setSchool}
-            placeholder={t("res.schoolNamePlaceholder")}
-          />
+          </div>
 
           {isHigher && (
             <>
@@ -516,10 +522,18 @@ export function UploadResultModal({
                 </div>
                 <div>
                   <AdminLabel>{t("res.obtainedMarks")}</AdminLabel>
-                  <AdminInput type="number" value={obtained} onChange={setObtained} />
+                  <AdminInput
+                    type="number"
+                    value={obtained}
+                    onChange={(v) => {
+                      const tot = Number(total);
+                      const o = Number(v);
+                      setObtained(v !== "" && tot > 0 && !Number.isNaN(o) && o > tot ? total : v);
+                    }}
+                  />
                 </div>
               </div>
-              <div className="my-3 rounded-xl border border-[#B7E6C6] bg-[#F0FBF3] px-3 py-2.5 text-center">
+              <div className="mt-3 mb-1 rounded-xl border border-[#B7E6C6] bg-[#F0FBF3] px-3 py-2.5 text-center">
                 <div className="text-[22px] font-extrabold text-[#22A45D]">{pct}</div>
                 <div className="text-[11.5px] text-[#6B6357]">auto-calculated</div>
               </div>
@@ -527,7 +541,7 @@ export function UploadResultModal({
           )}
 
           {error && (
-            <div className="mb-3 rounded-[11px] border border-[#EFCED1] bg-[#FCE7E7] px-3 py-2.5 text-[12.5px] font-semibold text-[#B0303A]">
+            <div className="mb-1 rounded-[11px] border border-[#EFCED1] bg-[#FCE7E7] px-3 py-2.5 text-[12.5px] font-semibold text-[#B0303A]">
               {error}
             </div>
           )}
@@ -557,7 +571,7 @@ export function UploadResultModal({
                 }
               : null
           }
-          onSkip={() => void finalizeSave(null)}
+          onSkip={() => setShowNextStandard(false)}
           onConfirm={(value) => void finalizeSave(value)}
         />
       )}

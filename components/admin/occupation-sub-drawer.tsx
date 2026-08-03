@@ -1,9 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState, Fragment } from "react";
-import { Check, ChevronDown, ChevronRight, Loader2, Plus, Pencil, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ListPlus,
+  ListTree,
+  Loader2,
+  Plus,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
+  ActionBtn,
   AdminBtn,
   AdminInput,
   AdminLabel,
@@ -407,11 +418,13 @@ export function OccupationNestedPanel({
           </div>
           <div className="flex flex-wrap gap-2">
             {isQuickPickRoot && (
-              <LinkAction onClick={addAllDefaults}>
-                {busy ? "…" : isStreamRoot ? t("drop.addAllStreams") : t("drop.addAllFields")}
-              </LinkAction>
+              <ActionBtn
+                icon={ListPlus}
+                label={busy ? "…" : isStreamRoot ? t("drop.addAllStreams") : t("drop.addAllFields")}
+                onClick={addAllDefaults}
+              />
             )}
-            <LinkAction onClick={() => openEdit(root.id)}>{t("drop.addPlus")}</LinkAction>
+            <ActionBtn icon={Plus} label={t("drop.addPlus")} onClick={() => openEdit(root.id)} />
           </div>
         </div>
 
@@ -494,22 +507,27 @@ export function OccupationNestedPanel({
                         </AdminTd>
                       )}
                       <AdminTd className="text-right">
-                        <span className="flex flex-wrap justify-end gap-2.5">
+                        <span className="flex flex-nowrap items-center justify-end gap-1.5">
                           {childCanNest && (
-                            <LinkAction
+                            <ActionBtn
+                              icon={ListTree}
+                              label={childOpen ? t("drop.hide") : t("drop.nested")}
                               onClick={() =>
                                 setExpandedChildId((prev) => (prev === node.id ? null : node.id))
                               }
-                            >
-                              {childOpen ? t("drop.hide") : t("drop.nested")}
-                            </LinkAction>
+                            />
                           )}
-                          <LinkAction onClick={() => openEdit(node.parentId, node)}>
-                            {t("common.edit")}
-                          </LinkAction>
-                          <LinkAction danger onClick={() => remove(node)}>
-                            {t("common.delete")}
-                          </LinkAction>
+                          <ActionBtn
+                            icon={Pencil}
+                            label={t("common.edit")}
+                            onClick={() => openEdit(node.parentId, node)}
+                          />
+                          <ActionBtn
+                            icon={Trash2}
+                            label={t("common.delete")}
+                            tone="danger"
+                            onClick={() => remove(node)}
+                          />
                         </span>
                       </AdminTd>
                     </tr>

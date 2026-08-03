@@ -62,7 +62,7 @@ export async function GET(req: Request) {
         ...(standard ? { standard } : {}),
         ...(mine ? { userId: session!.sub } : {}),
         ...(published
-          ? { status: "APPROVED", isEligible: true, drive: { isPublished: true } }
+          ? { status: "APPROVED", isEligible: true, drive: { isOpen: true } }
           : {}),
       },
       orderBy: [{ percentage: "desc" }, { createdAt: "asc" }],
@@ -84,7 +84,6 @@ const schema = z.object({
   standard: z.string().min(1),
   stream: z.string().optional(),
   course: z.string().optional(),
-  schoolName: z.string().optional(),
   totalMarks: z.number().positive().optional(),
   obtainedMarks: z.number().nonnegative().optional(),
   marksheetUrl: z.string().optional(),
@@ -159,7 +158,6 @@ export async function POST(req: Request) {
             studentName: body.studentName,
             stream: body.stream,
             course: body.course,
-            schoolName: body.schoolName,
             totalMarks: body.totalMarks,
             obtainedMarks: body.obtainedMarks,
             marksheetUrl: body.marksheetUrl,
@@ -213,7 +211,6 @@ export async function PATCH(req: Request) {
         standard: z.string().optional(),
         stream: z.string().optional(),
         course: z.string().optional(),
-        schoolName: z.string().optional(),
         totalMarks: z.number().positive().optional(),
         obtainedMarks: z.number().nonnegative().optional(),
         marksheetUrl: z.string().optional(),
@@ -257,7 +254,6 @@ export async function PATCH(req: Request) {
           standard: body.standard ?? existing.standard,
           stream: body.stream ?? existing.stream,
           course: body.course ?? existing.course,
-          schoolName: body.schoolName ?? existing.schoolName,
           totalMarks: body.totalMarks ?? existing.totalMarks,
           obtainedMarks: body.obtainedMarks ?? existing.obtainedMarks,
           marksheetUrl: body.marksheetUrl ?? existing.marksheetUrl,

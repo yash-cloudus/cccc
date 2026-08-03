@@ -666,10 +666,9 @@ export function AdminSelect({
                     {o.label}
                   </SelectPrimitive.ItemText>
                   {o.dot && (
-                    <span
-                      className="inline-block size-[7px] shrink-0 rounded-full bg-[var(--success)]"
-                      title="Live"
-                    />
+                    <span className="shrink-0 text-[11px] font-semibold text-[var(--success)]">
+                      Active
+                    </span>
                   )}
                   <SelectPrimitive.ItemIndicator
                     render={

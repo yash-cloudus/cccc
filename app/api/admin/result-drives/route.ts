@@ -59,7 +59,6 @@ const updateSchema = z.object({
   titleGu: z.string().optional(),
   year: z.number().int().optional(),
   isOpen: z.boolean().optional(),
-  isPublished: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request) {

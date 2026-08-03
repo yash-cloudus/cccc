@@ -129,11 +129,11 @@ export function AdminShell({
 
   return (
     <TooltipProvider delay={120}>
-      <div className="flex h-dvh w-full flex-col overflow-hidden bg-white font-[family-name:var(--font-manrope),var(--font-noto-sans-gujarati),sans-serif]">
-        <div className="flex min-h-0 flex-1">
+      <div className="flex h-dvh w-full flex-col overflow-hidden bg-white font-[family-name:var(--font-manrope),var(--font-noto-sans-gujarati),sans-serif] print:h-auto print:overflow-visible">
+        <div className="flex min-h-0 flex-1 print:block">
           <aside
             className={cn(
-              "relative hidden shrink-0 overflow-visible transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:block",
+              "relative hidden shrink-0 overflow-visible transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:block print:hidden",
               collapsed ? "w-[72px]" : "w-[230px]",
             )}
           >
@@ -276,12 +276,12 @@ export function AdminShell({
             />
           </aside>
 
-          <div className="admin-scroll min-w-0 flex-1 overflow-y-auto bg-white px-8 py-7 max-md:px-[15px] max-md:pb-24 max-md:pt-[18px]">
+          <div className="admin-scroll min-w-0 flex-1 overflow-y-auto bg-white px-8 py-7 max-md:px-[15px] max-md:pb-24 max-md:pt-[18px] print:overflow-visible print:p-0">
             {children}
           </div>
         </div>
 
-        <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-[var(--line-admin)] bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-4px_20px_rgba(30,25,40,.08)] backdrop-blur md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-[var(--line-admin)] bg-white/95 px-1 pb-[env(safe-area-inset-bottom)] pt-1 shadow-[0_-4px_20px_rgba(30,25,40,.08)] backdrop-blur md:hidden print:hidden">
           {MOBILE_PRIMARY_KEYS.map((key) => {
             const item = ADMIN_NAV.find((n) => n.key === key);
             if (!item) return null;

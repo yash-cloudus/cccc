@@ -34,6 +34,7 @@ export function PickerWithAdd({
   syncKey = "picker",
   className,
   t = (_gu, en) => en,
+  scrollContainerRef,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -48,13 +49,21 @@ export function PickerWithAdd({
   syncKey?: string;
   className?: string;
   t?: (gu: string, en: string) => string;
+  /**
+   * Pass the ref of an ancestor scrollable popup (a modal's own card, a
+   * sheet) so the open-up/open-down decision is measured against that
+   * instead of the browser viewport — otherwise a picker near the bottom of
+   * a small modal opens downward over that modal's own footer instead of
+   * flipping up.
+   */
+  scrollContainerRef?: React.RefObject<HTMLElement | null>;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   // The add-new form roughly doubles the popup's height.
-  const up = useFlipUp(open, wrapRef, adding ? 420 : 300);
+  const up = useFlipUp(open, wrapRef, adding ? 420 : 300, scrollContainerRef);
   const [en, setEn] = useState("");
   const [gu, setGu] = useState("");
   const { fromEn, guInput } = useTranslitSync();
