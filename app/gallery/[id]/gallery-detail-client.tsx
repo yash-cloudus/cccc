@@ -14,6 +14,7 @@ export type AlbumDetail = {
   titleEn: string;
   titleGu: string | null;
   description: string | null;
+  descriptionEn: string | null;
   accent: string | null;
   startDateISO: string | null;
   endDateISO: string | null;
@@ -29,7 +30,9 @@ export function GalleryDetailClient({ album }: { album: AlbumDetail }) {
   const photos = `${album.images.length} ${
     lang === "gu" ? "ફોટો" : album.images.length === 1 ? "photo" : "photos"
   }`;
-  const subtitle = [date, photos, album.description].filter(Boolean).join(" · ");
+  const subtitle = [date, photos, pickText(album.description, album.descriptionEn, lang)]
+    .filter(Boolean)
+    .join(" · ");
 
   const step = useCallback(
     (dir: 1 | -1) =>

@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { WithTooltip } from "@/components/ui/tooltip";
 import { storedOccupationPath } from "@/lib/cascading-occupation";
 import { REJECT_REASONS } from "@/lib/constants";
 import { api } from "@/lib/http";
@@ -49,6 +50,7 @@ export type QueueRow = {
   /** ISO timestamp — formatted client-side, in the admin's language. */
   submitted: string;
   status: "PENDING" | "APPROVED" | "REJECTED";
+  rejectReason?: string | null;
 };
 
 export type FieldChange = {
@@ -176,7 +178,7 @@ export function QueueClient({
     const q = query.trim().toLowerCase();
     return rows.filter(
       (f) =>
-        (status === "all" || f.status === status) &&
+        (status === "all" ? f.status !== "APPROVED" : f.status === status) &&
         (city === "all" || f.city === city) &&
         (!q ||
           (f.headEn + (f.headGu ?? "") + f.surnameEn + (f.surnameGu ?? "") + f.city)
@@ -238,7 +240,7 @@ export function QueueClient({
       setError(res.error);
       return;
     }
-    setRows((prev) => prev.map((f) => (f.id === id ? { ...f, status: "REJECTED" } : f)));
+    setRows((prev) => prev.map((f) => (f.id === id ? { ...f, status: "REJECTED", rejectReason } : f)));
     setRejectId(null);
     setApproveId(null);
     setDetail(null);
@@ -271,7 +273,7 @@ export function QueueClient({
         <div className="inline-flex gap-1 rounded-xl bg-[var(--surface-admin)] p-1">
           {(
             [
-              { key: "new" as const, label: tf("queue.tabNew", { n: rows.length }) },
+              { key: "new" as const, label: tf("queue.tabNew", { n: qc.pending + qc.rejected }) },
               {
                 key: "updates" as const,
                 label: tf("queue.tabUpdates", {
@@ -381,7 +383,18 @@ export function QueueClient({
             key: "status",
             header: t("queue.status"),
             badge: true,
-            cell: (r) => <StatusPill status={lower(r.status)} />,
+            cell: (r) => (
+              <>
+                <StatusPill status={lower(r.status)} />
+                {r.status === "REJECTED" && r.rejectReason && (
+                  <WithTooltip label={r.rejectReason} side="top">
+                    <div className="mt-1 line-clamp-1 max-w-[250px] text-[11px] text-[var(--faint)]">
+                      {r.rejectReason}
+                    </div>
+                  </WithTooltip>
+                )}
+              </>
+            ),
           },
           {
             key: "action",
@@ -414,9 +427,13 @@ export function QueueClient({
                   />
                 </div>
               ) : (
-                <span className="text-[11.5px] text-[var(--faint)] md:flex md:justify-end">
-                  {r.status === "APPROVED" ? t("queue.approved") : t("queue.rejected")}
-                </span>
+                <div className="flex flex-wrap items-center gap-1.5 md:justify-end">
+                  <ActionBtn
+                    icon={Eye}
+                    label={t("common.view")}
+                    onClick={() => { window.location.href = `/admin/queue/${r.id}`; }}
+                  />
+                </div>
               ),
           },
         ]}

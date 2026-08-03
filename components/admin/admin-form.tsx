@@ -44,11 +44,11 @@ export function AdminModal({
   icon?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  width?: "sm" | "md" | "lg";
+  width?: "sm" | "md" | "lg" | "xl";
   /** Opt back in to closing on a backdrop click. Off by default — see below. */
   dismissible?: boolean;
 }) {
-  const max = { sm: "380px", md: "520px", lg: "680px" }[width];
+  const max = { sm: "380px", md: "520px", lg: "680px", xl: "920px" }[width];
   const heading = (
     <>
       <DialogTitle className="text-base font-extrabold text-[var(--ink)]">
@@ -74,11 +74,13 @@ export function AdminModal({
         onClose();
       }}
     >
+      {/* Header and footer are pinned; only the field area scrolls, so a long
+          form (album, premium ad) never pushes Save off the screen. */}
       <DialogContent
-        className="max-h-[90vh] overflow-y-auto rounded-2xl"
+        className="flex max-h-[88dvh] flex-col gap-0 overflow-hidden rounded-2xl p-0"
         style={{ maxWidth: max }}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0 border-b border-[var(--line-soft)] px-5 pt-5 pr-12 pb-4">
           {icon ? (
             <div className="flex items-center gap-3">
               {icon}
@@ -88,8 +90,12 @@ export function AdminModal({
             heading
           )}
         </DialogHeader>
-        <div>{children}</div>
-        {footer && <div className="mt-5 flex flex-wrap gap-2.5">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {footer && (
+          <div className="shrink-0 flex flex-wrap gap-2.5 border-t border-[var(--line-soft)] bg-[var(--surface-admin)] px-5 py-3.5">
+            {footer}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

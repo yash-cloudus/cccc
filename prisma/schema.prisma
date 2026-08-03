@@ -632,7 +632,10 @@ model GalleryAlbum {
   communityId String
   titleEn     String
   titleGu     String?
-  description String?        @db.Text
+  /// Gujarati description. Kept as `description` (not `descriptionGu`) so the
+  /// existing rows need no data migration; `descriptionEn` is the English side.
+  description   String?      @db.Text
+  descriptionEn String?      @db.Text
   coverUrl    String?
   accent      String?
   startDate   DateTime?

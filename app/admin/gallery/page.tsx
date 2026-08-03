@@ -20,6 +20,7 @@ export default async function GalleryPage() {
     endDateISO: a.endDate ? a.endDate.toISOString() : null,
     youtubeUrl: a.youtubeUrl,
     description: a.description,
+    descriptionEn: a.descriptionEn,
     isVisible: a.isVisible,
     photos: a._count.images,
     images: a.images.map((i) => ({ imageUrl: i.imageUrl, caption: i.caption })),

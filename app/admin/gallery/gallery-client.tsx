@@ -54,6 +54,7 @@ export type AlbumRow = {
   endDateISO: string | null;
   youtubeUrl: string | null;
   description: string | null;
+  descriptionEn: string | null;
   isVisible: boolean;
   photos: number;
   images: AlbumImage[];
@@ -69,6 +70,7 @@ type Draft = {
   coverUrl: string;
   youtubeUrl: string;
   description: string;
+  descriptionEn: string;
   isVisible: boolean;
   images: string[];
 };
@@ -83,6 +85,7 @@ const emptyDraft: Draft = {
   coverUrl: "",
   youtubeUrl: "",
   description: "",
+  descriptionEn: "",
   isVisible: true,
   images: [],
 };
@@ -96,7 +99,9 @@ const isExpired = (endDateISO: string | null) =>
  * expired, amber inside the last 10 days, otherwise the card's normal text colour. */
 function endDateUrgencyClass(endDateISO: string | null): string {
   if (!endDateISO) return "";
-  const daysLeft = Math.ceil((new Date(endDateISO).getTime() - Date.now()) / 86_400_000);
+  const daysLeft = Math.ceil(
+    (new Date(endDateISO).getTime() - Date.now()) / 86_400_000,
+  );
   if (daysLeft < 0) return "text-[var(--danger)]";
   if (daysLeft <= 10) return "text-[var(--warn)]";
   return "";
@@ -111,7 +116,9 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "visible" | "expired">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "visible" | "expired"
+  >("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const statusFilterOptions = [
@@ -134,7 +141,8 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
 
     return rows.filter((a) => {
       const expired = isExpired(a.endDateISO);
-      if (statusFilter === "visible" && !(a.isVisible && !expired)) return false;
+      if (statusFilter === "visible" && !(a.isVisible && !expired))
+        return false;
       if (statusFilter === "expired" && !expired) return false;
 
       if (!term) return true;
@@ -162,6 +170,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       coverUrl: a.coverUrl || "",
       youtubeUrl: a.youtubeUrl || "",
       description: a.description || "",
+      descriptionEn: a.descriptionEn || "",
       isVisible: a.isVisible,
       images: a.images.map((i) => i.imageUrl),
     });
@@ -188,12 +197,16 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       coverUrl: draft.coverUrl || undefined,
       youtubeUrl: draft.youtubeUrl || undefined,
       description: draft.description || undefined,
+      descriptionEn: draft.descriptionEn || undefined,
       isVisible: draft.isVisible,
       images: draft.images.map((imageUrl) => ({ imageUrl })),
     };
 
     const res = draft.id
-      ? await api.patch<{ id: string }>(`/api/gallery`, { id: draft.id, ...payload })
+      ? await api.patch<{ id: string }>(`/api/gallery`, {
+          id: draft.id,
+          ...payload,
+        })
       : await api.post<{ id: string }>(`/api/gallery`, payload);
 
     setBusy(false);
@@ -207,6 +220,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       accent: draft.accent,
       youtubeUrl: draft.youtubeUrl || null,
       description: draft.description || null,
+      descriptionEn: draft.descriptionEn || null,
       isVisible: draft.isVisible,
       photos: draft.images.length,
       images: draft.images.map((imageUrl) => ({ imageUrl, caption: null })),
@@ -215,7 +229,9 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
     };
 
     setRows((prev) =>
-      draft.id ? prev.map((r) => (r.id === draft.id ? row : r)) : [row, ...prev],
+      draft.id
+        ? prev.map((r) => (r.id === draft.id ? row : r))
+        : [row, ...prev],
     );
     setDraft(null);
     toast.success(draft.id ? t("gal.toastUpdated") : t("gal.toastCreated"));
@@ -231,10 +247,14 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
       tone: next ? "primary" : "danger",
     });
     if (!ok) return;
-    setRows((prev) => prev.map((r) => (r.id === a.id ? { ...r, isVisible: next } : r)));
+    setRows((prev) =>
+      prev.map((r) => (r.id === a.id ? { ...r, isVisible: next } : r)),
+    );
     const res = await api.patch(`/api/gallery`, { id: a.id, isVisible: next });
     if (!res.ok) {
-      setRows((prev) => prev.map((r) => (r.id === a.id ? { ...r, isVisible: !next } : r)));
+      setRows((prev) =>
+        prev.map((r) => (r.id === a.id ? { ...r, isVisible: !next } : r)),
+      );
       toast.error(res.error || t("gal.errUpdate"));
       return;
     }
@@ -289,7 +309,9 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
           <div className="hidden items-center gap-2.5 md:flex">
             <AdminSelect
               value={statusFilter}
-              onChange={(v) => setStatusFilter(v as "all" | "visible" | "expired")}
+              onChange={(v) =>
+                setStatusFilter(v as "all" | "visible" | "expired")
+              }
               options={statusFilterOptions}
               className="w-[150px] shrink-0"
               ariaLabel={t("gal.filterByStatus")}
@@ -300,7 +322,10 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
             </AdminBtn>
           </div>
         </div>
-        <AdminBtn className="w-full justify-center md:hidden" onClick={openCreate}>
+        <AdminBtn
+          className="w-full justify-center md:hidden"
+          onClick={openCreate}
+        >
           <Plus className="size-4" />
           {t("gal.createAlbum")}
         </AdminBtn>
@@ -314,7 +339,9 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
           <div className="flex flex-col gap-3 px-4 pb-4">
             <AdminSelect
               value={statusFilter}
-              onChange={(v) => setStatusFilter(v as "all" | "visible" | "expired")}
+              onChange={(v) =>
+                setStatusFilter(v as "all" | "visible" | "expired")
+              }
               options={statusFilterOptions}
               className="w-full"
               ariaLabel={t("gal.filterByStatus")}
@@ -350,10 +377,17 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
               >
                 {a.coverUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={a.coverUrl} alt="" className="size-full object-cover" />
+                  <img
+                    src={a.coverUrl}
+                    alt=""
+                    className="size-full object-cover"
+                  />
                 ) : (
                   <span className="flex size-full items-center justify-center">
-                    <ImageIcon className="size-8 text-white/85" strokeWidth={1.6} />
+                    <ImageIcon
+                      className="size-8 text-white/85"
+                      strokeWidth={1.6}
+                    />
                   </span>
                 )}
               </div>
@@ -376,8 +410,11 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                       </>
                     ) : (
                       "—"
-                    )}{" "}
-                    · {tf(a.photos === 1 ? "gal.photoOne" : "gal.photoMany", { n: a.photos })}
+                    )}
+                    <span className="mx-1">&middot;</span>
+                    {tf(a.photos === 1 ? "gal.photoOne" : "gal.photoMany", {
+                      n: a.photos,
+                    })}
                     {a.youtubeUrl ? ` · ${t("gal.video")}` : ""}
                   </p>
                   <span
@@ -430,6 +467,7 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
         onClose={() => setDraft(null)}
         title={draft?.id ? t("gal.editAlbum") : t("gal.newAlbum")}
         subtitle={t("gal.modalSubtitle")}
+        width="xl"
         footer={
           <AdminModalActions
             onSave={saveAlbum}
@@ -441,105 +479,150 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
         }
       >
         {draft && (
-          <>
-            <AdminField label={t("gal.folderNameGu")} required>
-              <AdminInput
-                gujarati
-                value={draft.titleGu}
-                placeholder={t("gal.folderNamePlaceholder")}
-                onChange={(v) => {
-                  setDraft((d) => (d ? { ...d, titleGu: v } : d));
-                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
-                }}
-              />
-            </AdminField>
-
-            <AdminField label={t("gal.folderNameEn")}>
-              <AdminInput
-                value={draft.titleEn}
-                placeholder={t("gal.folderNamePlaceholder")}
-                onChange={(v) => {
-                  setDraft((d) => (d ? { ...d, titleEn: v } : d));
-                  fromEn(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)));
-                }}
-              />
-            </AdminField>
-
-            <AdminFormRow>
-              <AdminField label={t("gal.startDate")}>
-                <DateField
-                  variant="admin"
-                  value={draft.startDate}
-                  min={draft.id ? undefined : todayISO()}
-                  onChange={(v) => setDraft({ ...draft, startDate: v })}
+          /* Wide screens split the form: details on the left, images on the
+             right. Below `lg` it collapses back to one column. */
+          <div className="grid gap-x-6 lg:grid-cols-2">
+            <div className="min-w-0">
+              <AdminField label={t("gal.folderNameEn")}>
+                <AdminInput
+                  speech
+                  value={draft.titleEn}
+                  placeholder={t("gal.folderNamePlaceholder")}
+                  onChange={(v) => {
+                    setDraft((d) => (d ? { ...d, titleEn: v } : d));
+                    fromEn(v, (gu) =>
+                      setDraft((d) => (d ? { ...d, titleGu: gu } : d)),
+                    );
+                  }}
                 />
               </AdminField>
-              <AdminField label={t("gal.endDate")} hint={t("gal.endDateHint")}>
-                <DateField
-                  variant="admin"
-                  value={draft.endDate}
-                  min={draft.startDate || (draft.id ? undefined : todayISO())}
-                  onChange={(v) => setDraft({ ...draft, endDate: v })}
+
+              <AdminField label={t("gal.folderNameGu")} required>
+                <AdminInput
+                  gujarati
+                  value={draft.titleGu}
+                  placeholder={t("gal.folderNamePlaceholder")}
+                  onChange={(v) => {
+                    setDraft((d) => (d ? { ...d, titleGu: v } : d));
+                    guInput(
+                      v,
+                      (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)),
+                      "title:gu",
+                    );
+                  }}
                 />
               </AdminField>
-            </AdminFormRow>
 
-            <AdminField label={t("gal.accentColor")}>
-              <AdminColorSelect
-                value={draft.accent}
-                onChange={(v) => setDraft({ ...draft, accent: v })}
-                className="w-full"
-                options={accents}
-              />
-            </AdminField>
+              <AdminFormRow>
+                <AdminField label={t("gal.startDate")}>
+                  <DateField
+                    variant="admin"
+                    value={draft.startDate}
+                    min={draft.id ? undefined : todayISO()}
+                    onChange={(v) => setDraft({ ...draft, startDate: v })}
+                  />
+                </AdminField>
+                <AdminField
+                  label={t("gal.endDate")}
+                  hint={t("gal.endDateHint")}
+                >
+                  <DateField
+                    variant="admin"
+                    value={draft.endDate}
+                    min={draft.startDate || (draft.id ? undefined : todayISO())}
+                    onChange={(v) => setDraft({ ...draft, endDate: v })}
+                  />
+                </AdminField>
+              </AdminFormRow>
 
-            <AdminField label={t("gal.descGu")}>
-              <AdminInput
-                value={draft.description}
-                placeholder={t("gal.descPlaceholder")}
-                onChange={(v) => setDraft({ ...draft, description: v })}
-              />
-            </AdminField>
+              <AdminField label={t("gal.accentColor")}>
+                <AdminColorSelect
+                  value={draft.accent}
+                  onChange={(v) => setDraft({ ...draft, accent: v })}
+                  className="w-full"
+                  options={accents}
+                />
+              </AdminField>
 
-            <AdminField label={t("gal.status")}>
-              <AdminSegmented
-                value={draft.isVisible ? "active" : "hidden"}
-                onChange={(v) => setDraft({ ...draft, isVisible: v === "active" })}
-                options={[
-                  { value: "active", label: t("gal.active") },
-                  { value: "hidden", label: t("gal.hidden") },
-                ]}
-              />
-            </AdminField>
+              <AdminField label={t("gal.descEn")}>
+                <AdminInput
+                  speech
+                  multiline
+                  value={draft.descriptionEn}
+                  placeholder={t("gal.descPlaceholder")}
+                  onChange={(v) => {
+                    setDraft((d) => (d ? { ...d, descriptionEn: v } : d));
+                    fromEn(
+                      v,
+                      (gu) =>
+                        setDraft((d) => (d ? { ...d, description: gu } : d)),
+                      "desc",
+                    );
+                  }}
+                />
+              </AdminField>
 
-            <AdminField label={t("gal.coverImage")}>
-              <AdminFilePicker
-                value={draft.coverUrl}
-                folder="gallery"
-                hint={t("gal.coverHint")}
-                onChange={(url) => setDraft((d) => (d ? { ...d, coverUrl: url } : d))}
-              />
-            </AdminField>
+              <AdminField label={t("gal.descGu")}>
+                <AdminInput
+                  gujarati
+                  multiline
+                  value={draft.description}
+                  placeholder={t("gal.descPlaceholder")}
+                  onChange={(v) => setDraft({ ...draft, description: v })}
+                />
+              </AdminField>
 
-            <AdminField label={t("gal.youtubeUrl")}>
-              <AdminInput
-                value={draft.youtubeUrl}
-                onChange={(v) => setDraft({ ...draft, youtubeUrl: v })}
-              />
-            </AdminField>
+              <AdminField label={t("gal.status")}>
+                <AdminSegmented
+                  value={draft.isVisible ? "active" : "hidden"}
+                  onChange={(v) =>
+                    setDraft({ ...draft, isVisible: v === "active" })
+                  }
+                  options={[
+                    { value: "active", label: t("gal.active") },
+                    { value: "hidden", label: t("gal.hidden") },
+                  ]}
+                />
+              </AdminField>
+            </div>
 
-            <AdminField
-              label={tf("gal.photosCount", { n: draft.images.length })}
-              hint={t("gal.photosHint")}
-            >
-              <AdminMultiImagePicker
-                images={draft.images}
-                onChange={(next) => setDraft((d) => (d ? { ...d, images: next } : d))}
-              />
-            </AdminField>
+            <div className="min-w-0">
+              <AdminField label={t("gal.coverImage")}>
+                <AdminFilePicker
+                  value={draft.coverUrl}
+                  folder="gallery"
+                  hint={t("gal.coverHint")}
+                  onChange={(url) =>
+                    setDraft((d) => (d ? { ...d, coverUrl: url } : d))
+                  }
+                />
+              </AdminField>
 
-            {error && <p className="text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
-          </>
+              <AdminField
+                label={tf("gal.photosCount", { n: draft.images.length })}
+              >
+                <AdminMultiImagePicker
+                  images={draft.images}
+                  onChange={(next) =>
+                    setDraft((d) => (d ? { ...d, images: next } : d))
+                  }
+                />
+              </AdminField>
+
+              <AdminField label={t("gal.youtubeUrl")}>
+                <AdminInput
+                  value={draft.youtubeUrl}
+                  onChange={(v) => setDraft({ ...draft, youtubeUrl: v })}
+                />
+              </AdminField>
+
+              {error && (
+                <p className="text-[12.5px] font-semibold text-[var(--danger)]">
+                  {error}
+                </p>
+              )}
+            </div>
+          </div>
         )}
       </AdminModal>
 
@@ -558,7 +641,11 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
             >
               {preview.coverUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={preview.coverUrl} alt="" className="h-full w-full object-cover" />
+                <img
+                  src={preview.coverUrl}
+                  alt=""
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 <ImageIcon className="size-11" strokeWidth={1.6} />
               )}
@@ -592,7 +679,8 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
               <p className="mt-1 text-[11.5px] font-semibold text-[var(--faint)]">
                 {preview.startDateISO || preview.endDateISO ? (
                   <>
-                    {preview.startDateISO && formatDateDMY(preview.startDateISO)}
+                    {preview.startDateISO &&
+                      formatDateDMY(preview.startDateISO)}
                     {preview.startDateISO && preview.endDateISO && " – "}
                     {preview.endDateISO && (
                       <span className={endDateUrgencyClass(preview.endDateISO)}>
@@ -602,8 +690,11 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                   </>
                 ) : (
                   "—"
-                )}{" "}
-                · {tf(preview.photos === 1 ? "gal.photoOne" : "gal.photoMany", { n: preview.photos })}
+                )}
+                <span className="mx-1">&middot;</span>
+                {tf(preview.photos === 1 ? "gal.photoOne" : "gal.photoMany", {
+                  n: preview.photos,
+                })}
               </p>
               {preview.description && (
                 <p className="mt-3 whitespace-pre-line text-[13.5px] leading-relaxed text-[var(--ink-soft)]">
@@ -623,7 +714,11 @@ export function GalleryClient({ initialRows }: { initialRows: AlbumRow[] }) {
                       className="relative overflow-hidden rounded-[10px] border border-[var(--line)]"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.imageUrl} alt={img.caption || ""} className="h-16 w-full object-cover" />
+                      <img
+                        src={img.imageUrl}
+                        alt={img.caption || ""}
+                        className="h-16 w-full object-cover"
+                      />
                       <a
                         href={img.imageUrl}
                         target="_blank"

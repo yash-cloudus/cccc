@@ -183,7 +183,7 @@ export function PickerWithAdd({
                     guInput(v, setGu, `${syncKey}:gu`);
                   }}
                   placeholder={t("ગુજરાતીમાં…", "In Gujarati…")}
-                  inputClassName="h-10 w-full rounded-[10px] border border-[var(--line-field)] bg-[var(--field)] px-2.5 text-[13px] font-[family-name:var(--font-noto-sans-gujarati)] outline-none"
+                  inputClassName="h-10 w-full rounded-[10px] border border-[var(--line-field)] bg-[var(--field)] px-2.5 text-[13px] font-[family-name:var(--font-manrope),var(--font-noto-sans-gujarati),sans-serif] outline-none"
                 />
                 <div className="flex gap-2">
                   <button

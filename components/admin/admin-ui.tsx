@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Search, ChevronDown, Check, Info, SlidersHorizontal, type LucideIcon } from "lucide-react";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
-import { SpeechInput } from "@/components/ui/speech-input";
+import { SpeechInput, SpeechTextarea } from "@/components/ui/speech-input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAdminT } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
@@ -463,6 +463,8 @@ export function AdminInput({
   speech,
   onBlur,
   min,
+  multiline,
+  rows = 3,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -476,7 +478,14 @@ export function AdminInput({
   onBlur?: () => void;
   /** Minimum value for `type="number"` inputs. */
   min?: number | string;
+  /** Renders a textarea instead — description fields keep the same chrome. */
+  multiline?: boolean;
+  rows?: number;
 }) {
+  // A textarea grows, so drop the fixed height and give the text some top padding.
+  const boxClass = multiline
+    ? ADMIN_INPUT_CLASS.replace("h-[42px]", "min-h-[80px] py-2.5 leading-relaxed")
+    : ADMIN_INPUT_CLASS;
   if (gujarati) {
     return (
       <GujaratiInput
@@ -484,8 +493,10 @@ export function AdminInput({
         onChange={onChange}
         onBlur={onBlur}
         placeholder={placeholder}
+        multiline={multiline}
+        rows={multiline ? rows : undefined}
         inputClassName={cn(
-          ADMIN_INPUT_CLASS,
+          boxClass,
           "font-[family-name:var(--font-noto-sans-gujarati)]",
           className,
         )}
@@ -493,13 +504,33 @@ export function AdminInput({
     );
   }
   if (speech) {
-    return (
+    return multiline ? (
+      <SpeechTextarea
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        rows={rows}
+        textareaClassName={cn(boxClass, className)}
+      />
+    ) : (
       <SpeechInput
         value={value}
         onChange={onChange}
         onBlur={onBlur}
         placeholder={placeholder}
-        inputClassName={cn(ADMIN_INPUT_CLASS, className)}
+        inputClassName={cn(boxClass, className)}
+      />
+    );
+  }
+  if (multiline) {
+    return (
+      <textarea
+        value={value}
+        placeholder={placeholder}
+        rows={rows}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        className={cn(boxClass, className)}
       />
     );
   }

@@ -95,8 +95,8 @@ export function SidebarLangToggle({ collapsed = false }: { collapsed?: boolean }
       aria-label="Language"
       className="flex w-full items-center gap-1 rounded-[10px] bg-[var(--brand-tint)]/60 p-1"
     >
-      <Languages className="ml-1 size-3.5 shrink-0 text-[var(--faint)]" strokeWidth={2.2} aria-hidden />
-      {OPTIONS.map(({ key, label, title }) => (
+      {/* Force HMR rebuild to fix hydration mismatch */}
+      {OPTIONS.map(({ key, title }) => (
         <button
           key={key}
           type="button"
@@ -105,14 +105,14 @@ export function SidebarLangToggle({ collapsed = false }: { collapsed?: boolean }
           aria-pressed={lang === key}
           onClick={() => setLang(key)}
           className={cn(
-            "flex-1 cursor-pointer rounded-[8px] px-1 py-1.5 text-[11px] font-extrabold leading-none transition-colors",
+            "flex h-8 flex-1 cursor-pointer items-center justify-center rounded-[8px] border text-[13px] font-bold leading-none transition-all",
             key === "gu" && "font-[family-name:var(--font-noto-sans-gujarati)]",
             lang === key
-              ? "bg-white text-[var(--brand)] shadow-sm"
-              : "text-[var(--muted)] hover:text-[var(--ink)]",
+              ? "border-[var(--brand)]/30 bg-white text-[var(--brand)] shadow-sm"
+              : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]",
           )}
         >
-          {label}
+          {title}
         </button>
       ))}
     </div>

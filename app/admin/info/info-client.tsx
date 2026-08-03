@@ -678,7 +678,7 @@ export function InfoClient({
               setField("descGu", v);
               guInput(v, (gu) => setField("descGu", gu), "desc:gu");
             }}
-            inputClassName="flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent pl-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm min-h-[90px] border-[var(--line-field)] bg-[var(--field)] text-[13px] font-[family-name:var(--font-noto-sans-gujarati)]"
+            inputClassName="flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent pl-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm min-h-[90px] border-[var(--line-field)] bg-[var(--field)] text-[13px] font-[family-name:var(--font-manrope),var(--font-noto-sans-gujarati),sans-serif]"
           />
         </div>
         <div className="mt-3">

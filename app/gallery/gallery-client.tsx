@@ -19,6 +19,7 @@ export type AlbumRow = {
   titleEn: string;
   titleGu: string | null;
   subtitle: string | null;
+  subtitleEn: string | null;
   photoCount: number;
   cover: string | null;
   accent: string | null;
@@ -88,8 +89,10 @@ export function GalleryClient({ rows }: { rows: AlbumRow[] }) {
                     <div className="text-[15px] font-bold text-[var(--ink)]">
                       {pickText(a.titleGu, a.titleEn, lang)}
                     </div>
-                    {a.subtitle && (
-                      <div className="mt-0.5 text-xs font-medium text-[var(--faint)]">{a.subtitle}</div>
+                    {(a.subtitle || a.subtitleEn) && (
+                      <div className="mt-0.5 text-xs font-medium text-[var(--faint)]">
+                        {pickText(a.subtitle, a.subtitleEn, lang)}
+                      </div>
                     )}
                     <div className="mt-0.5 text-xs font-medium text-[var(--faint)]">
                       {photos}

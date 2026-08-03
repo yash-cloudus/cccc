@@ -33,6 +33,7 @@ export default async function RegistrationQueuePage() {
     members: f._count.familyMembers,
     submitted: f.submittedAt.toISOString(),
     status: f.status,
+    rejectReason: f.rejectReason || null,
   }));
 
   const updateRows: UpdateRequestRow[] = updateRequests.map((u) => {

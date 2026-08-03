@@ -20,6 +20,7 @@ export default async function GalleryDetailPage({ params }: { params: Promise<{ 
         titleEn: album.titleEn,
         titleGu: album.titleGu,
         description: album.description,
+        descriptionEn: album.descriptionEn,
         accent: album.accent,
         startDateISO: album.startDate?.toISOString() ?? null,
         endDateISO: album.endDate?.toISOString() ?? null,

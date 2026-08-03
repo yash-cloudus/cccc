@@ -15,6 +15,7 @@ export default async function GalleryPage() {
     titleEn: a.titleEn,
     titleGu: a.titleGu,
     subtitle: a.description,
+    subtitleEn: a.descriptionEn,
     photoCount: a._count.images,
     cover: a.coverUrl ?? a.images[0]?.imageUrl ?? null,
     accent: a.accent,

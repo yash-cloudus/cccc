@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   CheckCircle2,
+  ChevronLeft,
   Eye,
   Loader2,
   Pencil,
@@ -358,6 +359,35 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Read-only field grid shown under the summary in the View and Review dialogs. */
+function AdDetailsCard({ ad }: { ad: AdRow }) {
+  const { t } = useAdminT();
+  const fields: { label: string; value: string; wide?: boolean }[] = [
+    { label: t("ads.fldName"), value: ad.name },
+    { label: t("ads.fldCategory"), value: ad.category || "—" },
+    { label: t("ads.fldOwner"), value: ad.ownerName || "—" },
+    { label: t("ads.fldMobile"), value: ad.ownerMobile || "—" },
+    { label: t("ads.description"), value: ad.pitch || "—", wide: true },
+    ...(ad.linkUrl ? [{ label: t("ads.fldLink"), value: ad.linkUrl, wide: true }] : []),
+  ];
+  return (
+    <div className="overflow-hidden rounded-[14px] border border-[var(--line-admin)]">
+      <div className="border-b border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[11px] font-extrabold tracking-wide text-[var(--faint)] uppercase">
+        {t("ads.detailsHeading")}
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 p-3.5 text-[12px]">
+        {fields.map((f) => (
+          <div key={f.label} className={cn(f.wide && "col-span-2")}>
+            <span className="text-[var(--faint)]">{f.label}</span>
+            <br />
+            <b className="break-words text-[var(--ink)]">{f.value}</b>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1051,6 +1081,20 @@ export function AdsClient({
         onClose={() => setModal(null)}
         title={modalTitle}
         subtitle={draft?.step === "type" ? t("ads.typeStepSubtitle") : undefined}
+        width={draft?.step === "form" && draft.type === "premium" ? "xl" : "md"}
+        icon={
+          draft?.step === "form" ? (
+            <button
+              type="button"
+              onClick={() => setDraft((d) => ({ ...d, step: "type" }))}
+              aria-label={t("ads.changeType")}
+              title={t("ads.changeType")}
+              className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--line-admin)] bg-white text-[var(--brand)] transition-colors hover:border-[var(--brand)] hover:bg-[var(--brand-tint)]"
+            >
+              <ChevronLeft className="size-[18px]" strokeWidth={2.4} />
+            </button>
+          ) : undefined
+        }
         footer={
           draft?.step === "form" ? (
             <AdminModalActions
@@ -1142,16 +1186,13 @@ export function AdsClient({
         {/* ── Create: form step ── */}
         {draft?.step === "form" && (
           <>
-            <button
-              type="button"
-              onClick={() => setDraft({ ...draft, step: "type" })}
-              className="mb-3 cursor-pointer text-[12.5px] font-bold text-[var(--brand)]"
-            >
-              ‹ {t("ads.changeType")}
-            </button>
-
-            <AdminFormSection title={t("ads.thBusiness")} />
-            <AdminField>
+            {/* Premium carries enough fields to split: business details on the
+                left, banner + schedule on the right. General has too few, so it
+                stays a single column. Both collapse to one below `lg`. */}
+            <div className={cn("grid gap-x-6", draft.type === "premium" && "lg:grid-cols-2")}>
+              <div className="min-w-0">
+                <AdminFormSection title={t("ads.thBusiness")} />
+                <AdminField>
               <AdminSegmented
                 value={draft.businessMode}
                 onChange={(v) => setDraft({ ...draft, businessMode: v })}
@@ -1188,6 +1229,7 @@ export function AdsClient({
               <>
                 <AdminField label={t("ads.adName")} required>
                   <AdminInput
+                    gujarati
                     value={draft.name}
                     onChange={(v) => setDraft({ ...draft, name: v })}
                   />
@@ -1195,6 +1237,7 @@ export function AdsClient({
                 <AdminFormRow>
                   <AdminField label={t("ads.ownerName")}>
                     <AdminInput
+                      gujarati
                       value={draft.ownerName}
                       onChange={(v) => setDraft({ ...draft, ownerName: v })}
                     />
@@ -1222,14 +1265,18 @@ export function AdsClient({
               />
             </AdminField>
 
-            <AdminField label={t("ads.description")}>
+            <AdminField label={t("ads.description")} hint={t("ads.descriptionHint")}>
               <AdminInput
+                gujarati
+                multiline
                 value={draft.pitch}
                 placeholder={t("ads.descriptionPlaceholder")}
                 onChange={(v) => setDraft({ ...draft, pitch: v })}
               />
             </AdminField>
+              </div>
 
+              <div className="min-w-0">
             {draft.type === "premium" && (
               <>
                 <AdminField label={t("ads.bannerImage")}>
@@ -1326,6 +1373,8 @@ export function AdsClient({
             {error && (
               <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>
             )}
+              </div>
+            </div>
           </>
         )}
 
@@ -1333,49 +1382,11 @@ export function AdsClient({
         {modal?.kind === "view" && (
           <>
             <AdSummaryCard ad={modal.ad} />
-            <div className="rounded-[14px] border border-[var(--line-admin)] overflow-hidden">
-              <div className="border-b border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[11px] font-extrabold tracking-wide text-[var(--faint)] uppercase">
-                Advertisement details
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 p-3.5 text-[12px]">
-                <div>
-                  <span className="text-[var(--faint)]">Name</span>
-                  <br />
-                  <b className="text-[var(--ink)]">{modal.ad.name}</b>
-                </div>
-                <div>
-                  <span className="text-[var(--faint)]">Category</span>
-                  <br />
-                  <b className="text-[var(--ink)]">{modal.ad.category || "—"}</b>
-                </div>
-                <div>
-                  <span className="text-[var(--faint)]">Owner</span>
-                  <br />
-                  <b className="text-[var(--ink)]">{modal.ad.ownerName || "—"}</b>
-                </div>
-                <div>
-                  <span className="text-[var(--faint)]">Mobile</span>
-                  <br />
-                  <b className="text-[var(--ink)]">{modal.ad.ownerMobile || "—"}</b>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-[var(--faint)]">Description</span>
-                  <br />
-                  <span className="text-[var(--ink-soft)]">{modal.ad.pitch || "—"}</span>
-                </div>
-                {modal.ad.linkUrl && (
-                  <div className="col-span-2">
-                    <span className="text-[var(--faint)]">Link</span>
-                    <br />
-                    <b className="break-all text-[var(--ink)]">{modal.ad.linkUrl}</b>
-                  </div>
-                )}
-              </div>
-            </div>
+            <AdDetailsCard ad={modal.ad} />
             {modal.ad.status === "REJECTED" && modal.ad.rejectReason && (
               <div className="mt-3.5 rounded-[11px] border border-[var(--danger-tint)] bg-[var(--danger-tint)] px-3.5 py-2.5">
                 <div className="text-[11px] font-extrabold tracking-wide text-[var(--danger)] uppercase">
-                  Reject reason
+                  {t("ads.rejectReason")}
                 </div>
                 <p className="mt-1 text-[12.5px] leading-relaxed text-[var(--ink)]">
                   {modal.ad.rejectReason}
@@ -1389,45 +1400,7 @@ export function AdsClient({
         {modal?.kind === "review" && (
           <>
             <AdSummaryCard ad={modal.ad} />
-            <div className="rounded-[14px] border border-[var(--line-admin)] overflow-hidden">
-              <div className="border-b border-[var(--line-admin)] bg-[var(--surface-admin)] px-3.5 py-2.5 text-[11px] font-extrabold tracking-wide text-[var(--faint)] uppercase">
-                Advertisement details
-              </div>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 p-3.5 text-[12px]">
-                <div>
-                  <span className="text-[var(--faint)]">Name</span>
-                  <br />
-                  <b className="text-[var(--ink)]">{modal.ad.name}</b>
-                </div>
-                <div>
-                  <span className="text-[var(--faint)]">Category</span>
-                  <br />
-                  <b className="text-[var(--ink)]">{modal.ad.category || "—"}</b>
-                </div>
-                <div>
-                  <span className="text-[var(--faint)]">Owner</span>
-                  <br />
-                  <b className="text-[var(--ink)]">{modal.ad.ownerName || "—"}</b>
-                </div>
-                <div>
-                  <span className="text-[var(--faint)]">Mobile</span>
-                  <br />
-                  <b className="text-[var(--ink)]">{modal.ad.ownerMobile || "—"}</b>
-                </div>
-                <div className="col-span-2">
-                  <span className="text-[var(--faint)]">Description</span>
-                  <br />
-                  <span className="text-[var(--ink-soft)]">{modal.ad.pitch || "—"}</span>
-                </div>
-                {modal.ad.linkUrl && (
-                  <div className="col-span-2">
-                    <span className="text-[var(--faint)]">Link</span>
-                    <br />
-                    <b className="break-all text-[var(--ink)]">{modal.ad.linkUrl}</b>
-                  </div>
-                )}
-              </div>
-            </div>
+            <AdDetailsCard ad={modal.ad} />
 
             <AdminField
               label={t("ads.rejectReason")}
