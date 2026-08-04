@@ -682,10 +682,49 @@ export async function getBusinessCategories(communityId: string) {
 export async function getBloodDonors(communityId: string) {
   const members = await prisma.familyMember.findMany({
     where: { family: { communityId, status: "APPROVED" }, bloodGroup: { not: null }, isVisible: true },
-    select: { fullNameEn: true, fullNameGu: true, mobile: true, bloodGroup: true, currentlyAt: true },
+    select: { fullNameEn: true, fullNameGu: true, mobile: true, mobileIso: true, bloodGroup: true, currentlyAt: true },
     orderBy: { fullNameEn: "asc" },
   });
   return members;
+}
+
+/**
+ * Members living abroad — powers the NRI directory.
+ *
+ * Same visibility rules as every other directory: an approved household, a
+ * visible member, not deceased. Ordered by country then city so the grouping in
+ * the UI is a single pass over an already-sorted list.
+ */
+export async function getNriMembers(communityId: string) {
+  return prisma.familyMember.findMany({
+    where: {
+      family: { communityId, status: "APPROVED" },
+      isVisible: true,
+      isDeceased: false,
+      isNri: true,
+      nriCountry: { not: null },
+    },
+    select: {
+      id: true,
+      fullNameEn: true,
+      fullNameGu: true,
+      relation: true,
+      mobile: true,
+      mobileIso: true,
+      hasWhatsApp: true,
+      whatsapp: true,
+      whatsappIso: true,
+      showPhone: true,
+      occupation: true,
+      occupationOther: true,
+      education: true,
+      bloodGroup: true,
+      nriCountry: true,
+      nriCity: true,
+      family: { select: { id: true, surnameEn: true, surnameGu: true, headNameEn: true } },
+    },
+    orderBy: [{ nriCountry: "asc" }, { nriCity: "asc" }, { fullNameEn: "asc" }],
+  });
 }
 
 export async function getSurnameGroupBySlug(communityId: string, nameEn: string) {
@@ -710,6 +749,7 @@ export async function getEducationMembers(communityId: string) {
       occupation: true,
       currentlyAt: true,
       mobile: true,
+      mobileIso: true,
       showPhone: true,
     },
     orderBy: { fullNameEn: "asc" },

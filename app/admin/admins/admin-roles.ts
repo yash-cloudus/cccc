@@ -10,6 +10,7 @@ export type AdminRow = {
   nameGu: string | null;
   username: string | null;
   mobile: string;
+  mobileIso: string;
   family: string | null;
   surname: string | null;
   showPhone: boolean;
@@ -24,6 +25,7 @@ export type MemberOption = {
   id: string;
   name: string;
   mobile: string;
+  mobileIso: string;
   surname: string;
   family: string;
 };

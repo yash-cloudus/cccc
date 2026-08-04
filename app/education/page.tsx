@@ -38,6 +38,7 @@ export default async function EducationPage() {
         occupation: m.occupation,
         currentlyAt: m.currentlyAt,
         mobile: m.mobile,
+        mobileIso: m.mobileIso,
         showPhone: m.showPhone,
       },
     ];

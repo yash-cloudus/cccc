@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { AdminInput, AdminToggle } from "@/components/admin/admin-ui";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
+import { phoneText } from "@/lib/format";
+import { DEFAULT_ISO, isValidNumber } from "@/lib/phone";
 import {
   AdminCheck,
   AdminChoiceChips,
@@ -52,6 +54,7 @@ export type AdminFormValues = {
   fullNameEn: string;
   fullNameGu: string;
   mobile: string;
+  mobileIso: string;
   family: string;
   surname: string;
   username: string;
@@ -68,6 +71,7 @@ const blank = (): AdminFormValues => ({
   fullNameEn: "",
   fullNameGu: "",
   mobile: "",
+  mobileIso: DEFAULT_ISO,
   family: "",
   surname: "",
   username: "",
@@ -86,7 +90,8 @@ const fromRow = (row: AdminRow): AdminFormValues => {
     memberId: "",
     fullNameEn: row.name,
     fullNameGu: row.nameGu ?? "",
-    mobile: /^[6-9]\d{9}$/.test(row.mobile) ? row.mobile : "",
+    mobile: isValidNumber(row.mobile, row.mobileIso) ? row.mobile : "",
+    mobileIso: row.mobileIso || DEFAULT_ISO,
     family: row.family ?? "",
     surname: row.surname ?? "",
     username: row.username ?? "",
@@ -169,7 +174,7 @@ export function AdminFormModal({
       {editing ? (
         <MemberCard
           name={form.fullNameGu || form.fullNameEn}
-          mobile={form.mobile}
+          mobile={phoneText(form.mobile, form.mobileIso)}
           family={form.family}
           surname={form.surname}
         />
@@ -181,7 +186,7 @@ export function AdminFormModal({
               value={selectedMember}
               placeholder={t("adm.memberSearchPlaceholder")}
               renderLabel={(m) => m.name}
-              renderMeta={(m) => [m.mobile, m.surname].filter(Boolean).join(" · ")}
+              renderMeta={(m) => [phoneText(m.mobile, m.mobileIso), m.surname].filter(Boolean).join(" · ")}
               emptyText={t("adm.noMemberFound")}
               onChange={(m) =>
                 setForm((f) => ({
@@ -189,6 +194,7 @@ export function AdminFormModal({
                   memberId: m?.id ?? "",
                   fullNameEn: m?.name ?? "",
                   mobile: m?.mobile ?? "",
+                  mobileIso: m?.mobileIso ?? DEFAULT_ISO,
                   family: m?.family ?? "",
                   surname: m?.surname ?? "",
                 }))
@@ -198,7 +204,7 @@ export function AdminFormModal({
           {selectedMember && (
             <MemberCard
               name={form.fullNameEn}
-              mobile={form.mobile}
+              mobile={phoneText(form.mobile, form.mobileIso)}
               family={form.family}
               surname={form.surname}
             />

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
+import { NRI_COUNTRY_TYPE } from "@/lib/nri";
 import { getSurnameGroups, getDropdownOptions } from "@/lib/tenant-data";
 import {
   ensureParivarLockedSurname,
@@ -135,6 +136,11 @@ export default async function DropdownsPage() {
     vepar: veparRoot
       ? options.filter((o) => o.parentId === veparRoot.id).map((o) => toRow(o, countOf(o.id)))
       : [],
+    // Countries an admin has added, each carrying its city count. Only these
+    // are listed — showing all 193 would bury the handful that matter.
+    nri: options
+      .filter((o) => o.type === NRI_COUNTRY_TYPE && o.parentId === null)
+      .map((o) => toRow(o, countOf(o.id))),
   };
 
   const lockedSurname =

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_ISO } from "@/lib/phone";
 
 export type MemberAccessDenial = "not_registered" | "pending" | "rejected" | "suspended";
 
@@ -30,9 +31,13 @@ export const ACCESS_DENIAL: Record<MemberAccessDenial, { message: string; status
 export async function checkMemberAccess(
   communityId: string,
   mobile: string,
+  /** Country of `mobile`. Part of the identity: ten digits under two different
+   *  countries are two different people. */
+  mobileIso: string = DEFAULT_ISO,
 ): Promise<MemberAccess> {
+  const iso = (mobileIso || DEFAULT_ISO).toLowerCase();
   const user = await prisma.user.findFirst({
-    where: { mobile, communityId },
+    where: { mobile, mobileIso: iso, communityId },
     select: { id: true, status: true },
   });
   if (!user) return { ok: false, reason: "not_registered" };
@@ -40,7 +45,7 @@ export async function checkMemberAccess(
   if (user.status === "SUSPENDED") return { ok: false, reason: "suspended" };
 
   const families = await prisma.family.findMany({
-    where: { communityId, familyMembers: { some: { mobile } } },
+    where: { communityId, familyMembers: { some: { mobile, mobileIso: iso } } },
     select: { status: true },
   });
 

@@ -12,11 +12,14 @@ import { CascadingOccupationFields } from "@/components/forms/cascading-occupati
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 import { api } from "@/lib/http";
-import { bloodToEnum, pickText } from "@/lib/format";
+import { bloodToEnum, pickText, telLink, waLink } from "@/lib/format";
 import { GENDERS, genderFromRelation } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { DateField } from "@/components/ui/date-field";
+import { PhoneField } from "@/components/ui/phone-field";
+import { NriFields, type NriCityOption } from "@/components/forms/nri-fields";
+import { DEFAULT_ISO, digitsOf, formatFull, isValidNumber, numberError } from "@/lib/phone";
 import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { SpeechInput } from "@/components/ui/speech-input";
 import { toast } from "sonner";
@@ -49,8 +52,16 @@ type Member = {
   dob: string;
   blood: string;
   mobile: string;
+  /** Country of `mobile`. Stored separately — a dial code glued to the number
+   *  cannot be taken apart again. */
+  mobileIso: string;
   whatsapp: string;
+  whatsappIso: string;
   hasWa: boolean;
+  /** Living abroad. Replaces the village/city question with country + city. */
+  isNri: boolean;
+  nriCountry: string;
+  nriCity: string;
   /** Where this member currently lives — English name of a village / city. */
   place: string;
 } & CascadingOccupationValues;
@@ -75,8 +86,13 @@ const blankMember = (place = ""): Member => ({
   // answer for anyone who never opened the picker.
   blood: "",
   mobile: "",
+  mobileIso: DEFAULT_ISO,
   whatsapp: "",
+  whatsappIso: DEFAULT_ISO,
   hasWa: true,
+  isNri: false,
+  nriCountry: "",
+  nriCity: "",
   place,
   ...blankCascadingOccupation(),
 });
@@ -89,6 +105,7 @@ export function RegisterClient({
   villages,
   relations,
   occupationTree,
+  nriCities,
   contactPerson,
 }: {
   communityType: "PARIVAR" | "GAM";
@@ -98,10 +115,13 @@ export function RegisterClient({
   villages: Place[];
   relations: Relation[];
   occupationTree: OccupationTreeNode[];
+  /** Admin-managed NRI cities, grouped by country name. */
+  nriCities: NriCityOption[];
   contactPerson: {
     nameEn: string;
     nameGu: string | null;
     mobile: string;
+    mobileIso: string;
     role: "DATA_MANAGER" | "OWNER";
   } | null;
 }) {
@@ -170,11 +190,17 @@ export function RegisterClient({
     m1name: "",
     m1nameGu: "",
     m1mobile: "",
+    m1mobileIso: DEFAULT_ISO,
     m1whatsapp: "",
+    m1whatsappIso: DEFAULT_ISO,
     m1dob: "",
     m1blood: "",
     m1gender: "",
     m1place: "",
+    m1isNri: false,
+    m1nriCountry: "",
+    m1nriCity: "",
+    elderIso: DEFAULT_ISO,
     hasWhatsApp: true,
     ...blankCascadingOccupation(),
   });
@@ -184,6 +210,7 @@ export function RegisterClient({
 
   /* ── MOBILE_PASSWORD: one number and one password for the whole household ── */
   const [loginMobile, setLoginMobile] = useState("");
+  const [loginMobileIso, setLoginMobileIso] = useState(DEFAULT_ISO);
   const [loginPassword, setLoginPassword] = useState("");
   const [loginPassword2, setLoginPassword2] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -192,26 +219,33 @@ export function RegisterClient({
   /** Every member who entered a usable mobile. The head comes first, so it is
    *  the default pick without any extra state. */
   const loginCandidates = useMemo(() => {
-    const out: { label: string; mobile: string }[] = [];
-    const push = (label: string, raw: string) => {
-      const d = raw.replace(/\D/g, "");
-      if (/^[6-9]\d{9}$/.test(d) && !out.some((o) => o.mobile === d)) out.push({ label, mobile: d });
+    const out: { label: string; mobile: string; iso: string }[] = [];
+    const push = (label: string, raw: string, iso: string) => {
+      const d = digitsOf(raw);
+      // Keyed on country too: the same ten digits under two countries are two
+      // different accounts.
+      if (isValidNumber(d, iso) && !out.some((o) => o.mobile === d && o.iso === iso)) {
+        out.push({ label, mobile: d, iso });
+      }
     };
-    push(form.m1name.trim() || T("વડા", "Head"), form.m1mobile);
-    members.forEach((m, i) => push(m.name.trim() || T(`સભ્ય ${i + 2}`, `Member ${i + 2}`), m.mobile));
+    push(form.m1name.trim() || T("વડા", "Head"), form.m1mobile, form.m1mobileIso);
+    members.forEach((m, i) =>
+      push(m.name.trim() || T(`સભ્ય ${i + 2}`, `Member ${i + 2}`), m.mobile, m.mobileIso),
+    );
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.m1name, form.m1mobile, members, lang]);
+  }, [form.m1name, form.m1mobile, form.m1mobileIso, members, lang]);
 
   // Required, not polish: editing or removing the member who held the login
   // would otherwise submit a number that belongs to nobody, and the server
   // rejects that.
   useEffect(() => {
     if (!passwordLogin) return;
-    if (!loginCandidates.some((c) => c.mobile === loginMobile)) {
+    if (!loginCandidates.some((c) => c.mobile === loginMobile && c.iso === loginMobileIso)) {
       setLoginMobile(loginCandidates[0]?.mobile ?? "");
+      setLoginMobileIso(loginCandidates[0]?.iso ?? DEFAULT_ISO);
     }
-  }, [passwordLogin, loginCandidates, loginMobile]);
+  }, [passwordLogin, loginCandidates, loginMobile, loginMobileIso]);
 
   /** Household place of record — the head's. Drives Family.city / villageAreaId. */
   const { city, villageAreaId, livesOutsideVillage } = useMemo(
@@ -274,7 +308,8 @@ export function RegisterClient({
     : T("એડમિન", "Admin");
   const contactMobile = contactPerson?.mobile || "";
   const contactPhoneHref = contactMobile ? `tel:${contactMobile}` : "#";
-  const contactWhatsappHref = contactMobile ? `https://wa.me/91${contactMobile}` : "#";
+  // Through waLink, not a hand-built +91 URL — the coordinator may be abroad.
+  const contactWhatsappHref = contactMobile ? waLink(contactMobile, contactPerson?.mobileIso) : "#";
 
   /**
    * Password communities get a step of their own for the login number and
@@ -309,6 +344,7 @@ export function RegisterClient({
     nativeElderNameEn: form.elder,
     nativeElderNameGu: form.elderGu,
     nativeElderPhone: form.elderPhone,
+    nativeElderIso: form.elderIso,
     latitude: coords.lat,
     longitude: coords.lng,
   };
@@ -358,10 +394,16 @@ export function RegisterClient({
 
     // The head's mobile is always asked for, whatever their gender — it is the
     // household's way in, and a family headed by a woman must still be able to
-    // register and log in.
-    const mob = form.m1mobile.replace(/\D/g, "");
-    if (!/^[6-9]\d{9}$/.test(mob)) {
-      e.m1mobile = T("મોબાઈલ 10 અંકનો હોવો જોઈએ", "Mobile must be 10 digits (6–9…)");
+    // register and log in. Validated against its own country, not a fixed
+    // Indian pattern.
+    const mobErr = numberError(form.m1mobile, form.m1mobileIso, T);
+    if (mobErr) e.m1mobile = mobErr;
+
+    // A member abroad answers country + city instead of a village.
+    if (form.m1isNri) {
+      if (!form.m1nriCountry) e.m1nriCountry = T("દેશ પસંદ કરો", "Pick a country");
+      if (!form.m1nriCity.trim()) e.m1nriCity = T("શહેર લખો", "Enter a city");
+      return e;
     }
 
     const typeErr = validateFamilyByType(communityType, {
@@ -401,6 +443,14 @@ export function RegisterClient({
     if (!newMember.relation) e.relation = T("સબંધ પસંદ કરો", "Pick a relation");
     if (!newMember.gender) e.gender = T("જાતિ પસંદ કરો", "Pick a gender");
     if (!newMember.dob) e.dob = T("જન્મતારીખ જરૂરી છે", "Date of birth is required");
+    if (newMember.isNri) {
+      if (!newMember.nriCountry) e.nriCountry = T("દેશ પસંદ કરો", "Pick a country");
+      if (!newMember.nriCity.trim()) e.nriCity = T("શહેર લખો", "Enter a city");
+    }
+    // A member's mobile is optional, but a wrong one must not be stored.
+    if (newMember.mobile && !isValidNumber(newMember.mobile, newMember.mobileIso)) {
+      e.mobile = numberError(newMember.mobile, newMember.mobileIso, T) ?? "";
+    }
     return e;
   }
 
@@ -459,11 +509,12 @@ export function RegisterClient({
       livesOutsideVillage,
       nativeElderNameEn: form.elder.trim() || undefined,
       nativeElderNameGu: form.elderGu.trim() || undefined,
-      nativeElderPhone: form.elderPhone.trim() || undefined,
+      nativeElderPhone: digitsOf(form.elderPhone) || undefined,
+      nativeElderIso: form.elderIso,
       latitude: coords.lat ?? undefined,
       longitude: coords.lng ?? undefined,
       consentAccepted: true,
-      ...(passwordLogin ? { loginMobile, loginPassword } : {}),
+      ...(passwordLogin ? { loginMobile, loginMobileIso, loginPassword } : {}),
       members: [
         {
           fullNameEn: form.m1name.trim(),
@@ -473,12 +524,19 @@ export function RegisterClient({
           // `|| undefined` so an unfilled head mobile stores NULL, not "" —
           // an empty string still matches `some: { mobile }` lookups and
           // pollutes the FamilyMember.mobile index.
-          mobile: form.m1mobile.replace(/\D/g, "") || undefined,
+          mobile: digitsOf(form.m1mobile) || undefined,
+          mobileIso: form.m1mobileIso,
+          whatsappIso: form.hasWhatsApp ? form.m1mobileIso : form.m1whatsappIso,
+          isNri: form.m1isNri,
+          nriCountry: form.m1isNri ? form.m1nriCountry : undefined,
+          nriCity: form.m1isNri ? form.m1nriCity.trim() : undefined,
           bloodGroup: bloodToEnum(form.m1blood),
-          currentlyAt: form.m1place || undefined,
+          // An NRI's "currently at" is the foreign city, which is what every
+          // directory screen already reads.
+          currentlyAt: form.m1isNri ? form.m1nriCity.trim() || undefined : form.m1place || undefined,
           dateOfBirth: form.m1dob || undefined,
           hasWhatsApp: form.hasWhatsApp,
-          whatsapp: form.hasWhatsApp ? undefined : form.m1whatsapp.trim() || undefined,
+          whatsapp: form.hasWhatsApp ? undefined : digitsOf(form.m1whatsapp) || undefined,
           isHead: true,
           occupation: headOcc.occupation || undefined,
           occupationOther: headOcc.occupationOther || undefined,
@@ -490,12 +548,17 @@ export function RegisterClient({
           fullNameGu: m.nameGu.trim() || undefined,
           relation: m.relation,
           gender: m.gender || undefined,
-          mobile: m.mobile.replace(/\D/g, "") || undefined,
+          mobile: digitsOf(m.mobile) || undefined,
+          mobileIso: m.mobileIso,
+          whatsappIso: m.hasWa ? m.mobileIso : m.whatsappIso,
+          isNri: m.isNri,
+          nriCountry: m.isNri ? m.nriCountry : undefined,
+          nriCity: m.isNri ? m.nriCity.trim() : undefined,
           bloodGroup: bloodToEnum(m.blood),
-          currentlyAt: m.place || city || undefined,
+          currentlyAt: m.isNri ? m.nriCity.trim() || undefined : m.place || city || undefined,
           dateOfBirth: m.dob || undefined,
           hasWhatsApp: m.hasWa,
-          whatsapp: m.hasWa ? undefined : m.whatsapp.trim() || undefined,
+          whatsapp: m.hasWa ? undefined : digitsOf(m.whatsapp) || undefined,
           isHead: false,
           occupation: memberOcc[i].occupation || undefined,
           occupationOther: memberOcc[i].occupationOther || undefined,
@@ -612,11 +675,17 @@ export function RegisterClient({
                 m1name: "",
                 m1nameGu: "",
                 m1mobile: "",
+                m1mobileIso: DEFAULT_ISO,
                 m1whatsapp: "",
+                m1whatsappIso: DEFAULT_ISO,
                 m1dob: "",
                 m1blood: "",
                 m1gender: "",
                 m1place: "",
+                m1isNri: false,
+                m1nriCountry: "",
+                m1nriCity: "",
+                elderIso: DEFAULT_ISO,
                 hasWhatsApp: true,
                 ...blankCascadingOccupation(),
               });
@@ -740,17 +809,31 @@ export function RegisterClient({
               ))}
             </div>
           </Field>
-          <Field
-            label={`${communityType === "GAM" ? T("ગામ / શહેર", "Village / city") : T("શહેર", "City")}`}
-          >
-            <MemberPlacePicker
-              value={newMember.place}
-              onChange={(v) => setNewMember((prev) => ({ ...prev, place: v }))}
-              options={allPlaces}
-              onAddNew={addPlace}
-              t={T}
-            />
-          </Field>
+          {/* Above the place question, and replaces it when ticked. */}
+          <NriFields
+            value={{
+              isNri: newMember.isNri,
+              nriCountry: newMember.nriCountry,
+              nriCity: newMember.nriCity,
+            }}
+            onChange={(patch) => setNewMember((prev) => ({ ...prev, ...patch }))}
+            cities={nriCities}
+            error={{ country: errsM.nriCountry, city: errsM.nriCity }}
+            t={T}
+          />
+          {!newMember.isNri && (
+            <Field
+              label={`${communityType === "GAM" ? T("ગામ / શહેર", "Village / city") : T("શહેર", "City")}`}
+            >
+              <MemberPlacePicker
+                value={newMember.place}
+                onChange={(v) => setNewMember((prev) => ({ ...prev, place: v }))}
+                options={allPlaces}
+                onAddNew={addPlace}
+                t={T}
+              />
+            </Field>
+          )}
           <div className="mb-3.5 grid grid-cols-2 gap-2.5">
             <Field label={`${T("જન્મ", "DOB")} *`} error={errsM.dob}>
               <DateField
@@ -779,16 +862,17 @@ export function RegisterClient({
             )}
           >
             <Field label={T("મોબાઈલ (વૈકલ્પિક)", "Mobile (optional)")}>
-              <input
-                className="samaj-fld"
-                value={newMember.mobile}
-                onChange={(e) =>
-                  setNewMember({
-                    ...newMember,
-                    mobile: e.target.value.replace(/\D/g, "").slice(0, 10),
-                  })
+              <PhoneField
+                value={{ iso: newMember.mobileIso, digits: newMember.mobile }}
+                onChange={(v) =>
+                  setNewMember((prev) => ({
+                    ...prev,
+                    mobile: v.digits,
+                    mobileIso: v.iso,
+                    whatsappIso: prev.hasWa ? v.iso : prev.whatsappIso,
+                  }))
                 }
-                inputMode="numeric"
+                t={T}
               />
             </Field>
             {newMember.hasWa ? (
@@ -840,17 +924,12 @@ export function RegisterClient({
                   </span>
                 }
               >
-                <input
-                  className="samaj-fld"
-                  value={newMember.whatsapp}
-                  onChange={(e) =>
-                    setNewMember({
-                      ...newMember,
-                      whatsapp: e.target.value.replace(/\D/g, "").slice(0, 10),
-                    })
+                <PhoneField
+                  value={{ iso: newMember.whatsappIso, digits: newMember.whatsapp }}
+                  onChange={(v) =>
+                    setNewMember((prev) => ({ ...prev, whatsapp: v.digits, whatsappIso: v.iso }))
                   }
-                  inputMode="numeric"
-                  placeholder="98765 43210"
+                  t={T}
                 />
               </Field>
             )}
@@ -1053,18 +1132,39 @@ export function RegisterClient({
                     )}
                   </div>
                 </Field>
-                <Field
-                  label={`${communityType === "GAM" ? T("ગામ / શહેર", "Village / city") : T("શહેર", "City")} *`}
-                  error={errs2.m1place}
-                >
-                  <MemberPlacePicker
-                    value={form.m1place}
-                    onChange={(v) => setForm((prev) => ({ ...prev, m1place: v }))}
-                    options={allPlaces}
-                    onAddNew={addPlace}
-                    t={T}
-                  />
-                </Field>
+                {/* Sits above the place question and replaces it when ticked. */}
+                <NriFields
+                  value={{
+                    isNri: form.m1isNri,
+                    nriCountry: form.m1nriCountry,
+                    nriCity: form.m1nriCity,
+                  }}
+                  onChange={(patch) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      ...(patch.isNri !== undefined ? { m1isNri: patch.isNri } : {}),
+                      ...(patch.nriCountry !== undefined ? { m1nriCountry: patch.nriCountry } : {}),
+                      ...(patch.nriCity !== undefined ? { m1nriCity: patch.nriCity } : {}),
+                    }))
+                  }
+                  cities={nriCities}
+                  error={{ country: errs2.m1nriCountry, city: errs2.m1nriCity }}
+                  t={T}
+                />
+                {!form.m1isNri && (
+                  <Field
+                    label={`${communityType === "GAM" ? T("ગામ / શહેર", "Village / city") : T("શહેર", "City")} *`}
+                    error={errs2.m1place}
+                  >
+                    <MemberPlacePicker
+                      value={form.m1place}
+                      onChange={(v) => setForm((prev) => ({ ...prev, m1place: v }))}
+                      options={allPlaces}
+                      onAddNew={addPlace}
+                      t={T}
+                    />
+                  </Field>
+                )}
                 <Field label={`${T("જાતિ", "Gender")} *`} error={errs2.m1gender}>
                   <div className="flex flex-wrap gap-2">
                     {GENDERS.map((g) => (
@@ -1111,16 +1211,19 @@ export function RegisterClient({
                     label={`${T("મોબાઈલ", "Mobile")}${passwordLogin ? "" : ` ${T("(લોગિન)", "(login)")}`} *`}
                     error={errs2.m1mobile}
                   >
-                    <input
-                      className="samaj-fld"
-                      value={form.m1mobile}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          m1mobile: e.target.value.replace(/\D/g, "").slice(0, 10),
-                        })
+                    <PhoneField
+                      value={{ iso: form.m1mobileIso, digits: form.m1mobile }}
+                      onChange={(v) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          m1mobile: v.digits,
+                          m1mobileIso: v.iso,
+                          // The WhatsApp number follows the mobile's country
+                          // until it is given one of its own.
+                          m1whatsappIso: prev.hasWhatsApp ? v.iso : prev.m1whatsappIso,
+                        }))
                       }
-                      inputMode="numeric"
+                      t={T}
                     />
                   </Field>
                   {form.hasWhatsApp ? (
@@ -1172,17 +1275,12 @@ export function RegisterClient({
                         </span>
                       }
                     >
-                      <input
-                        className="samaj-fld"
-                        value={form.m1whatsapp}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            m1whatsapp: e.target.value.replace(/\D/g, "").slice(0, 10),
-                          })
+                      <PhoneField
+                        value={{ iso: form.m1whatsappIso, digits: form.m1whatsapp }}
+                        onChange={(v) =>
+                          setForm((prev) => ({ ...prev, m1whatsapp: v.digits, m1whatsappIso: v.iso }))
                         }
-                        inputMode="numeric"
-                        placeholder="98765 43210"
+                        t={T}
                       />
                     </Field>
                   )}
@@ -1295,10 +1393,13 @@ export function RegisterClient({
                       <button
                         key={c.mobile}
                         type="button"
-                        onClick={() => setLoginMobile(c.mobile)}
+                        onClick={() => {
+                          setLoginMobile(c.mobile);
+                          setLoginMobileIso(c.iso);
+                        }}
                         className={cn(
                           "flex items-center justify-between rounded-[12px] border-[1.5px] px-3 py-2.5 text-left",
-                          loginMobile === c.mobile
+                          loginMobile === c.mobile && loginMobileIso === c.iso
                             ? "border-[var(--brand)] bg-[var(--brand-tint)]"
                             : "border-[var(--line-input)] bg-white",
                         )}
@@ -1375,7 +1476,7 @@ export function RegisterClient({
                 {/* The number, never the password. */}
                 {passwordLogin && (
                   <>
-                    <Kv k={T("લોગિન નંબર", "Login number")} v={loginMobile || "—"} />
+                    <Kv k={T("લોગિન નંબર", "Login number")} v={loginMobile ? formatFull(loginMobile, loginMobileIso) : "—"} />
                     <button
                       type="button"
                       onClick={() => setStep(LOGIN_STEP)}

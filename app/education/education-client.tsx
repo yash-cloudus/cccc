@@ -20,6 +20,7 @@ export type EducationRow = {
   occupation: string | null;
   currentlyAt: string | null;
   mobile: string | null;
+  mobileIso: string | null;
   showPhone: boolean;
 };
 
@@ -174,13 +175,13 @@ export function EducationClient({ rows }: { rows: EducationRow[] }) {
                     {showContact && (
                       <>
                         <a
-                          href={telLink(m.mobile)}
+                          href={telLink(m.mobile, m.mobileIso)}
                           className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-xl bg-[var(--brand-tint)] text-[var(--brand)]"
                         >
                           <Phone className="h-4 w-4" />
                         </a>
                         <a
-                          href={waLink(m.mobile)}
+                          href={waLink(m.mobile, m.mobileIso)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex h-[38px] w-[38px] flex-none items-center justify-center rounded-xl bg-[var(--success-tint)] text-[var(--success)]"

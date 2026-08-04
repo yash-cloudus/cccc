@@ -17,6 +17,7 @@ export default async function BloodGroupPage() {
       fullNameEn: d.fullNameEn,
       fullNameGu: d.fullNameGu,
       mobile: d.mobile,
+      mobileIso: d.mobileIso,
       bloodGroup: d.bloodGroup,
       currentlyAt: d.currentlyAt,
     });

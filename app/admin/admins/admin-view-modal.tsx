@@ -6,6 +6,8 @@ import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { fmtDate, type AdminRow } from "./admin-roles";
 import { menuKey } from "./admin-form-modal";
 import { AvatarInitial } from "./avatar-initial";
+import { phoneText } from "@/lib/format";
+import { isValidNumber } from "@/lib/phone";
 
 /**
  * Stored role → dictionary key. The labels in `admin-roles` are the English
@@ -34,7 +36,10 @@ export function AdminViewModal({
   const rows: [string, string][] = row
     ? [
         [t("adm.loginId"), row.username || "—"],
-        [t("adm.mobile"), /^[6-9]\d{9}$/.test(row.mobile) ? row.mobile : "—"],
+        [
+          t("adm.mobile"),
+          isValidNumber(row.mobile, row.mobileIso) ? phoneText(row.mobile, row.mobileIso) : "—",
+        ],
         [t("adm.family"), row.family || "—"],
         [t("adm.surname"), row.surname || "—"],
         [t("adm.stepContact"), row.showPhone ? t("adm.on") : t("adm.off")],

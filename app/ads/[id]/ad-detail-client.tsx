@@ -6,7 +6,7 @@ import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { ContactActionsRow, ContactRow, DetailCardLabel } from "@/components/directory/contact-card";
 import { useLang } from "@/providers/lang-provider";
-import { formatDate, pickText } from "@/lib/format";
+import { formatDate, phoneText, pickText } from "@/lib/format";
 
 export type AdDetail = {
   id: string;
@@ -28,7 +28,9 @@ export type AdDetail = {
   /** Owner/contact name carried on standalone (non-business) banners only. */
   contactName: string | null;
   phone: string | null;
+  phoneIso: string | null;
   whatsapp: string | null;
+  whatsappIso: string | null;
   mapUrl: string | null;
   endDateISO: string;
 };
@@ -155,15 +157,23 @@ export function AdDetailClient({ ad }: { ad: AdDetail }) {
                 </a>
               </ContactRow>
             )}
-            {ad.phone && <ContactRow label={T("મોબાઈલ 1", "Mobile 1")}>{ad.phone}</ContactRow>}
+            {ad.phone && (
+              <ContactRow label={T("મોબાઈલ 1", "Mobile 1")}>
+                {phoneText(ad.phone, ad.phoneIso)}
+              </ContactRow>
+            )}
             {ad.whatsapp && ad.whatsapp !== ad.phone && (
-              <ContactRow label={T("મોબાઈલ 2", "Mobile 2")}>{ad.whatsapp}</ContactRow>
+              <ContactRow label={T("મોબાઈલ 2", "Mobile 2")}>
+                {phoneText(ad.whatsapp, ad.whatsappIso)}
+              </ContactRow>
             )}
           </div>
         )}
 
         <ContactActionsRow
           phone={ad.phone}
+          phoneIso={ad.phoneIso}
+          whatsappIso={ad.whatsappIso}
           whatsapp={ad.whatsapp}
           mapHref={mapHref}
           callLabel={T("કૉલ કરો", "Call")}

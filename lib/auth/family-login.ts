@@ -15,10 +15,13 @@
  */
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_ISO, digitsOf } from "@/lib/phone";
+import { userKey } from "@/lib/auth/user-key";
 
 type LoginCandidate = {
   isHead: boolean;
   mobile: string | null;
+  mobileIso?: string | null;
   dateOfBirth: Date | null;
 };
 
@@ -75,7 +78,7 @@ export async function backfillFamilyLogins(communityId: string): Promise<Backfil
     select: {
       id: true,
       status: true,
-      familyMembers: { select: { isHead: true, mobile: true, dateOfBirth: true } },
+      familyMembers: { select: { isHead: true, mobile: true, mobileIso: true, dateOfBirth: true } },
     },
   });
 
@@ -83,7 +86,8 @@ export async function backfillFamilyLogins(communityId: string): Promise<Backfil
 
   for (const family of families) {
     const login = pickLoginMember(family.familyMembers);
-    const mobile = login?.mobile?.replace(/\D/g, "") || "";
+    const mobile = digitsOf(login?.mobile);
+    const mobileIso = login?.mobileIso || DEFAULT_ISO;
     if (!mobile) {
       result.noMobile++;
       continue;
@@ -91,7 +95,10 @@ export async function backfillFamilyLogins(communityId: string): Promise<Backfil
 
     // Recorded even when no password follows, so the admin screen can show
     // *which* number needs one instead of just "not set".
-    await prisma.family.update({ where: { id: family.id }, data: { loginMobile: mobile } });
+    await prisma.family.update({
+      where: { id: family.id },
+      data: { loginMobile: mobile, loginMobileIso: mobileIso },
+    });
 
     const password = dobPassword(login?.dateOfBirth);
     if (!password) {
@@ -100,7 +107,7 @@ export async function backfillFamilyLogins(communityId: string): Promise<Backfil
     }
 
     const existing = await prisma.user.findUnique({
-      where: { communityId_mobile: { communityId, mobile } },
+      where: userKey(communityId, mobile, mobileIso),
       select: { id: true, passwordHash: true },
     });
     // Never overwrite. This is what keeps the backfill from resetting the
@@ -118,6 +125,7 @@ export async function backfillFamilyLogins(communityId: string): Promise<Backfil
         data: {
           communityId,
           mobile,
+          mobileIso,
           passwordHash,
           status: family.status === "APPROVED" ? "APPROVED" : "PENDING",
         },

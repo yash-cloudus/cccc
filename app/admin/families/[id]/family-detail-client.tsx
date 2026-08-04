@@ -12,7 +12,7 @@ import {
   AdminTd,
 } from "@/components/admin/admin-ui";
 import { api } from "@/lib/http";
-import { bloodLabel, formatDate } from "@/lib/format";
+import { bloodLabel, formatDate, phoneText } from "@/lib/format";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +25,11 @@ export type DetailMember = {
   relation: string | null;
   gender: string | null;
   mobile: string | null;
+  mobileIso: string;
+  whatsappIso: string;
+  isNri: boolean;
+  nriCountry: string | null;
+  nriCity: string | null;
   dateOfBirth: string | null;
   bloodGroup: string | null;
   occupation: string | null;
@@ -347,16 +352,22 @@ export function FamilyDetailClient({
                   <tbody>
                     <Row label={t("fam.relation")}>{m.relation}</Row>
                     <Row label={t("fam.gender")}>{m.gender}</Row>
-                    <Row label={t("fam.mobileNumber")}>{m.mobile}</Row>
+                    <Row label={t("fam.mobileNumber")}>{phoneText(m.mobile, m.mobileIso)}</Row>
                     <Row label={t("fam.whatsappNumber")}>
-                      {m.hasWhatsApp ? m.mobile : m.whatsapp}
+                      {m.hasWhatsApp
+                        ? phoneText(m.mobile, m.mobileIso)
+                        : phoneText(m.whatsapp, m.whatsappIso)}
                     </Row>
                     <Row label={t("fam.birthDate")}>{formatDate(m.dateOfBirth, lang)}</Row>
                     <Row label={t("fam.bloodGroup")}>{bloodLabel(m.bloodGroup)}</Row>
                     <Row label={t("fam.occupation")}>{m.occupationOther || m.occupation}</Row>
                     <Row label={t("fam.education")}>{m.education}</Row>
                     <Row label={t("fam.course")}>{m.course}</Row>
-                    <Row label={t("fam.currentlyAt")}>{m.currentlyAt}</Row>
+                    <Row label={t("fam.currentlyAt")}>
+                      {m.isNri
+                        ? [m.nriCity, m.nriCountry].filter(Boolean).join(", ")
+                        : m.currentlyAt}
+                    </Row>
                     <Row label={t("fam.showPhone")}>
                       {m.showPhone ? t("fam.yes") : t("fam.no")}
                     </Row>

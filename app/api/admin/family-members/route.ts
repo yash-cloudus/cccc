@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { created, fail, ok } from "@/lib/api";
 import { requireAdmin, handleApiError } from "@/lib/admin-guard";
+import { DEFAULT_ISO, digitsOf } from "@/lib/phone";
+import { userKey } from "@/lib/auth/user-key";
 
 async function assertFamilyMember(communityId: string, id: string) {
   const m = await prisma.familyMember.findFirst({
@@ -11,6 +13,7 @@ async function assertFamilyMember(communityId: string, id: string) {
       id: true,
       familyId: true,
       mobile: true,
+      mobileIso: true,
       family: { select: { status: true, loginMobile: true } },
     },
   });
@@ -59,6 +62,11 @@ const patchSchema = z.object({
   isVisible: z.boolean().optional(),
   isDeceased: z.boolean().optional(),
   isHead: z.boolean().optional(),
+  mobileIso: z.string().length(2).optional(),
+  whatsappIso: z.string().length(2).optional(),
+  isNri: z.boolean().optional(),
+  nriCountry: z.string().max(80).nullable().optional(),
+  nriCity: z.string().max(80).nullable().optional(),
   /** MOBILE_PASSWORD: set or reset this household's login password. Not a
    *  FamilyMember column — destructured out before the Prisma update. */
   loginPassword: z.string().regex(/^\d{6}$/).optional(),
@@ -90,21 +98,27 @@ export async function PATCH(req: Request) {
       // and User.mobile (the credential). Moving one without the other is why
       // "Change login #" used to leave the member signing in on their old
       // number while the new one reported "not registered".
-      if (nextMobile && member.mobile && nextMobile !== member.mobile) {
+      // The country moves with the number — a member who emigrates changes both.
+      const nextIso = (data.mobileIso || member.mobileIso || DEFAULT_ISO).toLowerCase();
+      const movedNumber = nextMobile && member.mobile && nextMobile !== member.mobile;
+      const movedCountry = nextIso !== member.mobileIso;
+      if ((movedNumber || movedCountry) && member.mobile) {
+        const target = nextMobile ?? member.mobile;
         const from = await tx.user.findUnique({
-          where: { communityId_mobile: { communityId, mobile: member.mobile } },
+          where: userKey(communityId, member.mobile, member.mobileIso),
         });
-        const to = await tx.user.findUnique({
-          where: { communityId_mobile: { communityId, mobile: nextMobile } },
-        });
+        const to = await tx.user.findUnique({ where: userKey(communityId, target, nextIso) });
         if (to && from && to.id !== from.id) throw new Error("MOBILE_TAKEN");
         if (from && !to) {
-          await tx.user.update({ where: { id: from.id }, data: { mobile: nextMobile } });
+          await tx.user.update({
+            where: { id: from.id },
+            data: { mobile: target, mobileIso: nextIso },
+          });
         }
         if (member.family.loginMobile === member.mobile) {
           await tx.family.update({
             where: { id: member.familyId },
-            data: { loginMobile: nextMobile },
+            data: { loginMobile: target, loginMobileIso: nextIso },
           });
         }
       }
@@ -114,11 +128,12 @@ export async function PATCH(req: Request) {
         if (!mobile) throw new Error("NO_MOBILE");
         const passwordHash = await bcrypt.hash(loginPassword, 10);
         await tx.user.upsert({
-          where: { communityId_mobile: { communityId, mobile } },
+          where: userKey(communityId, mobile, nextIso),
           update: { passwordHash },
           create: {
             communityId,
             mobile,
+            mobileIso: nextIso,
             passwordHash,
             // An approved household's new credential must work immediately;
             // a pending one stays pending until the family is approved.

@@ -20,7 +20,9 @@ export type CommunityBrand = {
   primaryColor: string;
   secondaryColor: string;
   contactPhone: string | null;
+  contactPhoneIso: string | null;
   whatsapp: string | null;
+  whatsappIso: string | null;
   email: string | null;
   website: string | null;
   addressEn: string | null;
@@ -49,7 +51,9 @@ export const DEFAULT_BRAND: CommunityBrand = {
   primaryColor: "#a62a38",
   secondaryColor: "#e0a64b",
   contactPhone: null,
+  contactPhoneIso: null,
   whatsapp: null,
+  whatsappIso: null,
   email: null,
   website: null,
   addressEn: null,
@@ -134,7 +138,9 @@ export function toCommunityBrand(c: Community | null | undefined): CommunityBran
     primaryColor: c.primaryColor,
     secondaryColor: c.secondaryColor,
     contactPhone: c.contactPhone,
+    contactPhoneIso: c.contactPhoneIso,
     whatsapp: c.whatsapp,
+    whatsappIso: c.whatsappIso,
     email: c.email,
     website: c.website,
     addressEn: c.addressEn,

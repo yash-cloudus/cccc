@@ -11,7 +11,9 @@ import { requireAdmin, handleApiError } from "@/lib/admin-guard";
 
 const schema = z.object({
   contactPhone: z.string().optional(),
+  contactPhoneIso: z.string().length(2).optional(),
   whatsapp: z.string().optional(),
+  whatsappIso: z.string().length(2).optional(),
   email: z.string().optional(),
   website: z.string().optional(),
   descEn: z.string().optional(),

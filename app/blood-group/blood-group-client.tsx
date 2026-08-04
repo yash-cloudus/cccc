@@ -14,6 +14,7 @@ export type BloodDonorRow = {
   fullNameEn: string;
   fullNameGu: string | null;
   mobile: string | null;
+  mobileIso: string | null;
   bloodGroup: BloodGroupType;
   currentlyAt: string | null;
 };
@@ -185,13 +186,13 @@ export function BloodGroupClient({ rows }: { rows: BloodDonorRow[] }) {
                       )}
                     </div>
                     <a
-                      href={telLink(m.mobile)}
+                      href={telLink(m.mobile, m.mobileIso)}
                       className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-[var(--brand-tint)] text-[var(--brand)]"
                     >
                       <Phone className="h-4 w-4" />
                     </a>
                     <a
-                      href={waLink(m.mobile)}
+                      href={waLink(m.mobile, m.mobileIso)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-[var(--success-tint)] text-[var(--success)]"

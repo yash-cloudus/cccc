@@ -12,6 +12,7 @@ import {
 } from "@/lib/platform";
 import { seedCommunityDefaults } from "@/lib/community-defaults";
 import { encryptSecret, maskSecret, tryDecryptSecret } from "@/lib/security/crypto";
+import { DEFAULT_ISO, digitsOf, isValidNumber } from "@/lib/phone";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -55,6 +56,7 @@ export async function GET() {
                 apiKeyMask: maskSecret(tryDecryptSecret(integration.waApiKeyEnc)),
                 firmIdMask: maskSecret(tryDecryptSecret(integration.waFirmIdEnc)),
                 senderMobile: integration.waSenderMobile,
+                senderIso: integration.waSenderIso,
               }
             : null,
           owner: owner
@@ -62,6 +64,7 @@ export async function GET() {
                 id: owner.id,
                 username: owner.username,
                 mobile: owner.mobile,
+                mobileIso: owner.mobileIso,
                 name: owner.profile?.fullNameEn || "",
               }
             : null,
@@ -90,7 +93,9 @@ const createSchema = z
     secondaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#E8A33D"),
     slug: z.string().min(2).max(40),
     adminName: z.string().max(120).optional().default(""),
-    adminPhone: z.string().regex(/^[6-9]\d{9}$/, "Owner mobile required (10 digits, starts with 6–9)"),
+    // Length only — the per-country rule is applied below via lib/phone.
+    adminPhone: z.string().min(4).max(20),
+    adminPhoneIso: z.string().length(2).default(DEFAULT_ISO),
     adminUsername: z.string().min(3).max(64),
     adminPassword: z.string().min(4).max(128).default("admin"),
     status: z.enum(["DRAFT", "LIVE", "SUSPENDED"]).default("LIVE"),
@@ -101,8 +106,16 @@ const createSchema = z
     waApiKey: z.string().max(500).optional().default(""),
     waFirmId: z.string().max(200).optional().default(""),
     waSenderMobile: z.string().max(20).optional().default(""),
+    waSenderIso: z.string().length(2).optional().default(DEFAULT_ISO),
   })
   .superRefine((v, ctx) => {
+    if (!isValidNumber(v.adminPhone, v.adminPhoneIso)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Owner mobile is not a valid number for the selected country",
+        path: ["adminPhone"],
+      });
+    }
     if (v.type === "PARIVAR" && !v.primarySurnameEn.trim()) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -125,7 +138,8 @@ export async function POST(req: Request) {
 
     const username = body.adminUsername.trim().toLowerCase();
     const password = body.adminPassword.trim() || "admin";
-    const mobile = body.adminPhone;
+    const mobile = digitsOf(body.adminPhone);
+    const mobileIso = body.adminPhoneIso.toLowerCase();
 
     const logoText = body.logoText || body.nameEn.trim().charAt(0).toUpperCase();
     const logoUrl = normalizeLogoUrl(body.logoUrl);
@@ -160,6 +174,7 @@ export async function POST(req: Request) {
             waApiKeyEnc: encryptSecret(apiKey),
             waFirmIdEnc: encryptSecret(firmId),
             waSenderMobile: senderMobile,
+            waSenderIso: body.waSenderIso.toLowerCase(),
           },
         });
       }
@@ -172,6 +187,7 @@ export async function POST(req: Request) {
         data: {
           communityId: community.id,
           mobile,
+          mobileIso,
           username,
           passwordHash,
           status: "APPROVED",

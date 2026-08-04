@@ -10,6 +10,7 @@ import {
   getVillageAreas,
 } from "@/lib/tenant-data";
 import { cascadingFromStored } from "@/lib/cascading-occupation";
+import { getNriCities } from "@/lib/nri";
 import { ReviewClient, type EditFamily } from "./review-client";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function ReviewRegistrationPage({
       ? await ensureParivarLockedSurname(prisma, community.id)
       : null;
 
-  const [family, surnameGroups, occupationTree, villages, cities, relations] =
+  const [family, surnameGroups, occupationTree, villages, cities, relations, nriCities] =
     await Promise.all([
       getFamily(community.id, id),
       getSurnameGroups(community.id),
@@ -47,6 +48,7 @@ export default async function ReviewRegistrationPage({
         orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
       }),
       getDropdownOptions(community.id, "relationship"),
+      getNriCities(prisma, community.id),
     ]);
   if (!family) notFound();
 
@@ -79,6 +81,7 @@ export default async function ReviewRegistrationPage({
     nativeElderNameEn: family.nativeElderNameEn || "",
     nativeElderNameGu: family.nativeElderNameGu || "",
     nativeElderPhone: family.nativeElderPhone || "",
+    nativeElderIso: family.nativeElderIso || "in",
     latitude: family.latitude,
     longitude: family.longitude,
     members: family.familyMembers.map((m) => ({
@@ -89,6 +92,11 @@ export default async function ReviewRegistrationPage({
       relation: m.relation || "",
       gender: m.gender || "",
       mobile: m.mobile || "",
+      mobileIso: m.mobileIso || "in",
+      whatsappIso: m.whatsappIso || "in",
+      isNri: m.isNri,
+      nriCountry: m.nriCountry || "",
+      nriCity: m.nriCity || "",
       dateOfBirth: ymd(m.dateOfBirth),
       bloodGroup: m.bloodGroup || "",
       // Falls back to the family's place for members registered before it moved
@@ -122,6 +130,7 @@ export default async function ReviewRegistrationPage({
         .filter((o) => o.isActive)
         .map((o) => ({ nameEn: o.nameEn, nameGu: o.nameGu }))}
       occupationTree={occupationTree}
+      nriCities={nriCities}
       backHref={fromFamilies ? "/admin/families" : "/admin/queue"}
       fromFamilies={fromFamilies}
       autoAddMember={add === "1"}

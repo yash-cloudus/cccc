@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { isValidNumber } from "@/lib/phone";
 import {
   AdminBtn,
   AdminH2,
@@ -44,6 +45,7 @@ import {
   type FamilyDetailsValues,
 } from "@/lib/family-form";
 import { resolveCascadingOccupationForSave } from "@/lib/cascading-occupation";
+import type { NriCityOption } from "@/components/forms/nri-fields";
 import type { OccupationTreeNode } from "@/lib/occupation-defaults";
 
 /**
@@ -96,6 +98,7 @@ export function ReviewClient({
   villages = [],
   relations = [],
   occupationTree,
+  nriCities = [],
   backHref = "/admin/queue",
   fromFamilies = false,
   autoAddMember = false,
@@ -108,6 +111,8 @@ export function ReviewClient({
   villages?: { id: string; nameEn: string; nameGu: string }[];
   relations?: { nameEn: string; nameGu: string }[];
   occupationTree: OccupationTreeNode[];
+  /** Admin-managed NRI cities, grouped by country name. */
+  nriCities?: NriCityOption[];
   backHref?: string;
   /** Opened from Families & Members, not the registration queue — this is
    * routine record-keeping, not an admission decision, so Approve/Reject stay
@@ -264,6 +269,7 @@ export function ReviewClient({
       nativeElderNameEn: f.nativeElderNameEn || null,
       nativeElderNameGu: f.nativeElderNameGu || null,
       nativeElderPhone: f.nativeElderPhone || null,
+      nativeElderIso: f.nativeElderIso || "in",
       latitude: f.latitude,
       longitude: f.longitude,
       members: f.members.map((m, i) => {
@@ -279,6 +285,13 @@ export function ReviewClient({
           relation: isHeadRow ? "Head" : m.relation || null,
           gender: m.gender || null,
           mobile: m.mobile || null,
+          mobileIso: m.mobileIso || "in",
+          whatsappIso: m.hasWhatsApp ? m.mobileIso || "in" : m.whatsappIso || "in",
+          // Cleared with the flag, so a member who moved home does not keep a
+          // country nobody can see any more.
+          isNri: m.isNri,
+          nriCountry: m.isNri ? m.nriCountry || null : null,
+          nriCity: m.isNri ? m.nriCity || null : null,
           dateOfBirth: m.dateOfBirth || null,
           bloodGroup: m.bloodGroup || null,
           currentlyAt: m.currentlyAt || null,
@@ -324,7 +337,7 @@ export function ReviewClient({
       // where it was implied, so this normally only catches the head.
       if (!m.gender.trim()) e[`${m.id}.gender`] = tf("queue.valMemberGender", { n: i + 1 });
     });
-    if (forApproval && !/^[6-9]\d{9}$/.test(head.mobile)) {
+    if (forApproval && !isValidNumber(head.mobile, head.mobileIso)) {
       e[`${head.id}.mobile`] = t("queue.valHeadMobile");
     }
     return e;
@@ -548,6 +561,7 @@ export function ReviewClient({
                   relations={relations}
                   occupationTree={occupationTree}
                   places={places}
+                  nriCities={nriCities}
                   onAddPlace={addPlace}
                   communityType={communityType}
                   isHead={m.isHead}

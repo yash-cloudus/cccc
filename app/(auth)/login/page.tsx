@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
+import { PhoneField, type PhoneValue } from "@/components/ui/phone-field";
+import { DEFAULT_ISO, numberError } from "@/lib/phone";
 import { AppShell } from "@/components/layout/app-shell";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
@@ -18,7 +20,7 @@ export default function LoginPage() {
   const { t, lang } = useLang();
   const community = useCommunity();
   const router = useRouter();
-  const [mobile, setMobile] = useState("");
+  const [phone, setPhone] = useState<PhoneValue>({ iso: DEFAULT_ISO, digits: "" });
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -48,15 +50,16 @@ export default function LoginPage() {
   }
 
   async function sendOtp(channel: "whatsapp" | "sms") {
-    const digits = mobile.replace(/\D/g, "");
-    if (digits.length !== 10) {
-      toast.error(t("mobile") + " — 10 digits required");
+    const problem = numberError(phone.digits, phone.iso, (gu, en) => (lang === "gu" ? gu : en));
+    if (problem) {
+      toast.error(problem);
       return;
     }
     setLoading(true);
     try {
       const res = await axios.post("/api/auth/otp", {
-        mobile: digits,
+        mobile: phone.digits,
+        mobileIso: phone.iso,
         channel,
         purpose: "login",
       });
@@ -73,7 +76,9 @@ export default function LoginPage() {
       // a real provider code is 6. The OTP screen has to draw the right number
       // of boxes or the code cannot be typed in at all.
       const len = res.data?.data?.length;
-      router.push(`/otp?mobile=${digits}${len ? `&len=${len}` : ""}`);
+      router.push(
+        `/otp?mobile=${phone.digits}&iso=${phone.iso}${len ? `&len=${len}` : ""}`,
+      );
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { error?: string; pending?: boolean } } };
       if (ax.response?.data?.pending) {
@@ -87,9 +92,9 @@ export default function LoginPage() {
   }
 
   async function passwordSubmit() {
-    const digits = mobile.replace(/\D/g, "");
-    if (digits.length !== 10) {
-      toast.error(t("mobile") + " — 10 digits required");
+    const problem = numberError(phone.digits, phone.iso, (gu, en) => (lang === "gu" ? gu : en));
+    if (problem) {
+      toast.error(problem);
       return;
     }
     if (!/^\d{6}$/.test(password)) {
@@ -98,7 +103,11 @@ export default function LoginPage() {
     }
     setLoading(true);
     try {
-      const res = await axios.post("/api/auth/member-login", { mobile: digits, password });
+      const res = await axios.post("/api/auth/member-login", {
+        mobile: phone.digits,
+        mobileIso: phone.iso,
+        password,
+      });
       if (res.data?.success === false) throw new Error(res.data.error);
       router.push("/dashboard");
     } catch (err: unknown) {
@@ -112,8 +121,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   }
-
-  const displayMobile = mobile.replace(/\D/g, "").slice(0, 10);
 
   return (
     <AppShell>
@@ -160,18 +167,14 @@ export default function LoginPage() {
 
         <div className="mt-2 w-full max-w-[310px] text-left">
           <div className="mb-1.5 text-xs font-bold text-[var(--ink-mid)]">{t("mobile")}</div>
-          <div className="flex items-center gap-2.5 rounded-[15px] border-[1.5px] border-[var(--line-input)] bg-white p-[15px] text-[17px] font-bold text-[var(--ink)]">
-            <span className="font-semibold text-[var(--faint)]">🇮🇳 +91</span>
-            <input
-              type="tel"
-              inputMode="numeric"
-              maxLength={10}
-              value={displayMobile}
-              onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-              placeholder="98765 43210"
-              className="min-w-0 flex-1 border-none bg-transparent text-[17px] font-bold outline-none"
-            />
-          </div>
+          {/* The flag is a picker, not decoration: a member abroad signs in with
+              their own country's number. */}
+          <PhoneField
+            value={phone}
+            onChange={setPhone}
+            t={(gu, en) => (lang === "gu" ? gu : en)}
+            autoComplete="tel"
+          />
 
           {passwordLogin ? (
             <>

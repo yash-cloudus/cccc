@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { created, fail, ok } from "@/lib/api";
 import { requireAdmin, handleApiError } from "@/lib/admin-guard";
+import { NRI_COUNTRY_TYPE, isKnownCountry } from "@/lib/nri";
 
 export async function GET(req: Request) {
   try {
@@ -43,6 +44,14 @@ export async function POST(req: Request) {
   try {
     const { communityId } = await requireAdmin();
     const body = createSchema.parse(await req.json());
+
+    // An NRI country is picked from lib/phone/countries.ts, never typed. Two
+    // spellings of the same place ("USA" and "United States") would split the
+    // directory in half and leave one of them without a flag.
+    if (body.type === NRI_COUNTRY_TYPE && !body.parentId && !isKnownCountry(body.nameEn)) {
+      return fail("Pick a country from the list", 422);
+    }
+
     if (body.parentId) {
       const parent = await prisma.dropdownOption.findFirst({
         where: { id: body.parentId, communityId },

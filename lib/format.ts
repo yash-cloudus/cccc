@@ -1,3 +1,4 @@
+import { formatFull, telHref, waHref } from "@/lib/phone";
 import type { CSSProperties } from "react";
 import type { Lang } from "@/lib/i18n/dictionary";
 import { DEFAULT_RELATIONS } from "@/lib/constants";
@@ -114,16 +115,23 @@ export function pickText(
   return (en || gu || "").toString();
 }
 
-/** Build a WhatsApp deep link from a raw phone number. */
-export function waLink(mobile: string | null | undefined): string {
-  const d = (mobile || "").replace(/\D/g, "");
-  return `https://wa.me/91${d}`;
+/**
+ * WhatsApp deep link. The country comes from the row's own `*Iso` column; a
+ * caller that has none falls back to India, which is what every number in the
+ * database was before those columns existed.
+ */
+export function waLink(mobile: string | null | undefined, iso?: string | null): string {
+  return waHref(mobile ?? "", iso);
 }
 
-/** Build a tel: link from a raw phone number. */
-export function telLink(mobile: string | null | undefined): string {
-  const d = (mobile || "").replace(/\D/g, "");
-  return `tel:+91${d}`;
+/** `tel:` link. Same country rule as `waLink`. */
+export function telLink(mobile: string | null | undefined, iso?: string | null): string {
+  return telHref(mobile ?? "", iso);
+}
+
+/** "+1 705-821-1458" — a number as its own country writes it. */
+export function phoneText(mobile: string | null | undefined, iso?: string | null): string {
+  return formatFull(mobile ?? "", iso);
 }
 
 const BLOOD_LABELS: Record<string, string> = {

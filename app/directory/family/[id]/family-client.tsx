@@ -22,6 +22,7 @@ export type FamilyDetail = {
   nativeElderNameEn: string | null;
   nativeElderNameGu: string | null;
   nativeElderPhone: string | null;
+  nativeElderIso: string | null;
   villageEn: string | null;
   villageGu: string | null;
 };
@@ -32,6 +33,8 @@ export type MemberRow = {
   fullNameGu: string | null;
   relation: string | null;
   mobile: string | null;
+  mobileIso: string | null;
+  whatsappIso: string | null;
   dobISO: string | null;
   blood: BloodGroupType | null;
   occupation: string | null;
@@ -132,7 +135,7 @@ export function FamilyClient({
             {headContact && (
               <>
                 <a
-                  href={telLink(headContact.mobile)}
+                  href={telLink(headContact.mobile, headContact.mobileIso)}
                   className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-tint)] text-[var(--brand)]"
                   aria-label={t("call")}
                 >
@@ -140,7 +143,7 @@ export function FamilyClient({
                 </a>
                 {headContact.hasWhatsApp && (
                   <a
-                    href={waLink(headContact.mobile)}
+                    href={waLink(headContact.mobile, headContact.whatsappIso)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--success-tint)] text-[var(--success)]"
@@ -182,7 +185,7 @@ export function FamilyClient({
             {family.nativeElderPhone && (
               <div className="flex items-center gap-3 py-1 text-[13px]">
                 <b className="min-w-[70px] font-bold text-[var(--faint)]">{phoneLabel}</b>
-                <a href={telLink(family.nativeElderPhone)} className="font-bold text-[var(--brand)]">
+                <a href={telLink(family.nativeElderPhone, family.nativeElderIso)} className="font-bold text-[var(--brand)]">
                   {family.nativeElderPhone}
                 </a>
               </div>
@@ -240,14 +243,14 @@ export function FamilyClient({
                     {canContact ? (
                       <div className="flex gap-2">
                         <a
-                          href={telLink(m.mobile)}
+                          href={telLink(m.mobile, m.mobileIso)}
                           className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--brand-tint)] py-2.5 text-[13px] font-bold text-[var(--brand)]"
                         >
                           <Phone className="h-4 w-4" /> {t("call")}
                         </a>
                         {m.hasWhatsApp && (
                           <a
-                            href={waLink(m.mobile)}
+                            href={waLink(m.mobile, m.whatsappIso)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[var(--success-tint)] py-2.5 text-[13px] font-bold text-[var(--success)]"

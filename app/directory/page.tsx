@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
 import { getSurnameGroups } from "@/lib/tenant-data";
 import { getParivarLockedSurname } from "@/lib/community-defaults";
-import { DirectoryClient, type SurnameRow } from "./directory-client";
+import { DirectoryClient, type SurnameRow, type DirectoryFamilyRow } from "./directory-client";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,21 @@ export default async function DirectoryPage() {
     if (locked) redirect(`/directory/${locked.id}`);
   }
 
-  const groups = await getSurnameGroups(community.id);
+  const [groups, families] = await Promise.all([
+    getSurnameGroups(community.id),
+    prisma.family.findMany({
+      where: { communityId: community.id, status: "APPROVED" },
+      include: {
+        familyMembers: {
+          select: { fullNameEn: true, fullNameGu: true, relation: true, isHead: true },
+          orderBy: { createdAt: "asc" },
+        },
+        _count: { select: { familyMembers: true } },
+      },
+      orderBy: { headNameEn: "asc" },
+    }),
+  ]);
+
   const rows: SurnameRow[] = groups.map((g) => ({
     id: g.id,
     nameEn: g.nameEn,
@@ -26,5 +40,19 @@ export default async function DirectoryPage() {
     count: g._count.families,
   }));
 
-  return <DirectoryClient rows={rows} />;
+  const familyRows: DirectoryFamilyRow[] = families.map((f) => ({
+    id: f.id,
+    headNameEn: f.headNameEn,
+    headNameGu: f.headNameGu,
+    city: f.city,
+    surnameEn: f.surnameEn,
+    surnameGu: f.surnameGu,
+    surnameGroupId: f.surnameGroupId,
+    memberCount: f._count.familyMembers,
+    otherMembers: f.familyMembers
+      .filter((m) => !m.isHead)
+      .map((m) => ({ fullNameEn: m.fullNameEn, fullNameGu: m.fullNameGu, relation: m.relation })),
+  }));
+
+  return <DirectoryClient rows={rows} families={familyRows} />;
 }

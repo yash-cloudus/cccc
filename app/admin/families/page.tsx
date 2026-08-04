@@ -9,6 +9,7 @@ import {
   getSurnameGroups,
   getVillageAreas,
 } from "@/lib/tenant-data";
+import { getNriCities } from "@/lib/nri";
 import { FamiliesClient, type FamilyRow } from "./families-client";
 
 export const dynamic = "force-dynamic";
@@ -22,11 +23,12 @@ export default async function FamiliesPage() {
       ? await ensureParivarLockedSurname(prisma, community.id)
       : null;
 
-  const [families, surnameGroups, relationOptions, occupationTree, villages, cities] =
+  const [families, surnameGroups, relationOptions, nriCities, occupationTree, villages, cities] =
     await Promise.all([
       getFamilies(community.id),
       getSurnameGroups(community.id),
       getDropdownOptions(community.id, "relationship"),
+      getNriCities(prisma, community.id),
       getOccupationTree(community.id),
       getVillageAreas(community.id),
       prisma.dropdownOption.findMany({
@@ -69,6 +71,7 @@ export default async function FamiliesPage() {
         .filter((o) => o.isActive)
         .map((o) => ({ nameEn: o.nameEn, nameGu: o.nameGu }))}
       occupationTree={occupationTree}
+      nriCities={nriCities}
     />
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import { AdminField } from "@/components/admin/admin-form";
-import { AdminInput, AdminToggle } from "@/components/admin/admin-ui";
+import { AdminToggle } from "@/components/admin/admin-ui";
+import { PhoneField } from "@/components/ui/phone-field";
+import { DEFAULT_ISO } from "@/lib/phone";
 
 /**
  * "This number has WhatsApp" — a switch, or, once turned off, a field for a
@@ -17,12 +19,15 @@ import { AdminInput, AdminToggle } from "@/components/admin/admin-ui";
 export function WhatsAppField({
   hasWhatsApp,
   whatsapp,
+  whatsappIso,
   onChange,
   className,
 }: {
   hasWhatsApp: boolean;
   whatsapp: string;
-  onChange: (next: { hasWhatsApp: boolean; whatsapp: string }) => void;
+  /** Country of the separate WhatsApp number — only read once the switch is off. */
+  whatsappIso?: string;
+  onChange: (next: { hasWhatsApp: boolean; whatsapp: string; whatsappIso?: string }) => void;
   className?: string;
 }) {
   if (hasWhatsApp) {
@@ -49,13 +54,13 @@ export function WhatsAppField({
   }
   return (
     <AdminField label="WhatsApp number · WhatsApp નંબર" className={className}>
-      <AdminInput
-        type="tel"
-        value={whatsapp}
-        placeholder="98765 43210"
+      <PhoneField
+        variant="admin"
+        value={{ iso: whatsappIso || DEFAULT_ISO, digits: whatsapp }}
         onChange={(v) =>
-          onChange({ hasWhatsApp: false, whatsapp: v.replace(/\D/g, "").slice(0, 10) })
+          onChange({ hasWhatsApp: false, whatsapp: v.digits, whatsappIso: v.iso })
         }
+        t={(_gu, en) => en}
       />
       <button
         type="button"

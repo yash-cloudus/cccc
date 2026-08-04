@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Award,
+  Globe,
   Building2,
   ChevronRight,
   Droplet,
@@ -48,6 +49,7 @@ const tileDefs = [
   { key: "gallery", href: "/gallery", labelKey: "gallery" as const, bg: "var(--leaf-tint)", fg: "var(--leaf)", Icon: ImageIcon },
   { key: "about", href: "/about", labelKey: "about" as const, bg: "var(--violet-tint)", fg: "var(--violet)", Icon: Home },
   { key: "results", href: "/results", labelKey: "results" as const, bg: "var(--warn-tint)", fg: "#B08A1E", Icon: Award },
+  { key: "nri", href: "/nri", labelKey: "nri" as const, bg: "var(--info-tint)", fg: "var(--info)", Icon: Globe },
 ];
 
 /** Deterministic gradient palette — Advertisement carries no gradient of its own. */

@@ -7,6 +7,8 @@ import { requireAdmin, handleApiError } from "@/lib/admin-guard";
 import { getParivarLockedSurname } from "@/lib/community-defaults";
 import { validateFamilyByType, validateHeadMobile } from "@/lib/family-form";
 import { dobPassword, pickLoginMember } from "@/lib/auth/family-login";
+import { DEFAULT_ISO, digitsOf, isValidNumber } from "@/lib/phone";
+import { userKey } from "@/lib/auth/user-key";
 
 const schema = z.object({
   headNameEn: z.string().min(1),
@@ -231,12 +233,16 @@ export async function POST(req: Request) {
       // exactly like one that was migrated: the head's number, and their date
       // of birth as the starting password.
       const login = pickLoginMember(family.familyMembers);
-      const mobile = login?.mobile?.replace(/\D/g, "") || "";
+      const mobile = digitsOf(login?.mobile);
+      const mobileIso = login?.mobileIso || DEFAULT_ISO;
       if (mobile) {
-        await prisma.family.update({ where: { id: family.id }, data: { loginMobile: mobile } });
+        await prisma.family.update({
+          where: { id: family.id },
+          data: { loginMobile: mobile, loginMobileIso: mobileIso },
+        });
         const password = dobPassword(login?.dateOfBirth ?? null);
         const existing = await prisma.user.findUnique({
-          where: { communityId_mobile: { communityId, mobile } },
+          where: userKey(communityId, mobile, mobileIso),
           select: { id: true, passwordHash: true },
         });
         // Never replace a password that already exists — that number may belong
@@ -244,18 +250,23 @@ export async function POST(req: Request) {
         const passwordHash =
           password && !existing?.passwordHash ? await bcrypt.hash(password, 10) : undefined;
         await prisma.user.upsert({
-          where: { communityId_mobile: { communityId, mobile } },
+          where: userKey(communityId, mobile, mobileIso),
           update: { status: "APPROVED", ...(passwordHash ? { passwordHash } : {}) },
-          create: { communityId, mobile, status: "APPROVED", passwordHash },
+          create: { communityId, mobile, mobileIso, status: "APPROVED", passwordHash },
         });
       }
     } else {
       for (const m of family.familyMembers) {
         if (!m.mobile) continue;
         await prisma.user.upsert({
-          where: { communityId_mobile: { communityId, mobile: m.mobile } },
+          where: userKey(communityId, m.mobile, m.mobileIso),
           update: { status: "APPROVED" },
-          create: { communityId, mobile: m.mobile, status: "APPROVED" },
+          create: {
+            communityId,
+            mobile: m.mobile,
+            mobileIso: m.mobileIso,
+            status: "APPROVED",
+          },
         });
       }
     }

@@ -5,6 +5,8 @@ import { created, fail, fromZod, getClientIp, ok } from "@/lib/api";
 import { requireSession, hasRole } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { getActiveCommunityId, getWritableCommunityId } from "@/lib/tenant";
+import { DEFAULT_ISO, digitsOf } from "@/lib/phone";
+import { userKey } from "@/lib/auth/user-key";
 
 export async function GET(req: Request) {
   try {
@@ -76,12 +78,16 @@ const createSchema = z.object({
   nativeElderNameEn: z.string().optional(),
   nativeElderNameGu: z.string().optional(),
   nativeElderPhone: z.string().optional(),
+  nativeElderIso: z.string().length(2).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   consentAccepted: z.boolean(),
   // MOBILE_PASSWORD communities only. Optional at the schema level because the
   // same shape serves OTP tenants; required by a runtime branch below.
-  loginMobile: z.string().regex(/^[6-9]\d{9}$/).optional(),
+  // Length only — the per-country rule lives in lib/phone and is applied below,
+  // because a US number is ten digits that may start with 2.
+  loginMobile: z.string().min(4).max(20).optional(),
+  loginMobileIso: z.string().length(2).optional(),
   loginPassword: z.string().regex(/^\d{6}$/).optional(),
   members: z
     .array(
@@ -91,6 +97,11 @@ const createSchema = z.object({
         relation: z.string().optional(),
         gender: z.enum(["MALE", "FEMALE"]).optional(),
         mobile: z.string().optional(),
+        mobileIso: z.string().length(2).optional(),
+        whatsappIso: z.string().length(2).optional(),
+        isNri: z.boolean().optional(),
+        nriCountry: z.string().max(80).optional(),
+        nriCity: z.string().max(80).optional(),
         bloodGroup: z
           .enum(["A_POS", "A_NEG", "B_POS", "B_NEG", "O_POS", "O_NEG", "AB_POS", "AB_NEG"])
           .optional(),
@@ -160,14 +171,14 @@ export async function POST(req: Request) {
       if (!body.loginMobile || !body.loginPassword) {
         return fail("A login mobile and 6-digit password are required", 422);
       }
-      const loginErr = validateLoginMobile(body.members, body.loginMobile);
+      const loginErr = validateLoginMobile(body.members, body.loginMobile, body.loginMobileIso);
       if (loginErr) return fail(loginErr, 422);
 
       // A public endpoint must never set or replace the password on a mobile
       // that already has an account — that is a takeover, not a signup. Checked
       // before the family is written so a rejected attempt leaves nothing behind.
       const taken = await prisma.user.findUnique({
-        where: { communityId_mobile: { communityId, mobile: body.loginMobile } },
+        where: userKey(communityId, body.loginMobile, body.loginMobileIso),
         select: { id: true },
       });
       if (taken) {
@@ -235,9 +246,11 @@ export async function POST(req: Request) {
         nativeElderNameEn: body.nativeElderNameEn,
         nativeElderNameGu: body.nativeElderNameGu,
         nativeElderPhone: body.nativeElderPhone,
+        nativeElderIso: body.nativeElderIso || DEFAULT_ISO,
         latitude: body.latitude,
         longitude: body.longitude,
-        loginMobile: passwordLogin ? body.loginMobile : null,
+        loginMobile: passwordLogin ? digitsOf(body.loginMobile) : null,
+        loginMobileIso: passwordLogin ? body.loginMobileIso || DEFAULT_ISO : DEFAULT_ISO,
         consentAccepted: true,
         status: "PENDING",
         familyMembers: {
@@ -248,7 +261,14 @@ export async function POST(req: Request) {
               fullNameGu: m.fullNameGu,
               relation: isHead ? "Head" : m.relation,
               gender: m.gender ?? null,
-              mobile: m.mobile?.replace(/\D/g, "") || null,
+              mobile: digitsOf(m.mobile) || null,
+              mobileIso: m.mobileIso || DEFAULT_ISO,
+              whatsappIso: m.whatsappIso || m.mobileIso || DEFAULT_ISO,
+              // Country and city only mean anything while the flag is on, so
+              // they are cleared with it rather than left as stale history.
+              isNri: m.isNri ?? false,
+              nriCountry: m.isNri ? m.nriCountry || null : null,
+              nriCity: m.isNri ? m.nriCity || null : null,
               bloodGroup: m.bloodGroup,
               occupation: m.occupation,
               occupationOther: m.occupationOther,
@@ -274,19 +294,21 @@ export async function POST(req: Request) {
       await prisma.user.create({
         data: {
           communityId,
-          mobile: body.loginMobile!,
+          mobile: digitsOf(body.loginMobile),
+          mobileIso: body.loginMobileIso || DEFAULT_ISO,
           passwordHash: await bcrypt.hash(body.loginPassword!, 10),
           status: "PENDING",
         },
       });
     } else {
       for (const m of body.members) {
-        const mobile = m.mobile?.replace(/\D/g, "");
+        const mobile = digitsOf(m.mobile);
         if (!mobile) continue;
+        const mobileIso = m.mobileIso || DEFAULT_ISO;
         await prisma.user.upsert({
-          where: { communityId_mobile: { communityId, mobile } },
+          where: userKey(communityId, mobile, mobileIso),
           update: {},
-          create: { communityId, mobile, status: "PENDING" },
+          create: { communityId, mobile, mobileIso, status: "PENDING" },
         });
       }
     }
@@ -337,19 +359,17 @@ export async function PATCH(req: Request) {
       include: { familyMembers: true },
     });
 
-    if (body.status === "APPROVED") {
-      for (const m of family.familyMembers) {
-        if (!m.mobile) continue;
+    // Country included in the match: the same ten digits under two countries
+    // are two different accounts, and approving this family must not reach the
+    // other one.
+    for (const m of family.familyMembers) {
+      if (!m.mobile) continue;
+      const who = { mobile: m.mobile, mobileIso: m.mobileIso, communityId };
+      if (body.status === "APPROVED") {
+        await prisma.user.updateMany({ where: who, data: { status: "APPROVED" } });
+      } else if (body.status === "REJECTED") {
         await prisma.user.updateMany({
-          where: { mobile: m.mobile, communityId },
-          data: { status: "APPROVED" },
-        });
-      }
-    } else if (body.status === "REJECTED") {
-      for (const m of family.familyMembers) {
-        if (!m.mobile) continue;
-        await prisma.user.updateMany({
-          where: { mobile: m.mobile, communityId, status: { not: "SUSPENDED" } },
+          where: { ...who, status: { not: "SUSPENDED" } },
           data: { status: "REJECTED" },
         });
       }

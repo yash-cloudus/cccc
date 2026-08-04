@@ -1,5 +1,6 @@
 import type { CommunityType } from "@prisma/client";
 import { z } from "zod";
+import { DEFAULT_ISO, countryOrDefault, digitsOf, isValidNumber } from "@/lib/phone";
 
 export const bloodEnum = z.enum([
   "A_POS",
@@ -48,6 +49,7 @@ export const familyDetailsSchema = z.object({
   nativeElderNameEn: z.string().optional().nullable(),
   nativeElderNameGu: z.string().optional().nullable(),
   nativeElderPhone: z.string().optional().nullable(),
+  nativeElderIso: z.string().optional().nullable(),
   consentAccepted: z.boolean().optional(),
 });
 
@@ -77,12 +79,13 @@ export function validateFamilyByType(
 
 /** OTP communities: the head's number *is* the household's login. */
 export function validateHeadMobile(
-  members: { mobile?: string | null; isHead?: boolean }[],
+  members: { mobile?: string | null; mobileIso?: string | null; isHead?: boolean }[],
 ): string | null {
   const head = members.find((m) => m.isHead) ?? members[0];
-  const mobile = head?.mobile?.replace(/\D/g, "") ?? "";
-  if (!/^[6-9]\d{9}$/.test(mobile)) {
-    return "Head mobile is required (10 digits, starts with 6–9)";
+  // Per country, not a fixed ten digits — an NRI head's number is theirs.
+  if (!isValidNumber(head?.mobile ?? "", head?.mobileIso || DEFAULT_ISO)) {
+    const c = countryOrDefault(head?.mobileIso);
+    return `Head mobile is required (a valid ${c.name} number)`;
   }
   return null;
 }
@@ -98,16 +101,21 @@ export function validateHeadMobile(
  * walks `family.familyMembers`) would then never reach.
  */
 export function validateLoginMobile(
-  members: { mobile?: string | null }[],
+  members: { mobile?: string | null; mobileIso?: string | null }[],
   loginMobile: string | null | undefined,
+  loginMobileIso?: string | null,
 ): string | null {
-  const digits = (loginMobile || "").replace(/\D/g, "");
-  if (!/^[6-9]\d{9}$/.test(digits)) {
-    return "Pick a login mobile (10 digits, starts with 6–9)";
+  const digits = digitsOf(loginMobile);
+  const iso = (loginMobileIso || DEFAULT_ISO).toLowerCase();
+  if (!isValidNumber(digits, iso)) {
+    return `Pick a login mobile (a valid ${countryOrDefault(iso).name} number)`;
   }
-  if (!members.some((m) => m.mobile?.replace(/\D/g, "") === digits)) {
-    return "The login mobile must belong to one of the members";
-  }
+  // Country too: two members can hold the same digits under different countries,
+  // and only one of them is the account being created.
+  const match = members.some(
+    (m) => digitsOf(m.mobile) === digits && (m.mobileIso || DEFAULT_ISO).toLowerCase() === iso,
+  );
+  if (!match) return "The login mobile must belong to one of the members";
   return null;
 }
 
@@ -130,6 +138,8 @@ export type FamilyDetailsValues = {
   nativeElderNameEn: string;
   nativeElderNameGu: string;
   nativeElderPhone: string;
+  /** Country of nativeElderPhone. */
+  nativeElderIso: string;
   /** Captured by the "નકશા પર સ્થળ" button; null until the member pins a spot. */
   latitude: number | null;
   longitude: number | null;
@@ -150,6 +160,7 @@ export function blankFamilyDetails(
     nativeElderNameEn: "",
     nativeElderNameGu: "",
     nativeElderPhone: "",
+    nativeElderIso: DEFAULT_ISO,
     latitude: null,
     longitude: null,
     ...partial,
@@ -194,6 +205,7 @@ export function familyDetailsToPayload(v: FamilyDetailsValues) {
     nativeElderNameEn: t(v.nativeElderNameEn),
     nativeElderNameGu: t(v.nativeElderNameGu),
     nativeElderPhone: t(v.nativeElderPhone),
+    nativeElderIso: v.nativeElderIso || DEFAULT_ISO,
     latitude: v.latitude ?? undefined,
     longitude: v.longitude ?? undefined,
   };

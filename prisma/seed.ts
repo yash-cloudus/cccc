@@ -261,7 +261,9 @@ async function seedCommunityData(
   // Community owner/admin (also a member: username+password AND mobile+OTP)
   const ownerPwd = await bcrypt.hash(opts.ownerPassword, 10);
   const owner = await prisma.user.upsert({
-    where: { communityId_mobile: { communityId, mobile: opts.ownerMobile } },
+    where: {
+      communityId_mobileIso_mobile: { communityId, mobileIso: "in", mobile: opts.ownerMobile },
+    },
     update: { username: opts.ownerUsername, passwordHash: ownerPwd, status: "APPROVED" },
     create: {
       communityId,
@@ -346,7 +348,9 @@ async function seedCommunityData(
       },
     });
     await prisma.user.upsert({
-      where: { communityId_mobile: { communityId, mobile: opts.pendingMobile } },
+      where: {
+        communityId_mobileIso_mobile: { communityId, mobileIso: "in", mobile: opts.pendingMobile },
+      },
       update: {},
       create: { communityId, mobile: opts.pendingMobile, status: "PENDING" },
     });

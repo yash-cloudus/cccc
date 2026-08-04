@@ -6,6 +6,7 @@ import { rateLimit } from "@/lib/security/rate-limit";
 import { getActiveCommunity } from "@/lib/tenant";
 import { ACCESS_DENIAL, checkMemberAccess } from "@/lib/auth/member-access";
 import { issueMemberSession } from "@/lib/auth/issue-session";
+import { DEFAULT_ISO, digitsOf } from "@/lib/phone";
 
 /**
  * Member login for MOBILE_PASSWORD communities: one household, one mobile, one
@@ -17,7 +18,10 @@ import { issueMemberSession } from "@/lib/auth/issue-session";
  * mode flip turns a password into a guessable code.
  */
 const schema = z.object({
-  mobile: z.string().regex(/^[6-9]\d{9}$/),
+  // Length only — the country decides the shape, and a wrong number simply
+  // fails the lookup below with the same message as a wrong password.
+  mobile: z.string().min(4).max(20),
+  mobileIso: z.string().length(2).default(DEFAULT_ISO),
   // Exactly 6 digits. This also keeps community-admin passwords (which live on
   // the same User.passwordHash) from being usable here — do not relax it.
   password: z.string().regex(/^\d{6}$/),
@@ -32,10 +36,12 @@ export async function POST(req: Request) {
     }
 
     const body = schema.parse(await req.json());
+    const mobile = digitsOf(body.mobile);
+    const mobileIso = body.mobileIso.toLowerCase();
 
     // Second bucket, keyed on the account rather than the caller. Six digits is
     // a million combinations; an IP-only limit is beaten by rotating IPs.
-    if (!rateLimit(`mlogin:m:${body.mobile}`, 5, 15 * 60_000).allowed) {
+    if (!rateLimit(`mlogin:m:${mobileIso}:${mobile}`, 5, 15 * 60_000).allowed) {
       return fail("Too many attempts, try again later", 429);
     }
 
@@ -46,7 +52,7 @@ export async function POST(req: Request) {
     }
 
     const user = await prisma.user.findFirst({
-      where: { mobile: body.mobile, communityId: community.id },
+      where: { mobile, mobileIso, communityId: community.id },
       include: {
         roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
         profile: true,
@@ -58,14 +64,14 @@ export async function POST(req: Request) {
     const okPw = user?.passwordHash ? await bcrypt.compare(body.password, user.passwordHash) : false;
     if (!user || !okPw) {
       await prisma.loginLog.create({
-        data: { mobile: body.mobile, success: false, ip, userAgent },
+        data: { mobile, success: false, ip, userAgent },
       });
       return fail("Invalid mobile number or password", 401);
     }
 
     // Access is checked after the password on purpose: "your family is still
     // pending" must not be learnable without a valid credential.
-    const gate = await checkMemberAccess(community.id, body.mobile);
+    const gate = await checkMemberAccess(community.id, mobile, mobileIso);
     if (!gate.ok) {
       const denial = ACCESS_DENIAL[gate.reason];
       return fail(

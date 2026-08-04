@@ -33,6 +33,9 @@ import { MemberPlacePicker } from "@/components/forms/member-place-picker";
 import { WhatsAppField } from "@/components/forms/whatsapp-field";
 import { GENDERS, genderFromRelation } from "@/lib/constants";
 import { familyPlaceFromHead } from "@/lib/family-form";
+import { DEFAULT_ISO, digitsOf, isValidNumber } from "@/lib/phone";
+import { PhoneField } from "@/components/ui/phone-field";
+import { NriFields, type NriCityOption } from "@/components/forms/nri-fields";
 import {
   type CascadingOccupationValues,
   blankCascadingOccupation,
@@ -99,11 +102,18 @@ export type MemberDraft = {
   /** `Gender` enum value — required before the family can be created. */
   gender: string;
   mobile: string;
+  /** Country of `mobile`. Kept apart from the digits, like every other number. */
+  mobileIso: string;
   dateOfBirth: string;
   bloodGroup: string;
   hasWhatsApp: boolean;
   /** Only used when `hasWhatsApp` is false — WhatsApp lives on another number. */
   whatsapp: string;
+  whatsappIso: string;
+  /** Living abroad — replaces the village/city answer with country + city. */
+  isNri: boolean;
+  nriCountry: string;
+  nriCity: string;
   /** Where this member currently lives — English name of a village / city. */
   place: string;
 } & CascadingOccupationValues;
@@ -115,10 +125,15 @@ function blankMemberDraft(place = ""): MemberDraft {
     relation: "",
     gender: "",
     mobile: "",
+    mobileIso: DEFAULT_ISO,
     dateOfBirth: "",
     bloodGroup: "",
     hasWhatsApp: true,
     whatsapp: "",
+    whatsappIso: DEFAULT_ISO,
+    isNri: false,
+    nriCountry: "",
+    nriCity: "",
     place,
     ...blankCascadingOccupation(),
   };
@@ -133,6 +148,11 @@ function blankForm() {
     headBloodGroup: "",
     headHasWhatsApp: true,
     headWhatsapp: "",
+    headMobileIso: DEFAULT_ISO,
+    headWhatsappIso: DEFAULT_ISO,
+    headIsNri: false,
+    headNriCountry: "",
+    headNriCity: "",
     /** The head's village / city — becomes the family's place of record. */
     headPlace: "",
     surnameEn: "",
@@ -150,6 +170,7 @@ function blankForm() {
     nativeElderNameEn: "",
     nativeElderNameGu: "",
     nativeElderPhone: "",
+    nativeElderIso: DEFAULT_ISO,
     latitude: null as number | null,
     longitude: null as number | null,
     headMobile: "",
@@ -173,6 +194,7 @@ export function FamiliesClient({
   villages = [],
   relations = [],
   occupationTree,
+  nriCities = [],
 }: {
   communityType?: "PARIVAR" | "GAM";
   lockedSurname?: SurnameOption | null;
@@ -182,6 +204,8 @@ export function FamiliesClient({
   villages?: SurnameOption[];
   relations?: { nameEn: string; nameGu: string }[] | string[];
   occupationTree: OccupationTreeNode[];
+  /** Admin-managed NRI cities, grouped by country name. */
+  nriCities?: NriCityOption[];
 }) {
   const router = useRouter();
   const { t, tf, lang } = useAdminT();
@@ -335,15 +359,20 @@ export function FamiliesClient({
   function validateNewFamily(): Record<string, string> {
     const e: Record<string, string> = {};
     if (!form.headNameEn.trim()) e.headNameEn = t("fam.errHeadName");
-    if (!form.headPlace.trim()) {
+    // A member abroad answers country + city; the village question is gone.
+    if (form.headIsNri) {
+      if (!form.headNriCountry) e.headNriCountry = t("fam.errNriCountry");
+      if (!form.headNriCity.trim()) e.headNriCity = t("fam.errNriCity");
+    } else if (!form.headPlace.trim()) {
       e.headPlace = communityType === "PARIVAR" ? t("fam.errHeadCity") : t("fam.errHeadVillage");
     }
     if (communityType === "GAM" && !form.surnameEn.trim() && !form.surnameGroupId) {
       e.surnameEn = t("fam.errSurname");
     }
     if (!form.addressEn.trim()) e.addressEn = t("fam.errAddress");
-    // Asked of every head, male or female — it is the household's login.
-    if (!/^[6-9]\d{9}$/.test(form.headMobile.replace(/\D/g, ""))) {
+    // Asked of every head, male or female — it is the household's login. Judged
+    // against its own country, not a fixed Indian pattern.
+    if (!isValidNumber(form.headMobile, form.headMobileIso)) {
       e.headMobile = t("fam.errHeadMobile");
     }
     if (!form.headGender) e.headGender = t("fam.errHeadGender");
@@ -356,6 +385,13 @@ export function FamiliesClient({
       if (!m.relation.trim()) e[`m${i}relation`] = tf("fam.errMemberRelation", { n: i + 2 });
       if (!m.gender) e[`m${i}gender`] = tf("fam.errMemberGender", { n: i + 2 });
       if (!m.dateOfBirth) e[`m${i}dob`] = t("fam.errDob");
+      if (m.isNri) {
+        if (!m.nriCountry) e[`m${i}nriCountry`] = t("fam.errNriCountry");
+        if (!m.nriCity.trim()) e[`m${i}nriCity`] = t("fam.errNriCity");
+      }
+      if (m.mobile && !isValidNumber(m.mobile, m.mobileIso)) {
+        e[`m${i}mobile`] = t("fam.errHeadMobile");
+      }
     });
     return e;
   }
@@ -415,7 +451,12 @@ export function FamiliesClient({
           fullNameGu: form.headNameGu.trim() || undefined,
           relation: "Head",
           gender: form.headGender || undefined,
-          mobile: form.headMobile.replace(/\D/g, ""),
+          mobile: digitsOf(form.headMobile),
+          mobileIso: form.headMobileIso,
+          whatsappIso: form.headHasWhatsApp ? form.headMobileIso : form.headWhatsappIso,
+          isNri: form.headIsNri,
+          nriCountry: form.headIsNri ? form.headNriCountry : undefined,
+          nriCity: form.headIsNri ? form.headNriCity.trim() : undefined,
           dateOfBirth: form.headDateOfBirth || undefined,
           bloodGroup: form.headBloodGroup || undefined,
           occupation: resolvedHead.occupation || undefined,
@@ -423,25 +464,34 @@ export function FamiliesClient({
           education: resolvedHead.education || undefined,
           course: resolvedHead.course || undefined,
           isHead: true,
-          currentlyAt: form.headPlace.trim() || undefined,
+          currentlyAt: form.headIsNri
+            ? form.headNriCity.trim() || undefined
+            : form.headPlace.trim() || undefined,
           hasWhatsApp: form.headHasWhatsApp,
-          whatsapp: form.headWhatsapp.trim() || undefined,
+          whatsapp: digitsOf(form.headWhatsapp) || undefined,
         },
         ...keptMembers.map((m, i) => ({
           fullNameEn: m.fullNameEn.trim() || m.fullNameGu.trim(),
           fullNameGu: m.fullNameGu.trim() || undefined,
           relation: m.relation || undefined,
           gender: m.gender || undefined,
-          mobile: m.mobile || undefined,
+          mobile: digitsOf(m.mobile) || undefined,
+          mobileIso: m.mobileIso,
+          whatsappIso: m.hasWhatsApp ? m.mobileIso : m.whatsappIso,
+          isNri: m.isNri,
+          nriCountry: m.isNri ? m.nriCountry : undefined,
+          nriCity: m.isNri ? m.nriCity.trim() : undefined,
           dateOfBirth: m.dateOfBirth || undefined,
           bloodGroup: m.bloodGroup || undefined,
           occupation: resolved[i].occupation || undefined,
           occupationOther: resolved[i].occupationOther || undefined,
           education: resolved[i].education || undefined,
           course: resolved[i].course || undefined,
-          currentlyAt: m.place.trim() || form.headPlace.trim() || undefined,
+          currentlyAt: m.isNri
+            ? m.nriCity.trim() || undefined
+            : m.place.trim() || form.headPlace.trim() || undefined,
           hasWhatsApp: m.hasWhatsApp,
-          whatsapp: m.whatsapp.trim() || undefined,
+          whatsapp: digitsOf(m.whatsapp) || undefined,
           isHead: false,
         })),
       ],
@@ -794,12 +844,19 @@ export function FamiliesClient({
           <AdminFormRow>
             {/* Always asked of the head, male or female — it is the login. */}
             <AdminField label={t("fam.mobileNumber")} required error={errsCreate.headMobile}>
-              <AdminInput
-                value={form.headMobile}
+              <PhoneField
+                variant="admin"
+                value={{ iso: form.headMobileIso, digits: form.headMobile }}
                 onChange={(v) =>
-                  setForm({ ...form, headMobile: v.replace(/\D/g, "").slice(0, 10) })
+                  setForm((f) => ({
+                    ...f,
+                    headMobile: v.digits,
+                    headMobileIso: v.iso,
+                    // WhatsApp follows until it is given a country of its own.
+                    ...(f.headHasWhatsApp ? { headWhatsappIso: v.iso } : {}),
+                  }))
                 }
-                placeholder={t("fam.mobilePlaceholder")}
+                t={(gu, en) => (lang === "en" ? en : gu)}
               />
             </AdminField>
             <AdminField label={t("fam.gender")} required error={errsCreate.headGender}>
@@ -815,21 +872,46 @@ export function FamiliesClient({
             </AdminField>
           </AdminFormRow>
 
-          <AdminField
-            label={communityType === "GAM" ? t("fam.villageCity") : t("fam.city")}
-            required
-            error={errsCreate.headPlace}
-            hint={t("fam.headPlaceHint")}
-          >
-            <MemberPlacePicker
-              variant="admin"
-              value={form.headPlace}
-              onChange={(v) => setForm((prev) => ({ ...prev, headPlace: v }))}
-              options={allPlaces}
-              onAddNew={addPlace}
-              t={(gu, en) => (lang === "en" ? en : gu)}
-            />
-          </AdminField>
+          {/* Above the place question, and replaces it when ticked. */}
+          <NriFields
+            variant="admin"
+            value={{
+              isNri: form.headIsNri,
+              nriCountry: form.headNriCountry,
+              nriCity: form.headNriCity,
+            }}
+            onChange={(patch) =>
+              setForm((prev) => ({
+                ...prev,
+                ...(patch.isNri !== undefined ? { headIsNri: patch.isNri } : {}),
+                ...(patch.nriCountry !== undefined ? { headNriCountry: patch.nriCountry } : {}),
+                ...(patch.nriCity !== undefined
+                  ? { headNriCity: patch.nriCity, headPlace: patch.nriCity }
+                  : {}),
+              }))
+            }
+            cities={nriCities}
+            error={{ country: errsCreate.headNriCountry, city: errsCreate.headNriCity }}
+            t={(gu, en) => (lang === "en" ? en : gu)}
+          />
+
+          {!form.headIsNri && (
+            <AdminField
+              label={communityType === "GAM" ? t("fam.villageCity") : t("fam.city")}
+              required
+              error={errsCreate.headPlace}
+              hint={t("fam.headPlaceHint")}
+            >
+              <MemberPlacePicker
+                variant="admin"
+                value={form.headPlace}
+                onChange={(v) => setForm((prev) => ({ ...prev, headPlace: v }))}
+                options={allPlaces}
+                onAddNew={addPlace}
+                t={(gu, en) => (lang === "en" ? en : gu)}
+              />
+            </AdminField>
+          )}
 
           <AdminFormRow>
             {/* Required here — this form only creates. The edit form leaves it
@@ -862,11 +944,13 @@ export function FamiliesClient({
             className="mt-3"
             hasWhatsApp={form.headHasWhatsApp}
             whatsapp={form.headWhatsapp}
+            whatsappIso={form.headWhatsappIso}
             onChange={(next) =>
               setForm((f) => ({
                 ...f,
                 headHasWhatsApp: next.hasWhatsApp,
                 headWhatsapp: next.whatsapp,
+                ...(next.whatsappIso ? { headWhatsappIso: next.whatsappIso } : {}),
               }))
             }
           />
@@ -954,28 +1038,55 @@ export function FamiliesClient({
             {/* Not asked of women — unlike the head's, whose number is the login. */}
             {m.gender !== "FEMALE" && (
               <AdminField label={t("fam.mobileNumber")}>
-                <AdminInput
-                  value={m.mobile}
+                <PhoneField
+                  variant="admin"
+                  value={{ iso: m.mobileIso, digits: m.mobile }}
                   onChange={(v) =>
-                    updateMemberDraft(i, { mobile: v.replace(/\D/g, "").slice(0, 10) })
+                    updateMemberDraft(i, {
+                      mobile: v.digits,
+                      mobileIso: v.iso,
+                      ...(m.hasWhatsApp ? { whatsappIso: v.iso } : {}),
+                    })
                   }
+                  t={(gu, en) => (lang === "en" ? en : gu)}
                 />
               </AdminField>
             )}
 
-            <AdminField
-              label={communityType === "GAM" ? t("fam.villageCity") : t("fam.city")}
-              hint={t("fam.memberPlaceHint")}
-            >
-              <MemberPlacePicker
-                variant="admin"
-                value={m.place}
-                onChange={(v) => updateMemberDraft(i, { place: v })}
-                options={allPlaces}
-                onAddNew={addPlace}
-                t={(gu, en) => (lang === "en" ? en : gu)}
-              />
-            </AdminField>
+            <NriFields
+              variant="admin"
+              value={{ isNri: m.isNri, nriCountry: m.nriCountry, nriCity: m.nriCity }}
+              onChange={(patch) =>
+                updateMemberDraft(i, {
+                  ...patch,
+                  // Every directory screen reads the place, so it follows the
+                  // NRI city rather than becoming a second, stale answer.
+                  ...(patch.nriCity !== undefined ? { place: patch.nriCity } : {}),
+                })
+              }
+              cities={nriCities}
+              error={{
+                country: errsCreate[`m${i}nriCountry`],
+                city: errsCreate[`m${i}nriCity`],
+              }}
+              t={(gu, en) => (lang === "en" ? en : gu)}
+            />
+
+            {!m.isNri && (
+              <AdminField
+                label={communityType === "GAM" ? t("fam.villageCity") : t("fam.city")}
+                hint={t("fam.memberPlaceHint")}
+              >
+                <MemberPlacePicker
+                  variant="admin"
+                  value={m.place}
+                  onChange={(v) => updateMemberDraft(i, { place: v })}
+                  options={allPlaces}
+                  onAddNew={addPlace}
+                  t={(gu, en) => (lang === "en" ? en : gu)}
+                />
+              </AdminField>
+            )}
 
             <AdminFormRow>
               <AdminField label={t("fam.birthDate")} required error={errsCreate[`m${i}dob`]}>
@@ -1006,6 +1117,7 @@ export function FamiliesClient({
             <WhatsAppField
               hasWhatsApp={m.hasWhatsApp}
               whatsapp={m.whatsapp}
+              whatsappIso={m.whatsappIso}
               onChange={(next) => updateMemberDraft(i, next)}
             />
           </div>

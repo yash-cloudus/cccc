@@ -10,7 +10,7 @@ export async function GET() {
     const session = await requireSession();
     const [record, user] = await Promise.all([
       getMyMemberRecord(session.sub),
-      prisma.user.findUnique({ where: { id: session.sub }, select: { mobile: true } }),
+      prisma.user.findUnique({ where: { id: session.sub }, select: { mobile: true, mobileIso: true } }),
     ]);
 
     // Loaded separately: an OTP member has no Profile row, so both the person
@@ -44,6 +44,7 @@ export async function GET() {
     return ok({
       profile: record ? { ...record, family } : null,
       mobile: user?.mobile ?? null,
+      mobileIso: user?.mobileIso ?? null,
       userId: session.sub,
       pendingUpdateRequest,
     });

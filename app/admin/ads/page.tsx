@@ -24,6 +24,7 @@ export default async function AdsPage() {
         nameEn: true,
         nameGu: true,
         phone: true,
+        phoneIso: true,
         description: true,
         address: true,
         city: true,
@@ -42,6 +43,7 @@ export default async function AdsPage() {
     linkUrl: a.linkUrl,
     ownerName: a.ownerName,
     ownerMobile: a.ownerMobile,
+    ownerMobileIso: a.ownerMobileIso,
     category: a.category,
     rejectReason: a.rejectReason,
     type: a.type === "premium" ? "premium" : "general",
@@ -75,6 +77,7 @@ export default async function AdsPage() {
       label: catLabel ? `${name} · ${catLabel}` : name,
       ownerName: b.family?.headNameGu || b.family?.headNameEn || "",
       ownerMobile: b.phone ?? "",
+      ownerMobileIso: b.phoneIso ?? "in",
       description: b.description ?? "",
       address: [b.address, b.city].filter(Boolean).join(", "),
     };

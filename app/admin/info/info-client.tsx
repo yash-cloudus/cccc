@@ -38,6 +38,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { api } from "@/lib/http";
 import { telLink, waLink } from "@/lib/format";
+import { PhoneField } from "@/components/ui/phone-field";
+import { DEFAULT_ISO } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
@@ -68,7 +70,9 @@ type CMember = {
   roleEn: string | null;
   roleGu: string | null;
   phoneOverride: string | null;
+  phoneIso: string | null;
   whatsapp: string | null;
+  whatsappIso: string | null;
   email: string | null;
   descGu: string | null;
   showContact: boolean;
@@ -98,7 +102,9 @@ export type BasicInfo = {
   country: string;
   pincode: string;
   contactPhone: string;
+  contactPhoneIso: string;
   whatsapp: string;
+  whatsappIso: string;
   email: string;
   website: string;
   mapUrl: string;
@@ -116,7 +122,9 @@ type MemberDraft = {
   nameGu: string;
   nameOverride: string;
   phoneOverride: string;
+  phoneIso: string;
   whatsapp: string;
+  whatsappIso: string;
   sameWhatsapp: boolean;
   email: string;
   descGu: string;
@@ -146,7 +154,7 @@ export function InfoClient({
   villages: Village[];
   memberOptions: ProfileOption[];
 }) {
-  const { t, tf } = useAdminT();
+  const { t, tf, lang } = useAdminT();
   const { fromEn, guInput } = useTranslitSync();
 
   const TABS: { key: Tab; label: string }[] = [
@@ -347,7 +355,9 @@ export function InfoClient({
       nameGu: "",
       nameOverride: "",
       phoneOverride: "",
+      phoneIso: DEFAULT_ISO,
       whatsapp: "",
+      whatsappIso: DEFAULT_ISO,
       sameWhatsapp: true,
       email: "",
       descGu: "",
@@ -367,7 +377,9 @@ export function InfoClient({
       nameGu: m.nameGu || "",
       nameOverride: m.nameOverride || "",
       phoneOverride: m.phoneOverride || "",
+      phoneIso: m.phoneIso || DEFAULT_ISO,
       whatsapp: m.whatsapp || "",
+      whatsappIso: m.whatsappIso || DEFAULT_ISO,
       sameWhatsapp: !!m.phoneOverride && m.whatsapp === m.phoneOverride,
       email: m.email || "",
       descGu: m.descGu || "",
@@ -416,7 +428,9 @@ export function InfoClient({
         nameGu: memberDraft.nameGu.trim(),
         nameOverride: memberDraft.nameOverride.trim(),
         phoneOverride: memberDraft.phoneOverride.trim(),
+        phoneIso: memberDraft.phoneIso,
         whatsapp: effectiveWhatsapp,
+        whatsappIso: memberDraft.sameWhatsapp ? memberDraft.phoneIso : memberDraft.whatsappIso,
         email: memberDraft.email.trim(),
         descGu: memberDraft.descGu,
         showContact: memberDraft.showContact,
@@ -436,6 +450,8 @@ export function InfoClient({
         nameGu: memberDraft.nameGu.trim() || undefined,
         nameOverride: memberDraft.nameOverride.trim() || undefined,
         phoneOverride: memberDraft.phoneOverride.trim() || undefined,
+        phoneIso: memberDraft.phoneIso,
+        whatsappIso: memberDraft.sameWhatsapp ? memberDraft.phoneIso : memberDraft.whatsappIso,
         whatsapp: effectiveWhatsapp || undefined,
         email: memberDraft.email.trim() || undefined,
         descGu: memberDraft.descGu || undefined,
@@ -651,19 +667,36 @@ export function InfoClient({
           {BASIC_FIELDS.map((f) => (
             <div key={f.key}>
               <AdminLabel>{f.label}</AdminLabel>
-              <AdminInput
-                gujarati={f.gujarati}
-                speech={f.speech}
-                value={basic[f.key]}
-                onChange={(v) => {
-                  setField(f.key, v);
-                  if (f.key === "nameEn") {
-                    fromEn(v, (gu) => setField("nameGu", gu), "basic-name");
-                  } else if (f.key === "nameGu") {
-                    guInput(v, (gu) => setField("nameGu", gu), "basic-name:gu");
-                  }
-                }}
-              />
+              {/* The two phone rows get the flag picker; everything else is a
+                  plain text field. */}
+              {f.key === "contactPhone" || f.key === "whatsapp" ? (
+                <PhoneField
+                  variant="admin"
+                  value={{
+                    iso: (f.key === "contactPhone" ? basic.contactPhoneIso : basic.whatsappIso) || DEFAULT_ISO,
+                    digits: basic[f.key],
+                  }}
+                  onChange={(v) => {
+                    setField(f.key, v.digits);
+                    setField(f.key === "contactPhone" ? "contactPhoneIso" : "whatsappIso", v.iso);
+                  }}
+                  t={(gu, en) => (lang === "en" ? en : gu)}
+                />
+              ) : (
+                <AdminInput
+                  gujarati={f.gujarati}
+                  speech={f.speech}
+                  value={basic[f.key]}
+                  onChange={(v) => {
+                    setField(f.key, v);
+                    if (f.key === "nameEn") {
+                      fromEn(v, (gu) => setField("nameGu", gu), "basic-name");
+                    } else if (f.key === "nameGu") {
+                      guInput(v, (gu) => setField("nameGu", gu), "basic-name:gu");
+                    }
+                  }}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -831,7 +864,7 @@ export function InfoClient({
                       <div className="flex flex-col gap-1.5 text-[12.5px]">
                         {m.phoneOverride && (
                           <a
-                            href={telLink(m.phoneOverride)}
+                            href={telLink(m.phoneOverride, m.phoneIso)}
                             className="inline-flex w-fit items-center gap-2.5 text-[var(--ink-mid)] hover:text-[var(--brand)]"
                           >
                             <Phone className="size-3.5 flex-none text-[var(--faint)]" strokeWidth={2} />
@@ -840,7 +873,7 @@ export function InfoClient({
                         )}
                         {showWhatsapp && (
                           <a
-                            href={waLink(m.whatsapp)}
+                            href={waLink(m.whatsapp, m.whatsappIso)}
                             target="_blank"
                             rel="noreferrer"
                             className="inline-flex w-fit items-center gap-2.5 text-[var(--ink-mid)] hover:text-[var(--brand)]"
@@ -1385,9 +1418,22 @@ export function InfoClient({
 
             <AdminFormRow>
               <AdminField label={t("info.mobile")}>
-                <AdminInput
-                  value={memberDraft.phoneOverride}
-                  onChange={(v) => setMemberDraft((d) => (d ? { ...d, phoneOverride: v } : d))}
+                <PhoneField
+                  variant="admin"
+                  value={{ iso: memberDraft.phoneIso, digits: memberDraft.phoneOverride }}
+                  onChange={(v) =>
+                    setMemberDraft((d) =>
+                      d
+                        ? {
+                            ...d,
+                            phoneOverride: v.digits,
+                            phoneIso: v.iso,
+                            ...(d.sameWhatsapp ? { whatsappIso: v.iso } : {}),
+                          }
+                        : d,
+                    )
+                  }
+                  t={(gu, en) => (lang === "en" ? en : gu)}
                 />
               </AdminField>
               {memberDraft.sameWhatsapp ? (
@@ -1420,9 +1466,13 @@ export function InfoClient({
                     </span>
                   }
                 >
-                  <AdminInput
-                    value={memberDraft.whatsapp}
-                    onChange={(v) => setMemberDraft((d) => (d ? { ...d, whatsapp: v } : d))}
+                  <PhoneField
+                    variant="admin"
+                    value={{ iso: memberDraft.whatsappIso, digits: memberDraft.whatsapp }}
+                    onChange={(v) =>
+                      setMemberDraft((d) => (d ? { ...d, whatsapp: v.digits, whatsappIso: v.iso } : d))
+                    }
+                    t={(gu, en) => (lang === "en" ? en : gu)}
                   />
                 </AdminField>
               )}

@@ -68,6 +68,7 @@ export default async function AddBusinessPage() {
               nameEn: contentManager.profile?.fullNameEn || contentManager.username || contentManager.mobile,
               nameGu: contentManager.profile?.fullNameGu || null,
               mobile: contentManager.mobile,
+              mobileIso: contentManager.mobileIso,
             }
           : null
       }

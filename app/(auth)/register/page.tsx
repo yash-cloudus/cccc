@@ -8,6 +8,7 @@ import {
   getSurnameGroups,
   getVillageAreas,
 } from "@/lib/tenant-data";
+import { getNriCities } from "@/lib/nri";
 import { RegisterClient } from "./register-client";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export default async function RegisterPage() {
       ? await ensureParivarLockedSurname(prisma, community.id)
       : null;
 
-  const [surnameGroups, villages, cities, relations, occupationTree, contactPerson] = await Promise.all([
+  const [surnameGroups, villages, cities, relations, occupationTree, nriCities, contactPerson] = await Promise.all([
     getSurnameGroups(community.id),
     getVillageAreas(community.id),
     prisma.dropdownOption.findMany({
@@ -30,6 +31,7 @@ export default async function RegisterPage() {
     }),
     getDropdownOptions(community.id, "relationship"),
     getOccupationTree(community.id),
+    getNriCities(prisma, community.id),
     prisma.user.findFirst({
       where: {
         communityId: community.id,
@@ -77,12 +79,14 @@ export default async function RegisterPage() {
         .filter((o) => o.isActive)
         .map((o) => ({ nameEn: o.nameEn, nameGu: o.nameGu }))}
       occupationTree={occupationTree}
+      nriCities={nriCities}
       contactPerson={
         contactPerson
           ? {
               nameEn: contactPerson.profile?.fullNameEn || contactPerson.username || contactPerson.mobile,
               nameGu: contactPerson.profile?.fullNameGu || null,
               mobile: contactPerson.mobile,
+              mobileIso: contactPerson.mobileIso,
               role:
                 contactPerson.roles.some((r) => r.role.name === "DATA_MANAGER")
                   ? "DATA_MANAGER"

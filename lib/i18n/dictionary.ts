@@ -73,6 +73,7 @@ const gu = {
     "6 \u0A85\u0A82\u0A95\u0AA8\u0ACB \u0AAA\u0ABE\u0AB8\u0AB5\u0AB0\u0ACD\u0AA1 \u0AA8\u0ABE\u0A96\u0ACB",
   passwordMismatch:
     "\u0AAA\u0ABE\u0AB8\u0AB5\u0AB0\u0ACD\u0AA1 \u0AAE\u0AC7\u0AB3 \u0A96\u0ABE\u0AA4\u0ACB \u0AA8\u0AA5\u0AC0",
+  nri: "\u0AB5\u0ABF\u0AA6\u0AC7\u0AB6\u0AAE\u0ABE\u0A82",
 };
 
 export const dict: Dict = {
@@ -131,6 +132,7 @@ export const dict: Dict = {
   all: { gu: gu.all, en: "All" },
   servicesLabel: { gu: gu.servicesLabel, en: "SERVICES" },
   shortBrand: { gu: gu.shortBrand, en: "Shree" },
+  nri: { gu: gu.nri, en: "NRI" },
   password: { gu: gu.password, en: "Password (6 digits)" },
   passwordAgain: { gu: gu.passwordAgain, en: "Re-enter password" },
   forgotPassword: { gu: gu.forgotPassword, en: "Forgot password? Contact your community admin" },

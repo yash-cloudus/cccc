@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, ImagePlus, Loader2, MapPin, Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
+import { PhoneField } from "@/components/ui/phone-field";
+import { DEFAULT_ISO, isValidNumber } from "@/lib/phone";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { bilingualLabel } from "@/components/forms/family-details-fields";
@@ -13,12 +15,17 @@ import { SpeechInput, SpeechTextarea } from "@/components/ui/speech-input";
 import { useLang } from "@/providers/lang-provider";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { api } from "@/lib/http";
-import { pickText } from "@/lib/format";
+import { pickText, telLink, waLink } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Category = { id: string; nameEn: string; nameGu: string | null };
 
-export type ContactPerson = { nameEn: string; nameGu: string | null; mobile: string };
+export type ContactPerson = {
+  nameEn: string;
+  nameGu: string | null;
+  mobile: string;
+  mobileIso: string;
+};
 
 export type MemberOption = {
   id: string;
@@ -46,7 +53,9 @@ type Form = {
   facebook: string;
   youtube: string;
   phone: string;
+  phoneIso: string;
   whatsapp: string;
+  whatsappIso: string;
   email: string;
 };
 
@@ -68,7 +77,9 @@ const blank = (categoryId: string): Form => ({
   facebook: "",
   youtube: "",
   phone: "",
+  phoneIso: DEFAULT_ISO,
   whatsapp: "",
+  whatsappIso: DEFAULT_ISO,
   email: "",
 });
 
@@ -95,8 +106,9 @@ export function AddBusinessClient({
     ? pickText(contactPerson.nameGu, contactPerson.nameEn, lang)
     : T("સમાજ સંપર્ક", "Community contact");
   const contactMobile = contactPerson?.mobile || "";
-  const contactPhoneHref = contactMobile ? `tel:${contactMobile}` : "#";
-  const contactWhatsappHref = contactMobile ? `https://wa.me/91${contactMobile}` : "#";
+  const contactPhoneHref = contactMobile ? telLink(contactMobile, contactPerson?.mobileIso) : "#";
+  // Through waLink, not a hand-built +91 URL — the coordinator may be abroad.
+  const contactWhatsappHref = contactMobile ? waLink(contactMobile, contactPerson?.mobileIso) : "#";
 
   const [form, setForm] = useState<Form>(() => blank(categories[0]?.id ?? ""));
   /** Businesses already saved in this sitting — the "બીજો ધંધો ઉમેરો" list. */
@@ -132,11 +144,11 @@ export function AddBusinessClient({
       toast.error(T("સરનામું બંને ભાષામાં ભરો", "Enter the address in both languages"));
       return false;
     }
-    if (!/^[6-9]\d{9}$/.test(form.phone)) {
+    if (!isValidNumber(form.phone, form.phoneIso)) {
       toast.error(T("સાચો 10-અંકનો મોબાઈલ ભરો", "Enter a valid 10-digit mobile"));
       return false;
     }
-    if (form.whatsapp && !/^[6-9]\d{9}$/.test(form.whatsapp)) {
+    if (form.whatsapp && !isValidNumber(form.whatsapp, form.whatsappIso)) {
       toast.error(T("સાચો WhatsApp નંબર ભરો", "Enter a valid WhatsApp number"));
       return false;
     }
@@ -158,7 +170,9 @@ export function AddBusinessClient({
       facebook: form.facebook.trim() || undefined,
       youtube: form.youtube.trim() || undefined,
       phone: form.phone,
+      phoneIso: form.phoneIso,
       whatsapp: form.whatsapp || undefined,
+      whatsappIso: hasWhatsApp ? form.phoneIso : form.whatsappIso,
       email: form.email.trim() || undefined,
     });
     setBusy(false);
@@ -484,11 +498,18 @@ export function AddBusinessClient({
         <SectionHeading>{T("સંપર્ક", "CONTACT")}</SectionHeading>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
           <Field label="Mobile 1 *">
-            <Input
-              value={form.phone}
-              placeholder="98765 43210"
-              numeric
-              onChange={(v) => set("phone", v)}
+            <PhoneField
+              value={{ iso: form.phoneIso, digits: form.phone }}
+              onChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  phone: v.digits,
+                  phoneIso: v.iso,
+                  // WhatsApp follows until it is given a country of its own.
+                  ...(hasWhatsApp ? { whatsappIso: v.iso } : {}),
+                }))
+              }
+              t={T}
             />
           </Field>
           {hasWhatsApp ? (
@@ -527,11 +548,10 @@ export function AddBusinessClient({
                 </span>
               }
             >
-              <Input
-                value={form.whatsapp}
-                placeholder="98765 43210"
-                numeric
-                onChange={(v) => set("whatsapp", v)}
+              <PhoneField
+                value={{ iso: form.whatsappIso, digits: form.whatsapp }}
+                onChange={(v) => setForm((f) => ({ ...f, whatsapp: v.digits, whatsappIso: v.iso }))}
+                t={T}
               />
             </Field>
           )}

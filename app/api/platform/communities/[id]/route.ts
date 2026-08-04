@@ -6,6 +6,7 @@ import { assertPlatform } from "@/lib/tenant";
 import { MAX_LOGO_LETTERS, groupingLabel, logoTextTooLong } from "@/lib/platform";
 import { encryptSecret } from "@/lib/security/crypto";
 import { backfillFamilyLogins } from "@/lib/auth/family-login";
+import { DEFAULT_ISO, digitsOf, isValidNumber } from "@/lib/phone";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null | undefined {
   if (raw === undefined) return undefined;
@@ -32,10 +33,10 @@ const patchSchema = z.object({
   status: z.enum(["DRAFT", "LIVE", "SUSPENDED"]).optional(),
   /** Owner account updates (optional). Password only applied when non-empty. */
   adminName: z.string().max(120).optional(),
-  adminPhone: z
-    .string()
-    .regex(/^[6-9]\d{9}$/, "Owner mobile must be 10 digits starting with 6–9")
-    .optional(),
+  // Length only here — the per-country rule is applied below via lib/phone,
+  // because the number is only valid relative to the country it comes with.
+  adminPhone: z.string().min(4).max(20).optional(),
+  adminPhoneIso: z.string().length(2).optional(),
   adminUsername: z.string().min(3).max(64).optional(),
   adminPassword: z.string().min(4).max(128).optional(),
   authMode: z.enum(["MOBILE_PASSWORD", "WHATSAPP_API", "SMS"]).optional(),
@@ -43,6 +44,7 @@ const patchSchema = z.object({
   waApiKey: z.string().max(500).optional(),
   waFirmId: z.string().max(200).optional(),
   waSenderMobile: z.string().max(20).optional(),
+  waSenderIso: z.string().length(2).optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -57,12 +59,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const {
       adminName,
       adminPhone,
+      adminPhoneIso,
       adminUsername,
       adminPassword,
       logoUrl,
       waApiKey,
       waFirmId,
       waSenderMobile,
+      waSenderIso,
       ...communityFields
     } = body;
 
@@ -83,6 +87,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         ...(waApiKey?.trim() ? { waApiKeyEnc: encryptSecret(waApiKey.trim()) } : {}),
         ...(waFirmId?.trim() ? { waFirmIdEnc: encryptSecret(waFirmId.trim()) } : {}),
         ...(waSenderMobile !== undefined ? { waSenderMobile: waSenderMobile.trim() || null } : {}),
+        ...(waSenderIso !== undefined ? { waSenderIso: waSenderIso.toLowerCase() } : {}),
       };
       if (Object.keys(integrationPatch).length > 0) {
         await tx.communityIntegration.upsert({
@@ -95,6 +100,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       const hasOwnerPatch =
         adminName !== undefined ||
         adminPhone !== undefined ||
+        adminPhoneIso !== undefined ||
         adminUsername !== undefined ||
         (adminPassword !== undefined && adminPassword.length > 0);
 
@@ -117,9 +123,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           if (taken) throw new Error("USERNAME_TAKEN");
         }
 
-        if (adminPhone) {
+        // The login identity is (country, number), so both move together and
+        // "already taken" is only true for the same pair.
+        const nextIso = (adminPhoneIso || owner.mobileIso || DEFAULT_ISO).toLowerCase();
+        const nextMobile = adminPhone ? digitsOf(adminPhone) : null;
+        if (nextMobile) {
+          if (!isValidNumber(nextMobile, nextIso)) throw new Error("BAD_PHONE");
           const phoneTaken = await tx.user.findFirst({
-            where: { communityId: id, mobile: adminPhone, NOT: { id: owner.id } },
+            where: { communityId: id, mobile: nextMobile, mobileIso: nextIso, NOT: { id: owner.id } },
           });
           if (phoneTaken) throw new Error("PHONE_TAKEN");
         }
@@ -128,7 +139,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           where: { id: owner.id },
           data: {
             ...(adminUsername ? { username: adminUsername.trim().toLowerCase() } : {}),
-            ...(adminPhone ? { mobile: adminPhone } : {}),
+            ...(nextMobile ? { mobile: nextMobile, mobileIso: nextIso } : {}),
             ...(adminPassword ? { passwordHash: await bcrypt.hash(adminPassword, 10) } : {}),
           },
         });
@@ -169,6 +180,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (e instanceof Error && e.message === "FORBIDDEN") return fail("Forbidden", 403);
     if (e instanceof Error && e.message === "NO_OWNER") return fail("No owner admin found for this app", 404);
     if (e instanceof Error && e.message === "USERNAME_TAKEN") return fail("Username already taken", 409);
+    if (e instanceof Error && e.message === "BAD_PHONE") return fail("Owner mobile is not valid for the selected country", 422);
     if (e instanceof Error && e.message === "PHONE_TAKEN") return fail("Mobile already used in this community", 409);
     // Fail-closed from lib/security/crypto.ts — surfaced by name so the operator
     // is told to set the key rather than reading "Failed to update community".

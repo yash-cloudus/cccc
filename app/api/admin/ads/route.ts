@@ -32,6 +32,7 @@ const schema = z.object({
   linkUrl: z.string().max(500).optional().nullable(),
   ownerName: z.string().max(120).optional().nullable(),
   ownerMobile: z.string().max(20).optional().nullable(),
+  ownerMobileIso: z.string().length(2).optional(),
   category: z.string().max(120).optional().nullable(),
   payStatus: z.string().max(40).optional(),
 });

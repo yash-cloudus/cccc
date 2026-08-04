@@ -131,7 +131,9 @@ model Community {
   country      String?
   pincode      String?
   contactPhone String?
+  contactPhoneIso String? @default("in")
   whatsapp     String?
+  whatsappIso  String? @default("in")
   email        String?
   website      String?
   mapUrl       String?
@@ -195,6 +197,7 @@ model CommunityIntegration {
   waFirmIdEnc    String? @db.Text
   /// The sender's own WhatsApp number — an identifier, not a credential.
   waSenderMobile String?
+  waSenderIso    String? @default("in")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -232,7 +235,13 @@ model RolePermission {
 model User {
   id                 String              @id @default(cuid())
   communityId        String?
+  /// National number, digits only — no dial code. The country lives in
+  /// `mobileIso`, because a dial code glued to the front cannot be taken apart
+  /// again (+1 is the US, Canada and a dozen Caribbean states).
   mobile             String
+  /// ISO-3166 alpha-2 of `mobile`. Defaults to India: every row that predates
+  /// this column is Indian, and so is nearly every row that follows it.
+  mobileIso          String              @default("in")
   email              String?
   username           String?
   passwordHash       String?
@@ -268,7 +277,10 @@ model User {
   resultEntries      ResultEntry[]
   familyAsHead       Family?             @relation("FamilyHead")
 
-  @@unique([communityId, mobile])
+  /// The login identity is the country AND the number, not the digits alone: a
+  /// US number and an Indian one can both be ten digits, so `9876543210` names
+  /// two different people once members live abroad.
+  @@unique([communityId, mobileIso, mobile])
   @@unique([communityId, username])
   @@unique([communityId, email])
   @@index([communityId])
@@ -340,11 +352,13 @@ model Family {
   nativeElderNameEn String?
   nativeElderNameGu String?
   nativeElderPhone  String?
+  nativeElderIso    String             @default("in")
   /// MOBILE_PASSWORD mode: the one member mobile the whole household signs in
   /// with. The credential itself is the `User` row keyed
-  /// (communityId, loginMobile) — this only records which number was chosen, so
-  /// the admin screen can show it without guessing.
+  /// (communityId, loginMobileIso, loginMobile) — this only records which number
+  /// was chosen, so the admin screen can show it without guessing.
   loginMobile       String?
+  loginMobileIso    String             @default("in")
   status            RegistrationStatus @default(PENDING)
   rejectReason      String?            @db.Text
   whatsappNotified  Boolean            @default(false)
@@ -379,7 +393,9 @@ model FamilyMember {
    * for relations that imply it (Son/Wife/…), never for an ambiguous Head.
    */
   gender          Gender?
+  /// National number, digits only. Its country is `mobileIso`.
   mobile          String?
+  mobileIso       String          @default("in")
   dateOfBirth     DateTime?
   bloodGroup      BloodGroupType?
   occupation      String?
@@ -387,9 +403,19 @@ model FamilyMember {
   education       String?
   course          String?
   currentlyAt     String?
+
+  /// Living abroad. Set per member, not per family — a son in Toronto and his
+  /// parents in Lathi are one household with two different answers.
+  isNri           Boolean         @default(false)
+  /// Country name, matching `lib/phone/countries.ts` exactly, so the flag and
+  /// the phone picker agree and the directory can group by it.
+  nriCountry      String?
+  nriCity         String?
+
   hasWhatsApp     Boolean         @default(true)
   /** Set only when `hasWhatsApp` is false — WhatsApp lives on a different number. */
   whatsapp        String?
+  whatsappIso     String          @default("in")
   showPhone       Boolean         @default(true)
   isHead          Boolean         @default(false)
   isVisible       Boolean         @default(true)
@@ -402,6 +428,8 @@ model FamilyMember {
 
   @@index([familyId])
   @@index([mobile])
+  /// Powers the NRI directory, which lists members abroad grouped by country.
+  @@index([isNri, nriCountry])
 }
 
 model Address {
@@ -443,6 +471,7 @@ model SurnameCoordinator {
   memberProfileId String?
   memberName      String
   memberMobile    String
+  memberMobileIso String  @default("in")
   showContact     Boolean      @default(true)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -499,7 +528,9 @@ model Business {
   description    String?         @db.Text
   descriptionGu  String?         @db.Text
   phone          String?
+  phoneIso       String? @default("in")
   whatsapp       String?
+  whatsappIso    String? @default("in")
   email          String?
   address        String?         @db.Text
   addressGu      String?         @db.Text
@@ -576,7 +607,9 @@ model CommitteeMember {
   nameOverride  String?
   nameGu        String?
   phoneOverride String?
+  phoneIso      String? @default("in")
   whatsapp      String?
+  whatsappIso   String? @default("in")
   email         String?
   descGu        String?               @db.Text
   photoUrl      String?
@@ -854,6 +887,7 @@ model Advertisement {
   businessId   String?
   ownerName    String?
   ownerMobile  String?
+  ownerMobileIso String? @default("in")
   category     String?
   type         String               @default("general")
   source       String               @default("user")

@@ -49,6 +49,9 @@ import { api } from "@/lib/http";
 import { cn } from "@/lib/utils";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { DateField } from "@/components/ui/date-field";
+import { PhoneField } from "@/components/ui/phone-field";
+import { DEFAULT_ISO, digitsOf, isValidNumber } from "@/lib/phone";
+import { phoneText } from "@/lib/format";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 
 export type AdStatus =
@@ -67,6 +70,7 @@ export type AdRow = {
   linkUrl: string | null;
   ownerName: string | null;
   ownerMobile: string | null;
+  ownerMobileIso: string | null;
   category: string | null;
   rejectReason: string | null;
   type: "premium" | "general";
@@ -97,6 +101,7 @@ export type BusinessOption = {
   label: string;
   ownerName: string;
   ownerMobile: string;
+  ownerMobileIso: string;
   description: string;
   address: string;
 };
@@ -150,14 +155,14 @@ const toDateInput = (iso: string) => {
   return d.toISOString().slice(0, 10);
 };
 
-/** Digits only, max 10 — Indian mobile UX. */
+/** Digits only — how many are allowed depends on the country. */
 function sanitizeMobile(raw: string) {
-  return raw.replace(/\D/g, "").slice(0, 10);
+  return digitsOf(raw).slice(0, 15);
 }
 
-function isValidMobile(mobile: string) {
+function isValidMobile(mobile: string, iso: string) {
   if (!mobile) return true; // optional
-  return /^[6-9]\d{9}$/.test(mobile);
+  return isValidNumber(mobile, iso);
 }
 
 function renewEndIso(currentEndIso: string, dur: "6m" | "1y") {
@@ -180,6 +185,7 @@ type Draft = {
   linkUrl: string;
   ownerName: string;
   ownerMobile: string;
+  ownerMobileIso: string;
   category: string;
   type: "premium" | "general";
   status: AdStatus;
@@ -196,6 +202,7 @@ type EditForm = {
   linkUrl: string;
   ownerName: string;
   ownerMobile: string;
+  ownerMobileIso: string;
   category: string;
   status: AdStatus;
   startDate: string;
@@ -224,6 +231,7 @@ const emptyDraft = (): Draft => {
     linkUrl: "",
     ownerName: "",
     ownerMobile: "",
+    ownerMobileIso: DEFAULT_ISO,
     category: "",
     type: "premium",
     status: "ACTIVE",
@@ -242,6 +250,7 @@ function editFormFrom(ad: AdRow): EditForm {
     linkUrl: ad.linkUrl ?? "",
     ownerName: ad.ownerName ?? "",
     ownerMobile: ad.ownerMobile ?? "",
+    ownerMobileIso: ad.ownerMobileIso ?? DEFAULT_ISO,
     category: ad.category ?? "",
     status: ad.status,
     startDate: toDateInput(ad.startDate),
@@ -252,7 +261,7 @@ function editFormFrom(ad: AdRow): EditForm {
 }
 
 function StatusPill({ status }: { status: AdStatus }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   const meta = STATUS_META[status];
   return (
     <span className={cn("inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold", meta.className)}>
@@ -298,7 +307,7 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
             {ad.ownerName || "—"} · {ad.category || "—"}
           </div>
           {ad.ownerMobile && (
-            <div className="mt-0.5 text-[11.5px] text-[var(--faint)]">{ad.ownerMobile}</div>
+            <div className="mt-0.5 text-[11.5px] text-[var(--faint)]">{phoneText(ad.ownerMobile, ad.ownerMobileIso)}</div>
           )}
           <div className="mt-2 flex flex-wrap gap-1.5">
             <StatusPill status={ad.status} />
@@ -370,7 +379,7 @@ function AdDetailsCard({ ad }: { ad: AdRow }) {
     { label: t("ads.fldName"), value: ad.name },
     { label: t("ads.fldCategory"), value: ad.category || "—" },
     { label: t("ads.fldOwner"), value: ad.ownerName || "—" },
-    { label: t("ads.fldMobile"), value: ad.ownerMobile || "—" },
+    { label: t("ads.fldMobile"), value: phoneText(ad.ownerMobile, ad.ownerMobileIso) || "—" },
     { label: t("ads.description"), value: ad.pitch || "—", wide: true },
     ...(ad.linkUrl ? [{ label: t("ads.fldLink"), value: ad.linkUrl, wide: true }] : []),
   ];
@@ -414,7 +423,7 @@ export function AdsClient({
   categories: CategoryOption[];
   businesses?: BusinessOption[];
 }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   const [rows, setRows] = useState<AdRow[]>(initialRows);
   const [tab, setTab] = useState<"all" | "premium" | "general">("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -583,7 +592,7 @@ export function AdsClient({
       setError(dateErr);
       return;
     }
-    if (!isValidMobile(draft.ownerMobile)) {
+    if (!isValidMobile(draft.ownerMobile, draft.ownerMobileIso)) {
       setError(t("ads.errMobile"));
       return;
     }
@@ -598,6 +607,7 @@ export function AdsClient({
       linkUrl: draft.linkUrl || undefined,
       ownerName: draft.ownerName || undefined,
       ownerMobile: draft.ownerMobile || undefined,
+      ownerMobileIso: draft.ownerMobileIso,
       category: draft.category || undefined,
       type: draft.type,
       source: "admin",
@@ -627,6 +637,7 @@ export function AdsClient({
         linkUrl: draft.linkUrl || null,
         ownerName: draft.ownerName || null,
         ownerMobile: draft.ownerMobile || null,
+        ownerMobileIso: draft.ownerMobileIso,
         category: draft.category || null,
         rejectReason: null,
         type: draft.type,
@@ -660,7 +671,7 @@ export function AdsClient({
       setError(dateErr);
       return;
     }
-    if (!isValidMobile(form.ownerMobile)) {
+    if (!isValidMobile(form.ownerMobile, form.ownerMobileIso)) {
       setError(t("ads.errMobile"));
       return;
     }
@@ -1243,13 +1254,13 @@ export function AdsClient({
                     />
                   </AdminField>
                   <AdminField label={t("ads.ownerMobile")} hint={t("ads.ownerMobileHint")}>
-                    <AdminInput
-                      type="tel"
-                      value={draft.ownerMobile}
-                      placeholder="98XXXXXXXX"
+                    <PhoneField
+                      variant="admin"
+                      value={{ iso: draft.ownerMobileIso, digits: draft.ownerMobile }}
                       onChange={(v) =>
-                        setDraft({ ...draft, ownerMobile: sanitizeMobile(v) })
+                        setDraft({ ...draft, ownerMobile: v.digits, ownerMobileIso: v.iso })
                       }
+                      t={(gu, en) => (lang === "en" ? en : gu)}
                     />
                   </AdminField>
                 </AdminFormRow>

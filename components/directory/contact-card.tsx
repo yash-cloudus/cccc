@@ -43,14 +43,19 @@ export function ContactRow({ label, children }: { label: string; children: React
  */
 export function ContactActionsRow({
   phone,
+  phoneIso,
   whatsapp,
+  whatsappIso,
   mapHref,
   callLabel,
   waLabel,
   mapLabel,
 }: {
   phone: string | null;
+  /** Country of `phone`; falls back to India for rows saved before it existed. */
+  phoneIso?: string | null;
   whatsapp: string | null;
+  whatsappIso?: string | null;
   mapHref: string | null;
   callLabel: string;
   waLabel: string;
@@ -61,13 +66,13 @@ export function ContactActionsRow({
   return (
     <div className="flex gap-2">
       {phone && (
-        <a href={telLink(phone)} className="samaj-btn flex flex-1 items-center justify-center gap-2 py-3.5 text-sm">
+        <a href={telLink(phone, phoneIso)} className="samaj-btn flex flex-1 items-center justify-center gap-2 py-3.5 text-sm">
           <Phone className="h-4 w-4" /> {callLabel}
         </a>
       )}
       {phone && (
         <a
-          href={waLink(whatsapp || phone)}
+          href={waLink(whatsapp || phone, whatsapp ? whatsappIso : phoneIso)}
           target="_blank"
           rel="noopener noreferrer"
           className="samaj-btn-wa flex flex-1 items-center justify-center gap-2 py-3.5 text-sm"

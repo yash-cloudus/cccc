@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { DEFAULT_ISO } from "@/lib/phone";
 import { getActiveCommunity, getSessionPayload } from "@/lib/tenant";
 import { getCommunityAdmins } from "@/lib/tenant-data";
 import { AdminsClient } from "./admins-client";
@@ -33,6 +34,7 @@ export default async function AdminsPage() {
         fullNameEn: true,
         fullNameGu: true,
         mobile: true,
+        mobileIso: true,
         family: { select: { surnameGu: true, surnameEn: true } },
       },
       orderBy: { fullNameEn: "asc" },
@@ -50,6 +52,7 @@ export default async function AdminsPage() {
       nameGu: u.profile?.fullNameGu ?? null,
       username: u.username,
       mobile: u.mobile,
+      mobileIso: u.mobileIso,
       family: familyLabel(surname) || null,
       surname: surname || null,
       showPhone: u.profile?.showPhone ?? true,
@@ -71,6 +74,7 @@ export default async function AdminsPage() {
       id: m.id,
       name: m.fullNameGu || m.fullNameEn,
       mobile: m.mobile || "",
+      mobileIso: m.mobileIso || DEFAULT_ISO,
       surname,
       family: familyLabel(surname),
     };

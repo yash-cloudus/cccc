@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_ISO, digitsOf, isValidNumber } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 import { created, fail, fromZod, ok } from "@/lib/api";
 import { requireSession } from "@/lib/auth/session";
@@ -57,8 +58,11 @@ const schema = z.object({
   nameGu: opt(),
   description: opt(2000),
   descriptionGu: opt(2000),
-  phone: z.string().regex(/^[6-9]\d{9}$/, "Valid 10-digit mobile required"),
-  whatsapp: z.union([z.literal(""), z.string().regex(/^[6-9]\d{9}$/)]).optional(),
+  // Length only — the country decides the shape, checked against lib/phone below.
+  phone: z.string().min(4).max(20),
+  phoneIso: z.string().length(2).default(DEFAULT_ISO),
+  whatsapp: z.union([z.literal(""), z.string().min(4).max(20)]).optional(),
+  whatsappIso: z.string().length(2).default(DEFAULT_ISO),
   email: z.union([z.literal(""), z.string().email()]).optional(),
   address: z.string().min(3).max(2000),
   addressGu: opt(2000),
@@ -98,6 +102,13 @@ export async function POST(req: Request) {
       : null;
     if (body.categoryId && !category) return fail("Category not found", 404);
 
+    // Per country, not a fixed Indian pattern — a business abroad lists its own
+    // number.
+    if (!isValidNumber(body.phone, body.phoneIso)) return fail("Enter a valid phone number", 422);
+    if (body.whatsapp && !isValidNumber(body.whatsapp, body.whatsappIso)) {
+      return fail("Enter a valid WhatsApp number", 422);
+    }
+
     // A business only reaches the public directory once its linked "general"
     // ad is approved in Admin > Advertisements — that approval is what flips
     // `Business.isApproved`. See PATCH /api/admin/ads. Both writes happen
@@ -107,7 +118,9 @@ export async function POST(req: Request) {
         data: {
           ...body,
           // Blank optional strings are stored as NULL rather than "".
-          whatsapp: body.whatsapp || null,
+          whatsapp: digitsOf(body.whatsapp) || null,
+          phoneIso: body.phoneIso,
+          whatsappIso: body.whatsappIso || body.phoneIso,
           email: body.email || null,
           communityId,
           userId: session.sub,
@@ -128,6 +141,7 @@ export async function POST(req: Request) {
           linkUrl: business.mapUrl || undefined,
           ownerName: member?.fullNameGu || member?.fullNameEn || undefined,
           ownerMobile: business.phone,
+          ownerMobileIso: business.phoneIso,
           category: category?.nameEn || undefined,
           type: "general",
           source: "user",

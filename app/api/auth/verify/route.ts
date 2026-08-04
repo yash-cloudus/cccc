@@ -6,9 +6,13 @@ import { rateLimit } from "@/lib/security/rate-limit";
 import { getActiveCommunity } from "@/lib/tenant";
 import { ACCESS_DENIAL, checkMemberAccess } from "@/lib/auth/member-access";
 import { issueMemberSession } from "@/lib/auth/issue-session";
+import { DEFAULT_ISO, digitsOf, e164 } from "@/lib/phone";
 
 const schema = z.object({
-  mobile: z.string().regex(/^[6-9]\d{9}$/),
+  // Length only — the country decides what a valid number looks like, and the
+  // access gate below rejects anything that is not a known account anyway.
+  mobile: z.string().min(4).max(20),
+  mobileIso: z.string().length(2).default(DEFAULT_ISO),
   code: z.string().regex(/^\d{4,8}$/),
   remember: z.boolean().optional(),
 });
@@ -20,6 +24,8 @@ export async function POST(req: Request) {
     if (!limited.allowed) return fail("Too many attempts", 429);
 
     const body = schema.parse(await req.json());
+    const mobile = digitsOf(body.mobile);
+    const mobileIso = body.mobileIso.toLowerCase();
 
     // Resolved before verifyOtp so a MOBILE_PASSWORD community is turned away
     // without consuming an OTP row or burning an attempt. /api/auth/otp checks
@@ -35,10 +41,12 @@ export async function POST(req: Request) {
     // A community with working credentials issues real codes, so it must not
     // also accept the fixed dev one.
     const allowDevCode = !(await canDeliverOtp(community.id));
-    const result = await verifyOtp(body.mobile, body.code, allowDevCode);
+    // Keyed on the full international number so an OTP minted for +1 555… is
+    // not consumable by +91 555….
+    const result = await verifyOtp(e164(mobile, mobileIso), body.code, allowDevCode);
     if (!result.ok) {
       await prisma.loginLog.create({
-        data: { mobile: body.mobile, success: false, ip, userAgent: req.headers.get("user-agent") || undefined },
+        data: { mobile, success: false, ip, userAgent: req.headers.get("user-agent") || undefined },
       });
       return fail(
         result.reason === "expired"
@@ -51,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     const user = await prisma.user.findFirst({
-      where: { mobile: body.mobile, communityId: community.id },
+      where: { mobile, mobileIso, communityId: community.id },
       include: {
         roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
         profile: true,
@@ -60,7 +68,7 @@ export async function POST(req: Request) {
     if (!user) return fail("User not found", 404);
 
     // The real gate — and from the family, not the cached User flag.
-    const gate = await checkMemberAccess(community.id, body.mobile);
+    const gate = await checkMemberAccess(community.id, mobile, mobileIso);
     if (!gate.ok) {
       const denial = ACCESS_DENIAL[gate.reason];
       return fail(denial.message, denial.status);

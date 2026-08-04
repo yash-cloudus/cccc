@@ -22,7 +22,9 @@ export type BusinessDetail = {
   description: string | null;
   descriptionGu: string | null;
   phone: string | null;
+  phoneIso: string | null;
   whatsapp: string | null;
+  whatsappIso: string | null;
   address: string | null;
   addressGu: string | null;
   city: string | null;
@@ -136,7 +138,9 @@ export function BusinessDetailClient({ biz }: { biz: BusinessDetail }) {
           <div className="space-y-2">
             <ContactActionsRow
               phone={biz.phone}
+              phoneIso={biz.phoneIso}
               whatsapp={biz.whatsapp}
+              whatsappIso={biz.whatsappIso}
               mapHref={mapHref}
               callLabel={t("call")}
               waLabel={t("whatsapp")}

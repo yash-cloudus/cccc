@@ -28,6 +28,8 @@ import { GujaratiInput } from "@/components/ui/gujarati-keyboard";
 import { SpeechInput } from "@/components/ui/speech-input";
 import { PickerWithAdd } from "@/components/ui/picker-with-add";
 import { DateField } from "@/components/ui/date-field";
+import { PhoneField } from "@/components/ui/phone-field";
+import { DEFAULT_ISO } from "@/lib/phone";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
 import {
   type CascadingOccupationValues,
@@ -43,6 +45,7 @@ type FamilyMemberRow = {
   fullNameGu: string | null;
   relation: string | null;
   mobile: string | null;
+  mobileIso: string | null;
   dateOfBirth: string | null;
   bloodGroup: string | null;
   occupation: string | null;
@@ -79,6 +82,7 @@ type ProfileResp = {
       }
     | null;
   mobile: string | null;
+  mobileIso: string | null;
   pendingUpdateRequest: { id: string; submittedAt: string } | null;
 };
 
@@ -114,6 +118,7 @@ type EditForm = {
   fullNameGu: string;
   relation: string;
   mobile: string;
+  mobileIso: string;
   dateOfBirth: string;
   currentlyAt: string;
   blood: string;
@@ -124,6 +129,7 @@ const blankEditForm = (): EditForm => ({
   fullNameGu: "",
   relation: "",
   mobile: "",
+  mobileIso: DEFAULT_ISO,
   dateOfBirth: "",
   currentlyAt: "",
   blood: "",
@@ -197,6 +203,7 @@ export function ProfileClient({
         fullNameGu: profile.fullNameGu ?? "",
         relation: profile.relation ?? "",
         mobile: data?.mobile ?? "",
+        mobileIso: data?.mobileIso ?? DEFAULT_ISO,
         dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.slice(0, 10) : "",
         currentlyAt: profile.currentlyAt ?? "",
         blood: bloodLabel(profile.bloodGroup) || "",
@@ -209,6 +216,7 @@ export function ProfileClient({
         fullNameGu: m.fullNameGu ?? "",
         relation: m.relation ?? "",
         mobile: m.mobile ?? "",
+        mobileIso: m.mobileIso ?? DEFAULT_ISO,
         dateOfBirth: m.dateOfBirth ? m.dateOfBirth.slice(0, 10) : "",
         currentlyAt: m.currentlyAt ?? "",
         blood: bloodLabel(m.bloodGroup) || "",
@@ -236,7 +244,8 @@ export function ProfileClient({
     const base = {
       fullNameEn: editForm.fullNameEn.trim(),
       fullNameGu: editForm.fullNameGu.trim() || undefined,
-      mobile: editForm.mobile.replace(/\D/g, "") || undefined,
+      mobile: editForm.mobile || undefined,
+      mobileIso: editForm.mobile ? editForm.mobileIso : undefined,
       dateOfBirth: editForm.dateOfBirth || undefined,
       bloodGroup: bloodToEnum(editForm.blood),
       occupation: occ.occupation || undefined,
@@ -448,14 +457,11 @@ export function ProfileClient({
           </div>
 
           <EditField label={T("મોબાઈલ", "Mobile")}>
-            <input
-              className="samaj-fld"
-              value={editForm.mobile}
-              inputMode="numeric"
-              onChange={(e) =>
-                setEditForm((prev) => ({ ...prev, mobile: e.target.value.replace(/\D/g, "").slice(0, 10) }))
+            <PhoneField
+              value={{ iso: editForm.mobileIso, digits: editForm.mobile }}
+              onChange={(v) =>
+                setEditForm((prev) => ({ ...prev, mobile: v.digits, mobileIso: v.iso }))
               }
-              placeholder="98765 43210"
             />
           </EditField>
 

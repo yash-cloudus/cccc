@@ -28,6 +28,8 @@ import { AdminFormModal, TEMPLATE_KEY, type AdminFormValues } from "./admin-form
 import { AdminViewModal, ROLE_KEY } from "./admin-view-modal";
 import { AdminResetModal } from "./admin-reset-modal";
 import { AvatarInitial } from "./avatar-initial";
+import { phoneText } from "@/lib/format";
+import { isValidNumber } from "@/lib/phone";
 
 export type { AdminRow, MemberOption } from "./admin-roles";
 
@@ -118,6 +120,7 @@ export function AdminsClient({
           fullNameEn: v.fullNameEn.trim(),
           fullNameGu: v.fullNameGu.trim() || undefined,
           mobile: v.mobile,
+          mobileIso: v.mobileIso,
           username: v.username.trim().toLowerCase(),
           password: v.password,
           roles: v.roles,
@@ -292,7 +295,8 @@ export function AdminsClient({
             key: "mobile",
             header: t("adm.mobile"),
             tdClassName: "font-mono text-[12px]",
-            cell: (a) => (/^[6-9]\d{9}$/.test(a.mobile) ? a.mobile : "—"),
+            cell: (a) =>
+              isValidNumber(a.mobile, a.mobileIso) ? phoneText(a.mobile, a.mobileIso) : "—",
           },
           {
             key: "roles",

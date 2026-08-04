@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
 import { useLang } from "@/providers/lang-provider";
-import { formatMobile } from "@/lib/format";
+import { DEFAULT_ISO, formatFull } from "@/lib/phone";
 import { toast } from "sonner";
 
 const DEFAULT_OTP_LEN = Math.max(4, Math.min(8, Number(process.env.NEXT_PUBLIC_OTP_LENGTH || 4)));
@@ -18,6 +18,9 @@ function OtpForm() {
   const router = useRouter();
   const params = useSearchParams();
   const mobile = params.get("mobile") || "9876543210";
+  /** Carried from the login screen — /api/auth/verify keys the OTP on the full
+   *  international number, so the country has to travel with it. */
+  const mobileIso = params.get("iso") || DEFAULT_ISO;
   /**
    * Code length comes from the send response, not the environment: a community
    * with WhatsApp credentials gets a real 6-digit code while the rest stay on
@@ -60,7 +63,7 @@ function OtpForm() {
 
   async function resendSms() {
     try {
-      const res = await axios.post("/api/auth/otp", { mobile, channel: "sms", purpose: "login" });
+      const res = await axios.post("/api/auth/otp", { mobile, mobileIso, channel: "sms", purpose: "login" });
       setLeft(42);
       const code = res.data?.data?.devCode;
       if (code) setDevHint(code);
@@ -79,7 +82,7 @@ function OtpForm() {
     }
     setLoading(true);
     try {
-      const res = await axios.post("/api/auth/verify", { mobile, code });
+      const res = await axios.post("/api/auth/verify", { mobile, mobileIso, code });
       if (res.data?.success === false) throw new Error(res.data.error);
       router.push("/dashboard");
     } catch (err: unknown) {
@@ -116,7 +119,7 @@ function OtpForm() {
         <div className="text-[14.5px] leading-relaxed text-[var(--ink-mid)]">
           {sentTo}
           <br />
-          <b className="text-base text-[var(--ink)]">{formatMobile(mobile)}</b>
+          <b className="text-base text-[var(--ink)]">{formatFull(mobile, mobileIso)}</b>
           <br />
           {enterCode}
           {devHint && (

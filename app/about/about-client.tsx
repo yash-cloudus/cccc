@@ -16,7 +16,7 @@ import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { WaIcon } from "@/components/directory/contact-card";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
-import { pickText, telLink, waLink } from "@/lib/format";
+import { phoneText, pickText, telLink, waLink } from "@/lib/format";
 
 export type CommitteeMemberRow = {
   id: string;
@@ -25,7 +25,9 @@ export type CommitteeMemberRow = {
   designationEn: string | null;
   designationGu: string | null;
   phone: string | null;
+  phoneIso: string | null;
   whatsapp: string | null;
+  whatsappIso: string | null;
   email: string | null;
   photoUrl: string | null;
   showContact: boolean;
@@ -168,10 +170,10 @@ export function AboutClient({
                 <div className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--line-soft)] px-3 py-2.5 text-[13px]">
                   <Phone className="h-4 w-4 flex-none text-[var(--leaf)]" />
                   <a
-                    href={telLink(c.contactPhone)}
+                    href={telLink(c.contactPhone, c.contactPhoneIso)}
                     className="min-w-0 truncate text-[var(--ink)] hover:text-[var(--brand)]"
                   >
-                    {c.contactPhone}
+                    {phoneText(c.contactPhone, c.contactPhoneIso)}
                   </a>
                 </div>
               )}
@@ -181,7 +183,7 @@ export function AboutClient({
                     <WaIcon size={16} />
                   </span>
                   <a
-                    href={waLink(c.whatsapp)}
+                    href={waLink(c.whatsapp, c.whatsappIso)}
                     target="_blank"
                     rel="noreferrer"
                     className="min-w-0 truncate text-[var(--ink)] hover:text-[var(--wa)]"
@@ -274,7 +276,7 @@ export function AboutClient({
                             <div className="flex flex-none gap-1.5">
                               {m.phone && (
                                 <a
-                                  href={telLink(m.phone)}
+                                  href={telLink(m.phone, m.phoneIso)}
                                   className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--leaf-tint)] text-[var(--leaf)]"
                                   aria-label={t("call")}
                                 >
@@ -283,7 +285,7 @@ export function AboutClient({
                               )}
                               {m.whatsapp && (
                                 <a
-                                  href={waLink(m.whatsapp)}
+                                  href={waLink(m.whatsapp, m.whatsappIso)}
                                   target="_blank"
                                   rel="noreferrer"
                                   className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--wa)]/15 text-[var(--wa)]"

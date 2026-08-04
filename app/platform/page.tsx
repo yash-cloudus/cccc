@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, Copy, Download, Eye, EyeOff, ImagePlus, KeyRound, LayoutGrid, Loader2, LogOut, MessageCircle, MessageSquareText, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
 import { ROOT_DOMAIN } from "@/lib/constants";
+import { PhoneField } from "@/components/ui/phone-field";
+import { DEFAULT_ISO, isValidNumber } from "@/lib/phone";
 import { BrandColorsPicker } from "@/components/shared/brand-colors-picker";
 import { HostLabel } from "@/components/host-label";
 import {
@@ -41,6 +43,7 @@ type ApiCommunity = {
     apiKeyMask: string | null;
     firmIdMask: string | null;
     senderMobile: string | null;
+    senderIso: string | null;
   } | null;
   _count?: {
     families: number;
@@ -52,6 +55,7 @@ type ApiCommunity = {
     id: string;
     username: string | null;
     mobile: string;
+    mobileIso?: string | null;
     name: string;
   } | null;
 };
@@ -139,6 +143,7 @@ type Form = {
   status: "LIVE" | "DRAFT" | "SUSPENDED";
   adminName: string;
   adminPhone: string;
+  adminPhoneIso: string;
   adminUsername: string;
   adminPassword: string;
   primarySurnameEn: string;
@@ -150,6 +155,7 @@ type Form = {
   waApiKey: string;
   waFirmId: string;
   waSenderMobile: string;
+  waSenderIso: string;
   _subTouched?: boolean;
   _userTouched?: boolean;
 };
@@ -166,6 +172,7 @@ const blankForm = (): Form => ({
   status: "LIVE",
   adminName: "",
   adminPhone: "",
+  adminPhoneIso: DEFAULT_ISO,
   adminUsername: "",
   adminPassword: "admin",
   primarySurnameEn: "",
@@ -175,6 +182,7 @@ const blankForm = (): Form => ({
   waApiKey: "",
   waFirmId: "",
   waSenderMobile: "",
+  waSenderIso: DEFAULT_ISO,
 });
 
 export default function PlatformPage() {
@@ -421,6 +429,7 @@ export default function PlatformPage() {
       status: a.status,
       adminName: a.owner?.name || "",
       adminPhone: a.owner?.mobile || "",
+      adminPhoneIso: a.owner?.mobileIso || DEFAULT_ISO,
       adminUsername: a.owner?.username || defaultAdminUsername(a.slug),
       adminPassword: "", // blank for security — only sent if changed
       authMode: a.authMode,
@@ -428,6 +437,7 @@ export default function PlatformPage() {
       waApiKey: "",
       waFirmId: "",
       waSenderMobile: a.integration?.senderMobile || "",
+      waSenderIso: a.integration?.senderIso || DEFAULT_ISO,
       _subTouched: true,
       _userTouched: true,
     });
@@ -445,7 +455,7 @@ export default function PlatformPage() {
       if (editing) {
         const username = f.adminUsername.trim().toLowerCase();
         if (username.length < 3) return setError("Admin username must be at least 3 characters.");
-        if (f.adminPhone && !/^[6-9]\d{9}$/.test(f.adminPhone))
+        if (f.adminPhone && !isValidNumber(f.adminPhone, f.adminPhoneIso))
           return setError("Enter owner’s mobile (10 digits, starting with 6–9).");
         if (f.adminPassword && f.adminPassword.length < 4)
           return setError("New password must be at least 4 characters.");
@@ -463,7 +473,7 @@ export default function PlatformPage() {
             secondaryColor: f.secondary,
             status: f.status,
             adminName: f.adminName,
-            ...(f.adminPhone ? { adminPhone: f.adminPhone } : {}),
+            ...(f.adminPhone ? { adminPhone: f.adminPhone, adminPhoneIso: f.adminPhoneIso } : {}),
             adminUsername: username,
             ...(f.adminPassword.trim() ? { adminPassword: f.adminPassword.trim() } : {}),
             authMode: f.authMode,
@@ -472,6 +482,7 @@ export default function PlatformPage() {
             ...(f.waApiKey.trim() ? { waApiKey: f.waApiKey.trim() } : {}),
             ...(f.waFirmId.trim() ? { waFirmId: f.waFirmId.trim() } : {}),
             waSenderMobile: f.waSenderMobile.trim(),
+            waSenderIso: f.waSenderIso,
           }),
         });
         const json = await res.json();
@@ -495,7 +506,7 @@ export default function PlatformPage() {
         if (username.length < 3) return setError("Admin username must be at least 3 characters.");
         const password = (f.adminPassword || "admin").trim();
         if (password.length < 4) return setError("Admin password must be at least 4 characters.");
-        if (!/^[6-9]\d{9}$/.test(f.adminPhone))
+        if (!isValidNumber(f.adminPhone, f.adminPhoneIso))
           return setError("Enter owner’s mobile (10 digits, starting with 6–9).");
 
         const createBody = {
@@ -509,6 +520,7 @@ export default function PlatformPage() {
           slug,
           adminName: f.adminName,
           adminPhone: f.adminPhone,
+          adminPhoneIso: f.adminPhoneIso,
           adminUsername: username,
           adminPassword: password,
           status: f.status,
@@ -1291,14 +1303,11 @@ export default function PlatformPage() {
                     </div>
                     <div className="mb-[18px]">
                       <Field label="Sender mobile number">
-                        <input
-                          className="mafld"
-                          inputMode="numeric"
-                          maxLength={10}
-                          value={f.waSenderMobile}
-                          placeholder="e.g. 9876543210"
-                          onChange={(e) =>
-                            setField("waSenderMobile", e.target.value.replace(/\D/g, "").slice(0, 10))
+                        <PhoneField
+                          variant="admin"
+                          value={{ iso: f.waSenderIso, digits: f.waSenderMobile }}
+                          onChange={(v) =>
+                            setF((prev) => ({ ...prev, waSenderMobile: v.digits, waSenderIso: v.iso }))
                           }
                         />
                       </Field>
@@ -1417,14 +1426,11 @@ export default function PlatformPage() {
                     />
                   </Field>
                   <Field label={editing ? "Owner mobile" : "Owner mobile *"}>
-                    <input
-                      className="mafld"
-                      value={f.adminPhone}
-                      placeholder="9876543210"
-                      inputMode="numeric"
-                      maxLength={10}
-                      onChange={(e) =>
-                        setField("adminPhone", e.target.value.replace(/\D/g, "").slice(0, 10))
+                    <PhoneField
+                      variant="admin"
+                      value={{ iso: f.adminPhoneIso, digits: f.adminPhone }}
+                      onChange={(v) =>
+                        setF((prev) => ({ ...prev, adminPhone: v.digits, adminPhoneIso: v.iso }))
                       }
                     />
                   </Field>

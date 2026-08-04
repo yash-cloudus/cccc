@@ -15,6 +15,11 @@ const memberSchema = z.object({
   relation: z.string().optional().nullable(),
   gender: z.enum(["MALE", "FEMALE"]).optional().nullable(),
   mobile: z.string().optional().nullable(),
+  mobileIso: z.string().length(2).optional().nullable(),
+  whatsappIso: z.string().length(2).optional().nullable(),
+  isNri: z.boolean().optional(),
+  nriCountry: z.string().max(80).optional().nullable(),
+  nriCity: z.string().max(80).optional().nullable(),
   dateOfBirth: z.string().optional().nullable(),
   bloodGroup: z.enum(BLOOD).optional().nullable(),
   occupation: z.string().optional().nullable(),
@@ -49,6 +54,7 @@ const putSchema = z.object({
   nativeElderNameEn: z.string().optional().nullable(),
   nativeElderNameGu: z.string().optional().nullable(),
   nativeElderPhone: z.string().optional().nullable(),
+  nativeElderIso: z.string().length(2).optional(),
   members: z.array(memberSchema).optional(),
 });
 
@@ -138,6 +144,11 @@ export async function PUT(req: Request, { params }: Params) {
             relation: m.relation ?? null,
             gender: m.gender ?? null,
             mobile: m.mobile ?? null,
+            mobileIso: m.mobileIso || "in",
+            whatsappIso: m.whatsappIso || m.mobileIso || "in",
+            isNri: m.isNri ?? false,
+            nriCountry: m.isNri ? m.nriCountry ?? null : null,
+            nriCity: m.isNri ? m.nriCity ?? null : null,
             dateOfBirth: m.dateOfBirth ? new Date(m.dateOfBirth) : null,
             bloodGroup: m.bloodGroup ?? null,
             occupation: m.occupation ?? null,
@@ -206,18 +217,18 @@ export async function PATCH(req: Request, { params }: Params) {
 
     const members = await prisma.familyMember.findMany({
       where: { familyId: id, mobile: { not: null } },
-      select: { mobile: true },
+      select: { mobile: true, mobileIso: true },
     });
     for (const m of members) {
       if (!m.mobile) continue;
+      // Country included: the same ten digits under two countries are two
+      // different accounts, and approving this family must not touch the other.
+      const who = { mobile: m.mobile, mobileIso: m.mobileIso, communityId };
       if (status === "APPROVED") {
-        await prisma.user.updateMany({
-          where: { mobile: m.mobile, communityId },
-          data: { status: "APPROVED" },
-        });
+        await prisma.user.updateMany({ where: who, data: { status: "APPROVED" } });
       } else if (status === "REJECTED") {
         await prisma.user.updateMany({
-          where: { mobile: m.mobile, communityId, status: { not: "SUSPENDED" } },
+          where: { ...who, status: { not: "SUSPENDED" } },
           data: { status: "REJECTED" },
         });
       }

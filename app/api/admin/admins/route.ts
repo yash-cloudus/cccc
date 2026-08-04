@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_ISO } from "@/lib/phone";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -44,9 +45,9 @@ const createSchema = z.object({
   password: z.string().min(4).max(128),
   fullNameEn: z.string().min(1),
   fullNameGu: z.string().optional(),
-  mobile: z
-    .union([z.literal(""), z.string().regex(/^[6-9]\d{9}$/, "Valid 10-digit mobile required")])
-    .optional(),
+  // Length only — the per-country rule lives in lib/phone.
+  mobile: z.union([z.literal(""), z.string().min(4).max(20)]).optional(),
+  mobileIso: z.string().length(2).optional(),
   roles: z.array(z.enum(ASSIGNABLE as [string, ...string[]])).min(1),
   /** FamilyMember the admin is being created from — supplies name / mobile / family. */
   memberId: z.string().optional(),
@@ -73,17 +74,21 @@ export async function POST(req: Request) {
     const member = body.memberId
       ? await prisma.familyMember.findFirst({
           where: { id: body.memberId, family: { communityId } },
-          select: { fullNameEn: true, fullNameGu: true, mobile: true, familyId: true },
+          select: { fullNameEn: true, fullNameGu: true, mobile: true, mobileIso: true, familyId: true },
         })
       : null;
 
     const mobile = body.mobile?.trim() || member?.mobile || `9${Date.now().toString().slice(-9)}`;
+    // The admin's login identity is (country, number), so the country has to
+    // come along from whichever source supplied the number.
+    const mobileIso = body.mobileIso || member?.mobileIso || DEFAULT_ISO;
 
     const user = await prisma.user.create({
       data: {
         communityId,
         username: body.username.trim().toLowerCase(),
         mobile,
+        mobileIso,
         passwordHash,
         status: "APPROVED",
         menusJson: body.menus ? JSON.stringify(body.menus) : null,
@@ -125,10 +130,8 @@ const updateSchema = z.object({
   fullNameEn: z.string().min(1).max(120).optional(),
   fullNameGu: z.string().max(120).optional(),
   username: z.string().min(3).max(64).optional(),
-  mobile: z
-    .string()
-    .regex(/^[6-9]\d{9}$/, "Valid 10-digit mobile required")
-    .optional(),
+  mobile: z.string().min(4).max(20).optional(),
+  mobileIso: z.string().length(2).optional(),
   /** Set only when changing / resetting. Leave omitted to keep current. */
   password: z.string().min(4).max(128).optional(),
   /** Shortcut: reset password to this value (default admin). */
@@ -174,7 +177,12 @@ export async function PATCH(req: Request) {
     }
     if (body.mobile) {
       const phoneTaken = await prisma.user.findFirst({
-        where: { communityId, mobile: body.mobile, NOT: { id: target.id } },
+        where: {
+          communityId,
+          mobile: body.mobile,
+          mobileIso: body.mobileIso || target.mobileIso,
+          NOT: { id: target.id },
+        },
       });
       if (phoneTaken) return fail("Mobile already used", 409);
     }
@@ -194,11 +202,13 @@ export async function PATCH(req: Request) {
       passwordHash?: string;
       username?: string;
       mobile?: string;
+      mobileIso?: string;
       menusJson?: string;
     } = {};
     if (body.status) data.status = body.status;
     if (body.username) data.username = body.username.trim().toLowerCase();
     if (body.mobile) data.mobile = body.mobile;
+    if (body.mobileIso) data.mobileIso = body.mobileIso;
     if (body.menus) data.menusJson = JSON.stringify(body.menus);
     if (newPassword) data.passwordHash = await bcrypt.hash(newPassword, 10);
     if (Object.keys(data).length) await prisma.user.update({ where: { id: target.id }, data });

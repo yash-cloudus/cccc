@@ -63,6 +63,7 @@ const MEMBER_PATHS = [
   "/results",
   "/education",
   "/blood-group",
+  "/nri",
   "/donation",
   "/notifications",
 ];

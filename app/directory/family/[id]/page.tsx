@@ -30,6 +30,7 @@ export default async function FamilyProfilePage({
     nativeElderNameEn: family.nativeElderNameEn,
     nativeElderNameGu: family.nativeElderNameGu,
     nativeElderPhone: family.nativeElderPhone,
+    nativeElderIso: family.nativeElderIso,
     villageEn: family.villageArea?.nameEn ?? null,
     villageGu: family.villageArea?.nameGu ?? null,
   };
@@ -40,6 +41,8 @@ export default async function FamilyProfilePage({
     fullNameGu: m.fullNameGu,
     relation: m.relation,
     mobile: m.mobile,
+      mobileIso: m.mobileIso,
+      whatsappIso: m.whatsappIso,
     dobISO: m.dateOfBirth?.toISOString() ?? null,
     blood: m.bloodGroup,
     occupation: m.occupation,

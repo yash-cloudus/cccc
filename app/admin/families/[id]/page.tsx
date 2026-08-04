@@ -35,10 +35,14 @@ export default async function FamilyDetailPage({
   const accounts = memberMobiles.length
     ? await prisma.user.findMany({
         where: { communityId: community.id, mobile: { in: memberMobiles } },
-        select: { mobile: true, passwordHash: true },
+        select: { mobile: true, mobileIso: true, passwordHash: true },
       })
     : [];
-  const withPassword = new Set(accounts.filter((u) => u.passwordHash).map((u) => u.mobile));
+  // Keyed on country too: the same ten digits under two countries are two
+  // different accounts, and only one of them belongs to this member.
+  const withPassword = new Set(
+    accounts.filter((u) => u.passwordHash).map((u) => `${u.mobileIso}:${u.mobile}`),
+  );
 
   const data: FamilyDetail = {
     id: family.id,
@@ -74,6 +78,11 @@ export default async function FamilyDetailPage({
       relation: m.relation,
       gender: m.gender,
       mobile: m.mobile,
+      mobileIso: m.mobileIso,
+      whatsappIso: m.whatsappIso,
+      isNri: m.isNri,
+      nriCountry: m.nriCountry,
+      nriCity: m.nriCity,
       dateOfBirth: iso(m.dateOfBirth),
       bloodGroup: m.bloodGroup,
       occupation: m.occupation,
@@ -87,7 +96,7 @@ export default async function FamilyDetailPage({
       isHead: m.isHead,
       isVisible: m.isVisible,
       isDeceased: m.isDeceased,
-      hasPassword: Boolean(m.mobile && withPassword.has(m.mobile)),
+      hasPassword: Boolean(m.mobile && withPassword.has(`${m.mobileIso}:${m.mobile}`)),
     })),
   };
 

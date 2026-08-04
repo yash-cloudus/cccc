@@ -13,6 +13,9 @@ import {
 } from "@/lib/cascading-occupation";
 import { BLOOD_GROUPS, GENDERS, genderFromRelation } from "@/lib/constants";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
+import { PhoneField } from "@/components/ui/phone-field";
+import { NriFields, type NriCityOption } from "@/components/forms/nri-fields";
+import { DEFAULT_ISO } from "@/lib/phone";
 import type { OccupationTreeNode } from "@/lib/occupation-defaults";
 
 /**
@@ -34,6 +37,8 @@ export type MemberFormValues = {
   /** `Gender` enum value — required in the form, blank only until it's picked. */
   gender: string;
   mobile: string;
+  /** Country of `mobile`. */
+  mobileIso: string;
   dateOfBirth: string;
   bloodGroup: string;
   /** Where this member lives — the head's answer becomes the family's place. */
@@ -41,6 +46,11 @@ export type MemberFormValues = {
   hasWhatsApp: boolean;
   /** Only used when `hasWhatsApp` is false — WhatsApp lives on a different number. */
   whatsapp: string;
+  whatsappIso: string;
+  /** Living abroad — replaces the village/city answer with country + city. */
+  isNri: boolean;
+  nriCountry: string;
+  nriCity: string;
 } & CascadingOccupationValues;
 
 export const blankMemberForm = (isHead = false): MemberFormValues => ({
@@ -49,11 +59,16 @@ export const blankMemberForm = (isHead = false): MemberFormValues => ({
   relation: isHead ? "Head" : "",
   gender: "",
   mobile: "",
+  mobileIso: DEFAULT_ISO,
   dateOfBirth: "",
   bloodGroup: "",
   currentlyAt: "",
   hasWhatsApp: true,
   whatsapp: "",
+  whatsappIso: DEFAULT_ISO,
+  isNri: false,
+  nriCountry: "",
+  nriCity: "",
   ...blankCascadingOccupation(),
 });
 
@@ -63,6 +78,7 @@ export function MemberFields({
   relations,
   occupationTree,
   places,
+  nriCities = [],
   onAddPlace,
   communityType = "PARIVAR",
   isHead,
@@ -75,6 +91,8 @@ export function MemberFields({
   relations: { nameEn: string; nameGu: string }[];
   occupationTree: OccupationTreeNode[];
   places: PlaceOption[];
+  /** Admin-managed NRI cities, grouped by country name. */
+  nriCities?: NriCityOption[];
   /** Omit to keep a typed place on this member without adding it to the masters. */
   onAddPlace?: (entry: { nameEn: string; nameGu: string }) => void | Promise<void>;
   communityType?: "PARIVAR" | "GAM";
@@ -173,19 +191,37 @@ export function MemberFields({
         </AdminField>
       </AdminFormRow>
 
-      <AdminField
-        label={communityType === "GAM" ? "Village / city · ગામ / શહેર" : "City · શહેર"}
-        hint={isHead ? "Also becomes the family's place in the directory." : undefined}
-      >
-        <MemberPlacePicker
-          variant="admin"
-          value={values.currentlyAt}
-          onChange={(v) => onChange({ currentlyAt: v })}
-          options={places}
-          onAddNew={onAddPlace}
-          t={(_gu, en) => en}
-        />
-      </AdminField>
+      {/* Above the place question, and replaces it when ticked — a member in
+          Toronto has no Indian village to record as their current place. */}
+      <NriFields
+        variant="admin"
+        value={{ isNri: values.isNri, nriCountry: values.nriCountry, nriCity: values.nriCity }}
+        onChange={(patch) => {
+          onChange(patch);
+          // Every directory screen reads `currentlyAt`, so it follows the NRI
+          // city rather than becoming a second, stale answer.
+          if (patch.nriCity !== undefined) onChange({ currentlyAt: patch.nriCity });
+        }}
+        cities={nriCities}
+        error={{ country: err("nriCountry"), city: err("nriCity") }}
+        t={(_gu, en) => en}
+      />
+
+      {!values.isNri && (
+        <AdminField
+          label={communityType === "GAM" ? "Village / city · ગામ / શહેર" : "City · શહેર"}
+          hint={isHead ? "Also becomes the family's place in the directory." : undefined}
+        >
+          <MemberPlacePicker
+            variant="admin"
+            value={values.currentlyAt}
+            onChange={(v) => onChange({ currentlyAt: v })}
+            options={places}
+            onAddNew={onAddPlace}
+            t={(_gu, en) => en}
+          />
+        </AdminField>
+      )}
 
       <AdminFormRow>
         {/* Not marked required here: this component also edits records saved
@@ -218,16 +254,24 @@ export function MemberFields({
             required={isHead}
             error={err("mobile")}
           >
-            <AdminInput
-              type="tel"
-              value={values.mobile}
-              placeholder="10-digit mobile"
-              onChange={(v) => onChange({ mobile: v.replace(/\D/g, "").slice(0, 10) })}
+            <PhoneField
+              variant="admin"
+              value={{ iso: values.mobileIso || DEFAULT_ISO, digits: values.mobile }}
+              onChange={(v) =>
+                onChange({
+                  mobile: v.digits,
+                  mobileIso: v.iso,
+                  // The WhatsApp number follows until it is given its own country.
+                  ...(values.hasWhatsApp ? { whatsappIso: v.iso } : {}),
+                })
+              }
+              t={(_gu, en) => en}
             />
           </AdminField>
           <WhatsAppField
             hasWhatsApp={values.hasWhatsApp}
             whatsapp={values.whatsapp}
+            whatsappIso={values.whatsappIso}
             onChange={onChange}
           />
         </AdminFormRow>

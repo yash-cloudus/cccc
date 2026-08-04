@@ -13,10 +13,10 @@ const schema = z.object({
   fullNameEn: z.string().min(2).max(120).optional(),
   fullNameGu: z.string().max(120).optional(),
   relation: z.string().max(60).optional(),
-  mobile: z
-    .string()
-    .regex(/^\d{10}$/, "Mobile must be 10 digits")
-    .optional(),
+  // Length only — how many digits are valid depends on the country, which
+  // travels with the number (lib/phone).
+  mobile: z.string().min(4).max(20).optional(),
+  mobileIso: z.string().length(2).optional(),
   dateOfBirth: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Birth date must be YYYY-MM-DD")

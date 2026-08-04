@@ -37,7 +37,9 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
     // owner fields only fill in for standalone (non-business) banners.
     contactName: biz ? null : ad.ownerName,
     phone: biz?.phone ?? ad.ownerMobile,
+    phoneIso: biz?.phoneIso ?? ad.ownerMobileIso,
     whatsapp: biz?.whatsapp ?? null,
+    whatsappIso: biz?.whatsappIso ?? null,
     mapUrl: biz?.mapUrl ?? null,
     endDateISO: ad.endDate.toISOString(),
   };

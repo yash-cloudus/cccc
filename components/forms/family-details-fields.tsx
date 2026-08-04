@@ -8,6 +8,8 @@ import { AdminInput, AdminSelect } from "@/components/admin/admin-ui";
 import { AdminField, AdminFormRow } from "@/components/admin/admin-form";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import type { FamilyDetailsValues } from "@/lib/family-form";
+import { PhoneField } from "@/components/ui/phone-field";
+import { DEFAULT_ISO } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 export type NamedOption = { id: string; nameEn: string; nameGu: string | null };
@@ -291,9 +293,13 @@ export function FamilyDetailsFields({
             </AdminField>
           </AdminFormRow>
           <AdminField label="Native elder phone">
-            <AdminInput
-              value={values.nativeElderPhone}
-              onChange={(v) => onChange({ nativeElderPhone: v.replace(/\D/g, "").slice(0, 10) })}
+            <PhoneField
+              variant="admin"
+              value={{ iso: values.nativeElderIso || DEFAULT_ISO, digits: values.nativeElderPhone }}
+              onChange={(v) =>
+                onChange({ nativeElderPhone: v.digits, nativeElderIso: v.iso })
+              }
+              t={t}
             />
           </AdminField>
         </>
@@ -322,13 +328,10 @@ export function FamilyDetailsFields({
             />
           </Wrap>
           <Wrap variant={variant} label={t("વતનમાં રહેતા વડીલ (ફોન)", "Native elder phone")}>
-            <input
-              className="samaj-fld"
-              inputMode="numeric"
-              value={values.nativeElderPhone}
-              onChange={(e) =>
-                onChange({ nativeElderPhone: e.target.value.replace(/\D/g, "").slice(0, 10) })
-              }
+            <PhoneField
+              value={{ iso: values.nativeElderIso || DEFAULT_ISO, digits: values.nativeElderPhone }}
+              onChange={(v) => onChange({ nativeElderPhone: v.digits, nativeElderIso: v.iso })}
+              t={t}
             />
           </Wrap>
         </>

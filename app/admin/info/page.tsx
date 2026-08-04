@@ -64,7 +64,11 @@ export default async function CommunityInfoPage() {
         country: community.country ?? "",
         pincode: community.pincode ?? "",
         contactPhone: community.contactPhone ?? "",
+
+        contactPhoneIso: community.contactPhoneIso ?? "in",
         whatsapp: community.whatsapp ?? "",
+
+        whatsappIso: community.whatsappIso ?? "in",
         email: community.email ?? "",
         website: community.website ?? "",
         mapUrl: community.mapUrl ?? "",
@@ -80,6 +84,8 @@ export default async function CommunityInfoPage() {
         roleEn: m.roleEn,
         roleGu: m.roleGu,
         phoneOverride: m.phoneOverride,
+        phoneIso: m.phoneIso,
+        whatsappIso: m.whatsappIso,
         whatsapp: m.whatsapp,
         email: m.email,
         descGu: m.descGu,

@@ -27,6 +27,9 @@ import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { isStudentOccupation, isVeparOccupation } from "@/lib/occupation-defaults";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
+import { NriCitiesPanel } from "@/components/admin/nri-cities-panel";
+import { NRI_COUNTRY_TYPE, countriesNotYetAdded } from "@/lib/nri";
+import { COUNTRIES, flagUrl } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 export type DropdownRow = {
@@ -51,7 +54,8 @@ type CategoryId =
   | "student"
   | "vepar"
   | "relationship"
-  | "blood";
+  | "blood"
+  | "nri";
 
 type Category = {
   id: CategoryId;
@@ -100,6 +104,17 @@ function categoriesForType(communityType: "PARIVAR" | "GAM"): Category[] {
       api: "dropdowns",
       hasStatus: true,
       optionType: "relationship",
+    },
+    {
+      // Countries come from lib/phone/countries.ts so the name and flag match
+      // the phone picker exactly; the admin manages the cities under each one.
+      id: "nri",
+      chipKey: "drop.catNri",
+      nounKey: "drop.nounNriCountry",
+      api: "dropdowns",
+      hasStatus: true,
+      optionType: NRI_COUNTRY_TYPE,
+      readOnlyNoteKey: "drop.nriNote",
     },
     {
       id: "blood",
@@ -177,7 +192,8 @@ export function DropdownsClient({
   /** Row label in the reader's language — both halves live on every row. */
   const rowName = (r: { nameEn: string; nameGu: string }) =>
     (lang === "en" ? r.nameEn || r.nameGu : r.nameGu || r.nameEn);
-  const usesExpandRows = catId === "student" || catId === "vepar";
+  // NRI joins the accordion tabs: a country row opens to reveal its cities.
+  const usesExpandRows = catId === "student" || catId === "vepar" || catId === "nri";
   const visible = useMemo(() => {
     const list = rows[catId] ?? [];
     const needle = q.trim().toLowerCase();
@@ -195,6 +211,26 @@ export function DropdownsClient({
     // they would never get approved.
     return [...found].sort((a, b) => Number(isPending(b)) - Number(isPending(a)));
   }, [rows, catId, q, statusFilter, cat.hasStatus]);
+
+  /** The country rows carry a city count, so adding or removing a city has to
+   *  refresh them — otherwise the chevron's badge goes stale. */
+  async function refreshNriCounts() {
+    const res = await api.get<
+      { id: string; nameEn: string; nameGu: string; isActive: boolean; _count?: { children: number } }[]
+    >(`/api/admin/dropdowns?type=${NRI_COUNTRY_TYPE}&parentId=null`);
+    if (!res.ok) return;
+    setRows((prev) => ({
+      ...prev,
+      nri: res.data.map((o) => ({
+        id: o.id,
+        nameEn: o.nameEn,
+        nameGu: o.nameGu,
+        isActive: o.isActive,
+        inUse: 0,
+        childCount: o._count?.children ?? 0,
+      })),
+    }));
+  }
 
   async function refreshChildTab(kind: "student" | "vepar") {
     const root = kind === "student" ? rootIds.student : rootIds.vepar;
@@ -364,6 +400,9 @@ export function DropdownsClient({
     if (catId === "occupation") return true;
     // Same tree as Occupation → Student / Vepar — every level can nest (College, Std 11, …).
     if (catId === "student" || catId === "vepar") return true;
+    // Every country expands, even with no cities yet — that row is where the
+    // first one gets added.
+    if (catId === "nri") return true;
     return false;
   };
 
@@ -559,7 +598,26 @@ export function DropdownsClient({
                     </AdminTd>
                   )}
                   <AdminTd>
+                    {catId === "nri" && (
+                      // Free, because the country came from the same list the
+                      // phone picker uses.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={flagUrl(
+                          COUNTRIES.find((c) => c.name === row.nameEn)?.iso || "in",
+                        )}
+                        alt=""
+                        width={22}
+                        height={16}
+                        className="mr-2 inline-block h-4 w-[22px] rounded-[3px] object-cover align-[-2px]"
+                      />
+                    )}
                     <span className="font-semibold text-[var(--ink)]">{row.nameEn}</span>
+                    {catId === "nri" && (row.childCount ?? 0) > 0 && (
+                      <span className="ml-1.5 text-[11px] text-[var(--faint)]">
+                        {tf("drop.nriCityCount", { n: row.childCount ?? 0 })}
+                      </span>
+                    )}
                     {row.needsReview && (
                       <PillWarning>
                         {isPending(row) ? t("drop.pillPending") : t("drop.pillFlagged")}
@@ -641,13 +699,17 @@ export function DropdownsClient({
                   <tr className="bg-[var(--surface-admin)]/40">
                     <AdminTd colSpan={colCount} className="border-b border-[var(--line-admin)] px-4 py-4">
                       <div className="ml-2 sm:ml-6">
-                        <OccupationNestedPanel
-                          root={row}
-                          variant="table"
-                          onChanged={() => {
-                            if (cat.occupationChild) void refreshChildTab(cat.occupationChild);
-                          }}
-                        />
+                        {catId === "nri" ? (
+                          <NriCitiesPanel country={row} onChanged={() => void refreshNriCounts()} />
+                        ) : (
+                          <OccupationNestedPanel
+                            root={row}
+                            variant="table"
+                            onChanged={() => {
+                              if (cat.occupationChild) void refreshChildTab(cat.occupationChild);
+                            }}
+                          />
+                        )}
                       </div>
                     </AdminTd>
                   </tr>
@@ -691,13 +753,38 @@ export function DropdownsClient({
           {edit && (
             <div>
               <AdminLabel>{t("drop.thEnglish")} *</AdminLabel>
-              <AdminInput
-                value={edit.nameEn}
-                onChange={(v) => {
-                  setEdit((prev) => (prev ? { ...prev, nameEn: v } : prev));
-                  fromEn(v, (gu) => setEdit((prev) => (prev ? { ...prev, nameGu: gu } : prev)));
-                }}
-              />
+              {catId === "nri" ? (
+                // Picked, never typed: two spellings of one country would split
+                // the NRI directory in half and leave one half without a flag.
+                // Already-added countries are dropped from the list.
+                <select
+                  className="mafld h-[42px] w-full"
+                  value={edit.nameEn}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setEdit((prev) => (prev ? { ...prev, nameEn: name, nameGu: name } : prev));
+                  }}
+                >
+                  <option value="">{t("drop.nriAddCountry")}…</option>
+                  {countriesNotYetAdded(
+                    (rows.nri ?? [])
+                      .filter((r) => r.id !== edit.id)
+                      .map((r) => r.nameEn),
+                  ).map((c) => (
+                    <option key={c.iso} value={c.name}>
+                      {c.name} ({c.dial})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <AdminInput
+                  value={edit.nameEn}
+                  onChange={(v) => {
+                    setEdit((prev) => (prev ? { ...prev, nameEn: v } : prev));
+                    fromEn(v, (gu) => setEdit((prev) => (prev ? { ...prev, nameGu: gu } : prev)));
+                  }}
+                />
+              )}
               <AdminLabel>{t("drop.thGujarati")} *</AdminLabel>
               <AdminInput
                 gujarati
