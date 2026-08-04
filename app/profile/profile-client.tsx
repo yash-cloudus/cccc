@@ -49,6 +49,7 @@ type FamilyMemberRow = {
   occupationOther: string | null;
   education: string | null;
   course: string | null;
+  specialization: string | null;
   currentlyAt: string | null;
   hasWhatsApp: boolean;
   isHead: boolean;
@@ -69,6 +70,7 @@ type ProfileResp = {
         occupationOther: string | null;
         education: string | null;
         course: string | null;
+        specialization: string | null;
         currentlyAt: string | null;
         showPhone: boolean;
         family: {
@@ -243,6 +245,7 @@ export function ProfileClient({
       occupationOther: occ.occupationOther || undefined,
       education: occ.education || undefined,
       course: occ.course || undefined,
+      specialization: occ.specialization || undefined,
     };
 
     let res;

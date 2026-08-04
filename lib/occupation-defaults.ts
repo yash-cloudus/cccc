@@ -35,7 +35,7 @@ export const EDUCATION_LEVELS: OccupationSeedNode[] = [
   { nameEn: "Junior", nameGu: "જુનિયર", sortOrder: 2 },
   { nameEn: "Senior", nameGu: "સિનિયર", sortOrder: 3 },
   ...Array.from({ length: 12 }, (_, i) => ({
-    nameEn: `Std ${i + 1}`,
+    nameEn: `Standard ${i + 1}`,
     nameGu: `ધોરણ ${i + 1}`,
     sortOrder: 10 + i,
     children: i + 1 === 11 || i + 1 === 12 ? STREAMS : undefined,
@@ -245,6 +245,45 @@ export function findOccupationNode(
     if (child) return child;
   }
   return undefined;
+}
+
+/**
+ * The live Dropdown lists row for one of the 17 seeded education levels
+ * (Balmandir, Junior, …, Standard 12, College, Diploma) — matched by
+ * `sortOrder`, not by name, so renaming a level (in either language) in
+ * Dropdown lists still resolves to the right row instead of finding nothing.
+ *
+ * A `canonicalNameEn` outside the seed list (a level the admin added
+ * themselves, with no seed counterpart to drift from) falls back to a plain
+ * name match among Student's direct children — its current name already is
+ * its stable identity.
+ */
+export function liveStudentChildNode(
+  tree: OccupationTreeNode[],
+  canonicalNameEn: string,
+): OccupationTreeNode | undefined {
+  const studentRoot = tree.find((r) => isStudentOccupation(r.nameEn, r.nameGu));
+  if (!studentRoot) return undefined;
+  const seed = EDUCATION_LEVELS.find((l) => l.nameEn === canonicalNameEn);
+  if (seed) return studentRoot.children.find((c) => c.sortOrder === seed.sortOrder);
+  return studentRoot.children.find(
+    (c) => c.nameEn === canonicalNameEn || c.nameGu === canonicalNameEn,
+  );
+}
+
+/**
+ * The reverse of `liveStudentChildNode`: given a *live* Dropdown lists row
+ * under Student, resolve it back to the seed identity everything else keys
+ * off (`EDUCATION_LEVELS`' English name — used to build `ALL_LEVELS`,
+ * `enabledStandards`, `standardStreams`' map keys, and every roster row via
+ * `canonicalStandard`). Matched by `sortOrder`, same anchor as the function
+ * above, so a rename doesn't make the row fall out of any of those sets.
+ *
+ * A row with no seed counterpart (a level the admin added themselves) has no
+ * name to drift from, so its own current name already is the stable key.
+ */
+export function stableStudentChildKey(row: { nameEn: string; sortOrder: number }): string {
+  return EDUCATION_LEVELS.find((l) => l.sortOrder === row.sortOrder)?.nameEn ?? row.nameEn;
 }
 
 export function labelOf(node: Pick<OccupationTreeNode, "nameEn" | "nameGu">) {

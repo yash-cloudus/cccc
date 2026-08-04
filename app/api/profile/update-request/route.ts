@@ -25,6 +25,7 @@ const schema = z.object({
   occupationOther: z.string().max(120).optional(),
   education: z.string().max(120).optional(),
   course: z.string().max(120).optional(),
+  specialization: z.string().max(120).optional(),
   currentlyAt: z.string().max(120).optional(),
   bloodGroup: z
     .enum(["A_POS", "A_NEG", "B_POS", "B_NEG", "O_POS", "O_NEG", "AB_POS", "AB_NEG"])

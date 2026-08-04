@@ -17,6 +17,7 @@ import { AppScreen } from "@/components/layout/app-screen";
 import { AppHeader } from "@/components/layout/app-header";
 import { useLang } from "@/providers/lang-provider";
 import { formatDate, pickText } from "@/lib/format";
+import { driveDisplayName } from "@/lib/result-drive";
 import { trackAdClick } from "@/lib/track-ad";
 
 export type AdRow = {
@@ -154,8 +155,9 @@ export function DashboardClient({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="text-[14.5px] font-extrabold text-[#7A4E10]">
-                  {pickText(resultDrive.titleGu, resultDrive.titleEn, lang)} {resultDrive.year}{" "}
-                  — {lang === "gu" ? "અપલોડ ચાલુ છે" : "upload is open"}
+                  {driveDisplayName(resultDrive, lang)}
+                  {" — "}
+                  {lang === "gu" ? "અપલોડ ચાલુ છે" : "upload is open"}
                 </div>
                 <div className="mt-0.5 text-xs font-medium text-[#A98A50]">{t("resSub")}</div>
               </div>

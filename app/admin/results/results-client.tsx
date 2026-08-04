@@ -4,9 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
-  ChevronUp,
   Eye,
   GraduationCap,
   Loader2,
@@ -24,8 +22,6 @@ import {
   AdminBtn,
   AdminH2,
   AdminH3,
-  AdminInput,
-  AdminLabel,
   AdminSelect,
   AdminTable,
   AdminTd,
@@ -43,7 +39,6 @@ import {
   VerifyResultModal,
   openWhatsAppNotify,
 } from "@/components/admin/result-drive-modals";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Sheet,
   SheetContent,
@@ -52,19 +47,24 @@ import {
 } from "@/components/ui/sheet";
 import { api } from "@/lib/http";
 import { useAdminT } from "@/lib/i18n/admin-dictionary";
-import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
+import { DEFAULT_STREAMS, EDUCATION_LEVELS, type OccupationTreeNode } from "@/lib/occupation-defaults";
 import {
+  DEFAULT_DRIVE_TITLE,
+  HIGHER_STANDARDS,
   STREAM_STANDARDS,
+  canonicalStandard,
+  driveDisplayName,
+  liveLevelLabel,
   meritGroups,
   nextStatusLabel,
   rankApproved,
   rosterKey,
   rosterStatusMeta,
   streamColors,
+  subFieldFor,
   type MeritGroup,
   type RosterRow,
 } from "@/lib/result-drive";
-import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { formatDate, pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -77,6 +77,13 @@ export type DriveInfo = {
   entries: number;
 };
 
+/** One nested sub-department option — can itself carry one more level of children (College → BE → CSE / IT). */
+export type SubOption = {
+  nameEn: string;
+  nameGu: string | null;
+  children?: { nameEn: string; nameGu: string | null }[];
+};
+
 const ALL_LEVELS = EDUCATION_LEVELS.map((l) => l.nameEn);
 
 const STATUS_KEYS = {
@@ -87,28 +94,15 @@ const STATUS_KEYS = {
   RESUBMIT: "res.stResubmit",
 } as const;
 
-/** Display name for a standard / stream — the seed lists carry both languages. */
-function levelLabel(value: string, lang: string): string {
-  const m = EDUCATION_LEVELS.find((l) => l.nameEn === value || l.nameGu === value);
-  return m ? (lang === "gu" ? m.nameGu : m.nameEn) : value;
+/** Display name for a standard — its *current* Dropdown lists name, not just the seed list's. */
+function levelLabel(value: string, lang: "en" | "gu", tree: OccupationTreeNode[]): string {
+  return liveLevelLabel(tree, canonicalStandard(value), lang);
 }
 
 function streamLabel(value: string, lang: string): string {
   const m = DEFAULT_STREAMS.find((s) => s.nameEn === value || s.nameGu === value);
   return m ? (lang === "gu" ? m.nameGu : m.nameEn) : value;
 }
-
-/**
- * "2026" -> "2025-26" — the fixed academic-year range shown next to every drive title.
- * The selected year is the END of the academic session (results declared in
- * 2026 belong to the 2025-26 session), so the range runs backward from it.
- */
-function yearRangeSuffix(year: number): string {
-  return `${year - 1}-${String(year).slice(-2)}`;
-}
-
-/** How many rows a merit list shows before the admin has to expand it. */
-const MERIT_PREVIEW_ROWS = 3;
 
 /** Gold / silver / bronze — same medal gradients as the public toppers page, so rank 1-3 reads instantly. */
 const RANK_GRADIENTS = [
@@ -122,86 +116,68 @@ const RANK_GRADIENTS = [
  * Shared by the per-standard merit list and the whole-drive final report so the
  * two can never disagree about who ranked where.
  *
- * Only the top rows show on screen by default — a "Show all" toggle reveals
- * the rest. Print output always includes every row regardless of that toggle,
- * since a printed sheet can't be expanded after the fact.
+ * Rows are already sorted highest-percentage-first by `meritGroups`. The
+ * whole-drive final report only ever needs the podium, so pass `limit={3}`
+ * there; the per-standard merit list omits it and shows every approved row.
  */
-function MeritSections({ groups }: { groups: MeritGroup[] }) {
-  const { t, tf, lang } = useAdminT();
-  const split = groups.length > 1 || groups[0]?.stream != null;
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+function MeritSections({
+  groups,
+  limit,
+  hideStreamBadge,
+}: {
+  groups: MeritGroup[];
+  limit?: number;
+  hideStreamBadge?: boolean;
+}) {
+  const { t, lang } = useAdminT();
+  const split = !hideStreamBadge && (groups.length > 1 || groups[0]?.stream != null);
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-5 print:gap-3">
       {groups.map((g) => {
         const key = g.stream ?? "unassigned";
-        const isExpanded = expanded.has(key);
-        const hasMore = g.rows.length > MERIT_PREVIEW_ROWS;
+        const rows = limit ? g.rows.slice(0, limit) : g.rows;
         const sc = g.stream ? streamColors(g.stream) : null;
         return (
           <div key={key}>
             {split && (
               <span
-                className="mb-2 inline-block rounded-full px-3 py-1 text-[12px] font-extrabold"
+                className="mb-2 inline-block rounded-full px-3 py-1 text-[12.5px] font-extrabold print:hidden"
                 style={sc ? { background: sc.bg, color: sc.fg } : { background: "#F0EBE0", color: "#8B8375" }}
               >
                 {g.stream ? streamLabel(g.stream, lang) : t("res.streamNotRecorded")}
               </span>
             )}
-            <div className="flex flex-col gap-1.5">
-              {g.rows.map((m, i) => {
-                const preview = i < MERIT_PREVIEW_ROWS || isExpanded;
+            {split && (
+              <span className="mb-1.5 hidden text-[13px] font-bold text-black print:block">
+                {g.stream ? streamLabel(g.stream, lang) : t("res.streamNotRecorded")}
+              </span>
+            )}
+            <div className="flex flex-col gap-1.5 print:gap-0.5">
+              {rows.map((m) => {
                 const medal = m.rank <= 3 ? RANK_GRADIENTS[m.rank - 1] : null;
                 return (
                   <div
                     key={rosterKey(m)}
-                    className={cn(
-                      "flex items-center gap-3 rounded-[13px] border border-[var(--line-soft)] bg-[#FBFAF7] px-3.5 py-2.5 print:break-inside-avoid",
-                      !preview && "hidden print:flex",
-                    )}
+                    className="flex items-center gap-3.5 rounded-[13px] border border-[var(--line-soft)] bg-[#FBFAF7] px-4 py-3 print:break-inside-avoid print:gap-2.5 print:rounded-none print:border-x-0 print:border-t-0 print:border-b print:border-[#ccc] print:bg-transparent print:px-1.5 print:py-2"
                   >
                     <span
-                      className="flex size-7 flex-none items-center justify-center rounded-full text-[12.5px] font-extrabold text-white"
+                      className="flex size-8 flex-none items-center justify-center rounded-full text-[14px] font-extrabold text-white print:hidden"
                       style={medal ? { background: medal } : { background: "#E4DFD2", color: "#8B8375" }}
                     >
                       {m.rank}
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold text-[var(--ink)]">
+                    <span className="hidden w-5 flex-none text-[14px] font-bold text-black print:block">{m.rank}.</span>
+                    <span className="min-w-0 flex-1 truncate text-[16px] font-bold text-[var(--ink)] print:text-[14px] print:text-black">
                       {pickText(m.studentNameGu, m.studentNameEn, lang) || m.studentName}
                     </span>
-                    <span className="flex-none text-[14px] font-extrabold text-[var(--brand)]">
+                    <span className="flex-none text-[17px] font-extrabold text-[var(--brand)] print:text-[14px] print:font-bold print:text-black">
                       {m.percentage?.toFixed(2)}%
                     </span>
                   </div>
                 );
               })}
             </div>
-            {hasMore && (
-              <button
-                type="button"
-                onClick={() =>
-                  setExpanded((prev) => {
-                    const next = new Set(prev);
-                    if (next.has(key)) next.delete(key);
-                    else next.add(key);
-                    return next;
-                  })
-                }
-                className="mt-2 flex w-full cursor-pointer items-center justify-center gap-1 rounded-[11px] border border-dashed border-[var(--line-admin)] py-1.5 text-[12px] font-bold text-[var(--brand)] transition-colors print:hidden hover:bg-[var(--brand-tint)]"
-              >
-                {isExpanded ? (
-                  <>
-                    <ChevronUp className="size-3.5" strokeWidth={2.4} />
-                    {t("res.showTop3")}
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="size-3.5" strokeWidth={2.4} />
-                    {tf("res.showAllN", { n: g.rows.length })}
-                  </>
-                )}
-              </button>
-            )}
           </div>
         );
       })}
@@ -216,6 +192,7 @@ export function ResultsClient({
   adminUploadEnabled,
   enabledStandards,
   standardStreams,
+  occupationTree,
 }: {
   drives: DriveInfo[];
   currentDrive: DriveInfo | null;
@@ -224,14 +201,19 @@ export function ResultsClient({
   /** Standard names enabled in Dropdown lists → Student. `null` means that
    *  list isn't set up yet for this community, so nothing is filtered out. */
   enabledStandards: string[] | null;
-  /** Enabled stream names per standard (Std 11 / Std 12), from Dropdown
-   *  lists' nested Streams section. A standard missing here has no nested
-   *  rows configured, so the full default stream list is used instead. */
-  standardStreams: Record<string, string[]>;
+  /** Enabled nested sub-department options per standard, from Dropdown
+   *  lists' nested section under that standard (Science / Commerce / Arts
+   *  for Std 11-12, a branch list for Diploma, etc). A standard missing here
+   *  has no nested rows configured — Std 11-12 fall back to the full default
+   *  stream list, everything else shows no sub-department filter. Any option
+   *  can itself carry `children` for one more nested tier. */
+  standardStreams: Record<string, SubOption[]>;
+  /** Same Dropdown lists occupation tree, with ids — backs the College/Diploma
+   *  course pickers in the upload and next-standard modals. */
+  occupationTree: OccupationTreeNode[];
 }) {
   const router = useRouter();
   const { t, tf, lang } = useAdminT();
-  const { fromEn, guInput } = useTranslitSync();
   const [roster, setRoster] = useState<RosterRow[]>(initialRoster);
   // `useState(initialRoster)` only seeds the very first render — switching
   // drives (or any server refetch) sends a new `initialRoster` prop that this
@@ -241,11 +223,10 @@ export function ResultsClient({
     setRoster(initialRoster);
   }, [initialRoster]);
   const [error, setError] = useState<string | null>(null);
-  const [newOpen, setNewOpen] = useState(false);
-  const [draft, setDraft] = useState({ titleEn: "", titleGu: "", year: String(new Date().getFullYear()) });
-  const [busy, setBusy] = useState(false);
+  const [creatingDrive, setCreatingDrive] = useState(false);
   const [busyAction, setBusyAction] = useState(false);
   const [streamFilter, setStreamFilter] = useState("all");
+  const [specializationFilter, setSpecializationFilter] = useState("all");
   const [verify, setVerify] = useState<{ row: RosterRow; viewOnly: boolean } | null>(null);
   const [rejectRow, setRejectRow] = useState<RosterRow | null>(null);
   const [uploadRow, setUploadRow] = useState<RosterRow | null>(null);
@@ -275,22 +256,29 @@ export function ResultsClient({
   // whatever the app normally shows once the admin navigates away.
   useEffect(() => {
     if (!currentDrive || (view !== "final" && view !== "merit")) return;
-    const driveTitle = pickText(currentDrive.titleGu, currentDrive.titleEn, lang);
+    const driveTitle = driveDisplayName(currentDrive, lang);
     const previous = document.title;
     document.title =
       view === "final"
         ? `${t("res.meritReport")} — ${driveTitle}`
-        : `${t("res.meritList")} — ${levelLabel(activeStd || "", lang)} — ${driveTitle}`;
+        : `${t("res.meritList")} — ${levelLabel(activeStd || "", lang, occupationTree)} — ${driveTitle}`;
     return () => {
       document.title = previous;
     };
-  }, [view, currentDrive, activeStd, lang, t]);
+  }, [view, currentDrive, activeStd, lang, t, occupationTree]);
 
   useEffect(() => {
     setStdSearch("");
     setStdStatusFilter("all");
     setPercentSort("none");
+    setStreamFilter("all");
   }, [activeStd]);
+
+  // A 2nd-tier pick only ever makes sense under whichever 1st-tier sub is
+  // selected — switching that (or leaving it) invalidates it.
+  useEffect(() => {
+    setSpecializationFilter("all");
+  }, [streamFilter]);
 
   useEffect(() => {
     if (!printOnlyStd) return;
@@ -351,14 +339,41 @@ export function ResultsClient({
     return standards.filter((s) => s.standard.toLowerCase().includes(q));
   }, [standards, standardQuery]);
 
+  // College / Diploma have no marks to rank by — just a pass/fail-style
+  // Degree/Course upload — so the % and Rank columns are just empty dashes
+  // for every row there.
+  const showScore = !activeStd || !HIGHER_STANDARDS.has(activeStd);
+
+  // The nested-options list for the active standard — Science / Commerce /
+  // Arts for Std 11-12, whatever Dropdown lists has nested under any other
+  // standard (Diploma's branches, etc). Empty means no sub-department filter.
+  const subField = activeStd ? subFieldFor(activeStd) : "stream";
+  const subOptions = useMemo((): SubOption[] => {
+    if (!activeStd) return [];
+    const configured = standardStreams[activeStd];
+    if (configured?.length) return configured;
+    if (STREAM_STANDARDS.has(activeStd)) return DEFAULT_STREAMS.map((s) => ({ nameEn: s.nameEn, nameGu: s.nameGu }));
+    return [];
+  }, [activeStd, standardStreams]);
+
+  // One tier deeper still (College → BE → CSE / IT) — only meaningful once a
+  // 1st-tier sub is actually selected, since that's what it nests under.
+  const specializationOptions = useMemo(() => {
+    if (streamFilter === "all") return [];
+    return subOptions.find((o) => o.nameEn === streamFilter)?.children ?? [];
+  }, [subOptions, streamFilter]);
+
   const stdRows = useMemo(() => {
     if (!activeStd) return [];
     let rows = roster.filter((r) => r.standard === activeStd);
-    if (STREAM_STANDARDS.has(activeStd) && streamFilter !== "all") {
-      rows = rows.filter((r) => (r.stream || "") === streamFilter);
+    if (subOptions.length > 0 && streamFilter !== "all") {
+      rows = rows.filter((r) => ((subField === "stream" ? r.stream : r.course) || "") === streamFilter);
+    }
+    if (specializationOptions.length > 0 && specializationFilter !== "all") {
+      rows = rows.filter((r) => (r.specialization || "") === specializationFilter);
     }
     return rows;
-  }, [roster, activeStd, streamFilter]);
+  }, [roster, activeStd, streamFilter, subOptions, subField, specializationOptions, specializationFilter]);
 
   const displayStdRows = useMemo(() => {
     const sq = stdSearch.trim().toLowerCase();
@@ -551,22 +566,51 @@ export function ResultsClient({
     router.refresh();
   }
 
-  async function createDrive() {
-    if (!draft.titleEn.trim()) return setError(t("res.titleRequired"));
-    if (!(await confirmIfAnotherLive())) return;
-    setBusy(true);
+  /**
+   * The whole point of the "+" affordance: no title/year typing — one click
+   * adds the next drive in the sequence. The next year always follows
+   * whichever drive is furthest out already (latest existing year + 1), not
+   * today's calendar year — otherwise "+" would stay blocked for months
+   * every time the current year's drive already exists (which it does right
+   * after signup, since every community starts with one).
+   *
+   * Creation and activation are two separate decisions: with nothing
+   * currently active, the new drive just becomes active — nothing to weigh.
+   * With another drive already active, that's a second, more consequential
+   * choice, so it gets its own popup rather than being bundled silently into
+   * the create confirmation.
+   */
+  async function createNextDrive() {
     setError(null);
-    const year = Number(draft.year);
-    const suffix = yearRangeSuffix(year);
-    const res = await api.post<{ id: string }>(`/api/admin/result-drives`, {
-      titleEn: `${draft.titleEn.trim()} ${suffix}`,
-      titleGu: draft.titleGu.trim() ? `${draft.titleGu.trim()} ${suffix}` : undefined,
-      year,
-      isOpen: true,
+    const latestYear = drives.length ? Math.max(...drives.map((d) => d.year)) : null;
+    const year = latestYear != null ? latestYear + 1 : new Date().getFullYear();
+    const name = driveDisplayName({ titleEn: DEFAULT_DRIVE_TITLE.en, titleGu: DEFAULT_DRIVE_TITLE.gu, year }, lang);
+
+    const confirmCreate = await confirmDialog({
+      title: tf("res.newDriveConfirmTitle", { year: String(year) }),
+      description: tf("res.newDriveConfirmBody", { name }),
+      confirmLabel: t("res.createDrive"),
+      cancelLabel: t("common.cancel"),
+      tone: "primary",
     });
-    setBusy(false);
+    if (!confirmCreate) return;
+
+    const openDrive = drives.find((d) => d.isOpen);
+    let makeActive = true;
+    if (openDrive) {
+      makeActive = await confirmDialog({
+        title: t("res.switchActiveTitle"),
+        description: tf("res.switchActiveBody", { name, openName: driveDisplayName(openDrive, lang) }),
+        confirmLabel: t("res.makeActive"),
+        cancelLabel: t("res.keepActiveDrive"),
+        tone: "danger",
+      });
+    }
+
+    setCreatingDrive(true);
+    const res = await api.post<{ id: string }>(`/api/admin/result-drives`, { isOpen: makeActive });
+    setCreatingDrive(false);
     if (!res.ok) return setError(res.error);
-    setNewOpen(false);
     router.push(`/admin/results?drive=${res.data.id}`);
     router.refresh();
   }
@@ -581,22 +625,41 @@ export function ResultsClient({
   }
 
   const streamTabs = useMemo(() => {
-    if (!activeStd || !STREAM_STANDARDS.has(activeStd)) return [];
-    const streams = standardStreams[activeStd] ?? DEFAULT_STREAMS.map((s) => s.nameEn);
-    return ["all", ...streams].map((v) => ({
+    if (!activeStd || subOptions.length === 0) return [];
+    return ["all", ...subOptions.map((o) => o.nameEn)].map((v) => ({
       value: v,
-      label: v === "all" ? t("res.tabAll") : streamLabel(v, lang),
+      label:
+        v === "all"
+          ? t("res.tabAll")
+          : pickText(subOptions.find((o) => o.nameEn === v)?.nameGu ?? null, v, lang),
       count: roster.filter(
-        (r) => r.standard === activeStd && (v === "all" || (r.stream || "") === v),
+        (r) => r.standard === activeStd && (v === "all" || ((subField === "stream" ? r.stream : r.course) || "") === v),
       ).length,
     }));
-  }, [activeStd, roster, t, lang, standardStreams]);
+  }, [activeStd, roster, t, lang, subOptions, subField]);
+
+  const specializationTabs = useMemo(() => {
+    if (!activeStd || specializationOptions.length === 0) return [];
+    return ["all", ...specializationOptions.map((o) => o.nameEn)].map((v) => ({
+      value: v,
+      label:
+        v === "all"
+          ? t("res.tabAll")
+          : pickText(specializationOptions.find((o) => o.nameEn === v)?.nameGu ?? null, v, lang),
+      count: roster.filter(
+        (r) =>
+          r.standard === activeStd &&
+          (subField === "stream" ? r.stream : r.course) === streamFilter &&
+          (v === "all" || (r.specialization || "") === v),
+      ).length,
+    }));
+  }, [activeStd, roster, t, lang, specializationOptions, subField, streamFilter]);
 
   const headerBack =
     view === "final"
       ? { onClick: () => go({ std: null, view: null }), label: t("res.backToDashboard") }
       : view === "merit"
-        ? { onClick: () => go({ view: null }), label: tf("res.backTo", { name: levelLabel(activeStd || "", lang) }) }
+        ? { onClick: () => go({ view: null }), label: tf("res.backTo", { name: levelLabel(activeStd || "", lang, occupationTree) }) }
         : null;
 
   return (
@@ -623,7 +686,7 @@ export function ResultsClient({
             {t("nav.results")}{" "}
             {currentDrive ? (
               <>
-                — {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)}{" "}
+                — {driveDisplayName(currentDrive, lang)}{" "}
                 {currentDrive.isOpen ? (
                   <PillActive>{t("res.driveOpen")}</PillActive>
                 ) : (
@@ -649,6 +712,20 @@ export function ResultsClient({
                 className="w-[190px] shrink-0"
                 options={driveOptions}
               />
+              <button
+                type="button"
+                onClick={() => void createNextDrive()}
+                disabled={creatingDrive}
+                aria-label={t("res.newDrive")}
+                title={t("res.newDrive")}
+                className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--line-admin)] bg-white text-[var(--ink)] shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-60 hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]"
+              >
+                {creatingDrive ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Plus className="size-4" strokeWidth={2.4} />
+                )}
+              </button>
             </>
           )}
           {view === "final" ? (
@@ -661,11 +738,11 @@ export function ResultsClient({
               <Printer className="size-4 shrink-0" />
               {t("res.printPdf")}
             </AdminBtn>
-          ) : (
+          ) : view === "overview" ? (
             <>
               {currentDrive && (
                 <AdminBtn
-                  variant={currentDrive.isOpen ? "danger" : "success"}
+                  variant={currentDrive.isOpen ? "primary" : "success"}
                   onClick={() => (currentDrive.isOpen ? setCloseDriveOpen(true) : void reopenDrive())}
                   className="whitespace-nowrap"
                 >
@@ -677,22 +754,22 @@ export function ResultsClient({
                   {currentDrive.isOpen ? t("res.closeDrive") : t("res.reopenDrive")}
                 </AdminBtn>
               )}
-              <AdminBtn variant="ghost" onClick={() => { setNewOpen(true); setError(null); }}>
-                <Plus className="size-4" />
-                {t("res.newDrive")}
-              </AdminBtn>
               <AdminBtn onClick={() => go({ view: "final", std: null })}>🏆 {t("res.finalResult")}</AdminBtn>
             </>
-          )}
+          ) : null}
         </span>
       </div>
 
       {error && <p className="mb-3 text-[13px] font-semibold text-[var(--danger)]">{error}</p>}
 
       {!currentDrive ? (
-        <p className="py-8 text-center text-[13px] text-[var(--faint)]">
-          {t("res.noDrive")}
-        </p>
+        <div className="flex flex-col items-center gap-3 py-8">
+          <p className="text-center text-[13px] text-[var(--faint)]">{t("res.noDrive")}</p>
+          <AdminBtn onClick={() => void createNextDrive()} disabled={creatingDrive}>
+            {creatingDrive ? <Loader2 className="size-4 animate-spin" /> : <Plus className="size-4" />}
+            {t("res.createDrive")}
+          </AdminBtn>
+        </div>
       ) : (
         <>
           {view === "overview" && (
@@ -736,7 +813,7 @@ export function ResultsClient({
                       >
                         <div className="flex items-baseline justify-between">
                           <span className="text-[15px] font-extrabold text-[var(--ink)]">
-                            {levelLabel(s.standard, lang)}
+                            {levelLabel(s.standard, lang, occupationTree)}
                           </span>
                           <span className="text-[11.5px] font-semibold text-[var(--faint)]">
                             {tf(s.total === 1 ? "res.studentOne" : "res.studentMany", { n: s.total })}
@@ -772,74 +849,92 @@ export function ResultsClient({
           )}
 
           {view === "final" && (
-            <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-4 shadow-[0_2px_10px_rgba(42,35,32,.04)] sm:p-7">
-              <div className="mb-6 flex flex-col items-center border-b border-[var(--line-soft)] pb-5 text-center">
+            <div className="mx-auto max-w-2xl rounded-2xl border border-[var(--line-admin)] bg-white p-4 shadow-[0_2px_10px_rgba(42,35,32,.04)] sm:p-7 print:max-w-none print:rounded-none print:border-0 print:px-10 print:py-8 print:shadow-none">
+              <div className="mb-6 flex flex-col items-center border-b border-[var(--line-soft)] pb-5 text-center print:mb-3 print:border-black print:pb-2">
                 <span
-                  className="mb-2.5 flex size-11 items-center justify-center rounded-full text-white"
+                  className="mb-2.5 flex size-11 items-center justify-center rounded-full text-white print:hidden"
                   style={{ background: "linear-gradient(150deg,#D98A1E,#A62A38)" }}
                 >
                   <Trophy className="size-5" strokeWidth={2} />
                 </span>
-                <h3 className="text-[19px] font-extrabold text-[var(--ink)]">
-                  {t("res.meritReport")} — {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)}
+                <h3 className="text-[19px] font-extrabold text-[var(--ink)] print:text-[16px] print:text-black">
+                  {t("res.meritReport")} — {driveDisplayName(currentDrive, lang)}
                 </h3>
-                <p className="mt-1 text-[12.5px] text-[var(--faint)]">
+                <p className="mt-1 text-[12.5px] text-[var(--faint)] print:text-black">
                   {tf("res.academicYearColon", { year: currentDrive.year })}
                 </p>
               </div>
               {finalStandards.length === 0 ? (
                 <p className="py-6 text-center text-[13px] text-[var(--faint)]">{t("res.noApproved")}</p>
               ) : (
-                <div className="flex flex-col gap-4">
-                  {finalStandards.map((std) => (
-                    <section
-                      key={std}
-                      className={cn(
-                        "overflow-hidden rounded-[16px] border border-[var(--line-soft)] print:break-inside-avoid",
-                        printOnlyStd && printOnlyStd !== std && "print:hidden",
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2 bg-[#FBFAF7] px-4 py-2.5">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <GraduationCap className="size-4 flex-none text-[var(--brand)]" strokeWidth={2.2} />
-                          <h4 className="truncate text-[14.5px] font-extrabold text-[var(--ink)]">
-                            {levelLabel(std, lang)}
-                          </h4>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setPrintOnlyStd(std)}
-                          aria-label={tf("res.printStandard", { std: levelLabel(std, lang) })}
-                          title={tf("res.printStandard", { std: levelLabel(std, lang) })}
-                          className="flex size-7 flex-none cursor-pointer items-center justify-center rounded-full text-[var(--faint)] transition-colors print:hidden hover:bg-white hover:text-[var(--brand)]"
-                        >
-                          <Printer className="size-3.5" strokeWidth={2.2} />
-                        </button>
-                      </div>
-                      <div className="p-3.5">
-                        <MeritSections groups={meritOf(std)} />
-                      </div>
-                    </section>
-                  ))}
+                <div className="flex flex-col gap-4 print:gap-4">
+                  {finalStandards.map((std) => {
+                    const stdGroups = meritOf(std);
+                    const soloStream = stdGroups.length === 1 ? (stdGroups[0]?.stream ?? null) : null;
+                    const soloStreamColors = soloStream ? streamColors(soloStream) : null;
+                    return (
+                      <section
+                        key={std}
+                        className={cn(
+                          "overflow-hidden rounded-[16px] border border-[var(--line-soft)] print:break-inside-avoid print:rounded-none print:border-0",
+                          printOnlyStd && printOnlyStd !== std && "print:hidden",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2 bg-[#FBFAF7] px-4 py-3 print:border-b print:border-black print:bg-transparent print:px-0 print:py-1.5">
+                          <span className="flex min-w-0 items-center gap-2.5">
+                            <GraduationCap className="size-4 flex-none text-[var(--brand)] print:hidden" strokeWidth={2.2} />
+                            <h4 className="min-w-0 truncate text-[15.5px] font-extrabold text-[var(--ink)] print:text-[15px] print:text-black">
+                              {levelLabel(std, lang, occupationTree)}
+                            </h4>
+                            {soloStream && soloStreamColors && (
+                              <span
+                                className="flex-none rounded-full px-2.5 py-1 text-[12.5px] font-extrabold print:hidden"
+                                style={{ background: soloStreamColors.bg, color: soloStreamColors.fg }}
+                              >
+                                {streamLabel(soloStream, lang)}
+                              </span>
+                            )}
+                            {soloStream && (
+                              <span className="hidden text-[13px] font-bold text-black print:inline">
+                                ({streamLabel(soloStream, lang)})
+                              </span>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPrintOnlyStd(std)}
+                            aria-label={tf("res.printStandard", { std: levelLabel(std, lang, occupationTree) })}
+                            title={tf("res.printStandard", { std: levelLabel(std, lang, occupationTree) })}
+                            className="flex size-7 flex-none cursor-pointer items-center justify-center rounded-full text-[var(--faint)] transition-colors print:hidden hover:bg-white hover:text-[var(--brand)]"
+                          >
+                            <Printer className="size-3.5" strokeWidth={2.2} />
+                          </button>
+                        </div>
+                        <div className="p-3.5 print:p-0 print:pt-2">
+                          <MeritSections groups={stdGroups} limit={3} hideStreamBadge={!!soloStream} />
+                        </div>
+                      </section>
+                    );
+                  })}
                 </div>
               )}
             </div>
           )}
 
           {view === "merit" && activeStd && (
-            <div className="rounded-2xl border border-[var(--line-admin)] bg-white p-4 shadow-[0_2px_10px_rgba(42,35,32,.04)] sm:p-7">
-              <div className="mb-6 flex flex-col items-center border-b border-[var(--line-soft)] pb-5 text-center">
+            <div className="mx-auto max-w-2xl rounded-2xl border border-[var(--line-admin)] bg-white p-4 shadow-[0_2px_10px_rgba(42,35,32,.04)] sm:p-7 print:max-w-none print:rounded-none print:border-0 print:px-10 print:py-8 print:shadow-none">
+              <div className="mb-6 flex flex-col items-center border-b border-[var(--line-soft)] pb-5 text-center print:mb-3 print:border-black print:pb-2">
                 <span
-                  className="mb-2.5 flex size-11 items-center justify-center rounded-full text-white"
+                  className="mb-2.5 flex size-11 items-center justify-center rounded-full text-white print:hidden"
                   style={{ background: "linear-gradient(150deg,#D98A1E,#A62A38)" }}
                 >
                   <GraduationCap className="size-5" strokeWidth={2} />
                 </span>
-                <h3 className="text-[19px] font-extrabold text-[var(--ink)]">
-                  {t("res.meritList")} — {levelLabel(activeStd, lang)}
+                <h3 className="text-[19px] font-extrabold text-[var(--ink)] print:text-[16px] print:text-black">
+                  {t("res.meritList")} — {levelLabel(activeStd, lang, occupationTree)}
                 </h3>
-                <p className="mt-1 text-[12.5px] text-[var(--faint)]">
-                  {pickText(currentDrive.titleGu, currentDrive.titleEn, lang)} ·{" "}
+                <p className="mt-1 text-[12.5px] text-[var(--faint)] print:text-black">
+                  {driveDisplayName(currentDrive, lang)} ·{" "}
                   {tf("res.academicYear", { year: currentDrive.year })}
                 </p>
               </div>
@@ -864,7 +959,7 @@ export function ResultsClient({
                   >
                     <ChevronLeft className="size-5" strokeWidth={2.4} />
                   </button>
-                  <AdminH3 className="mb-0">{levelLabel(activeStd, lang)}</AdminH3>
+                  <AdminH3 className="mb-0">{levelLabel(activeStd, lang, occupationTree)}</AdminH3>
                 </div>
                 {stdSummary.allDone && (
                   <AdminBtn onClick={() => go({ view: "merit" })}>🏅 {t("res.viewMeritList")}</AdminBtn>
@@ -956,6 +1051,26 @@ export function ResultsClient({
                 </div>
               </div>
 
+              {specializationTabs.length > 0 && (
+                <div className="-mt-2 mb-3.5 flex flex-wrap gap-2">
+                  {specializationTabs.map((tb) => (
+                    <button
+                      key={tb.value}
+                      type="button"
+                      onClick={() => setSpecializationFilter(tb.value)}
+                      className="cursor-pointer rounded-[9px] border-[1.5px] px-3.5 py-1 text-[12px] font-bold"
+                      style={{
+                        borderColor: specializationFilter === tb.value ? "#A62A38" : "#E6E0D3",
+                        background: specializationFilter === tb.value ? "#A62A38" : "#FCFAF6",
+                        color: specializationFilter === tb.value ? "#fff" : "#6B6357",
+                      }}
+                    >
+                      {tb.label} ({tb.count})
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <Sheet open={stdFiltersOpen} onOpenChange={setStdFiltersOpen}>
                 <SheetContent side="bottom" className="md:hidden">
                   <SheetHeader>
@@ -1002,11 +1117,11 @@ export function ResultsClient({
                         <AdminTh>{t("res.thStudent")}</AdminTh>
                         <AdminTh>{t("res.thFamily")}</AdminTh>
                         <AdminTh>{t("res.thMobile")}</AdminTh>
-                        {STREAM_STANDARDS.has(activeStd) && <AdminTh>{t("res.thStream")}</AdminTh>}
+                        {subOptions.length > 0 && <AdminTh>{t("res.thStream")}</AdminTh>}
                         <AdminTh>{t("res.thUpload")}</AdminTh>
                         <AdminTh>{t("res.thVerification")}</AdminTh>
-                        <AdminTh>%</AdminTh>
-                        <AdminTh>{t("res.thRank")}</AdminTh>
+                        {showScore && <AdminTh>%</AdminTh>}
+                        {showScore && <AdminTh>{t("res.thRank")}</AdminTh>}
                         <AdminTh>{t("res.thNextStatus")}</AdminTh>
                         <AdminTh>{t("res.thUpdated")}</AdminTh>
                         <AdminTh className="text-right whitespace-nowrap">{t("res.thActions")}</AdminTh>
@@ -1015,7 +1130,8 @@ export function ResultsClient({
                     <tbody>
                       {displayStdRows.map((r) => {
                         const meta = rosterStatusMeta(r.status);
-                        const sc = r.stream ? streamColors(r.stream) : null;
+                        const subValue = subField === "stream" ? r.stream : r.course;
+                        const sc = subValue ? streamColors(subValue) : null;
                         const rankKey = r.entryId ?? r.memberId ?? r.studentName;
                         const rank = ranks.get(rankKey);
                         return (
@@ -1037,14 +1153,27 @@ export function ResultsClient({
                               ) : null}
                             </AdminTd>
                             <AdminTd>{r.mobile || "—"}</AdminTd>
-                            {STREAM_STANDARDS.has(activeStd) && (
+                            {subOptions.length > 0 && (
                               <AdminTd>
-                                {r.stream && sc ? (
+                                {subValue && sc ? (
                                   <span
                                     className="inline-block rounded-full px-2.5 py-0.5 text-[10.5px] font-bold"
                                     style={{ background: sc.bg, color: sc.fg }}
                                   >
-                                    {streamLabel(r.stream, lang)}
+                                    {pickText(
+                                      subOptions.find((o) => o.nameEn === subValue)?.nameGu ?? null,
+                                      subValue,
+                                      lang,
+                                    )}
+                                    {r.specialization
+                                      ? ` · ${pickText(
+                                          subOptions
+                                            .find((o) => o.nameEn === subValue)
+                                            ?.children?.find((c) => c.nameEn === r.specialization)?.nameGu ?? null,
+                                          r.specialization,
+                                          lang,
+                                        )}`
+                                      : ""}
                                   </span>
                                 ) : null}
                               </AdminTd>
@@ -1065,16 +1194,18 @@ export function ResultsClient({
                                 {t(STATUS_KEYS[r.status])}
                               </span>
                             </AdminTd>
-                            <AdminTd>
-                              {r.percentage != null ? (
-                                <span className={r.percentage >= 80 ? "font-bold text-[#22A45D]" : ""}>
-                                  {r.percentage}%
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </AdminTd>
-                            <AdminTd>{rank ? `#${rank}` : "—"}</AdminTd>
+                            {showScore && (
+                              <AdminTd>
+                                {r.percentage != null ? (
+                                  <span className={r.percentage >= 80 ? "font-bold text-[#22A45D]" : ""}>
+                                    {r.percentage}%
+                                  </span>
+                                ) : (
+                                  "—"
+                                )}
+                              </AdminTd>
+                            )}
+                            {showScore && <AdminTd>{rank ? `#${rank}` : "—"}</AdminTd>}
                             <AdminTd>
                               {r.status === "none" ? (
                                 "—"
@@ -1108,12 +1239,14 @@ export function ResultsClient({
                                     label={t("common.view")}
                                     onClick={() => setVerify({ row: r, viewOnly: true })}
                                   />
-                                  <ActionBtn
-                                    icon={CheckCircle2}
-                                    label={t("res.verify")}
-                                    tone="success"
-                                    onClick={() => setVerify({ row: r, viewOnly: false })}
-                                  />
+                                  {r.status !== "APPROVED" && (
+                                    <ActionBtn
+                                      icon={CheckCircle2}
+                                      label={t("res.verify")}
+                                      tone="success"
+                                      onClick={() => setVerify({ row: r, viewOnly: false })}
+                                    />
+                                  )}
                                   <ActionBtn
                                     icon={Pencil}
                                     label={t("common.edit")}
@@ -1148,6 +1281,7 @@ export function ResultsClient({
           standard={activeStd}
           viewOnly={verify.viewOnly}
           hasNav={stdRows.filter((r) => r.status !== "none").length > 1}
+          occupationTree={occupationTree}
           onClose={() => setVerify(null)}
           onApprove={() => void approveRow(verify.row, false)}
           onSaveNext={() => void approveRow(verify.row, true)}
@@ -1173,6 +1307,7 @@ export function ResultsClient({
         <UploadResultModal
           row={uploadRow}
           driveId={currentDrive.id}
+          occupationTree={occupationTree}
           onClose={() => setUploadRow(null)}
           onSaved={(updated) => {
             patchRoster(updated);
@@ -1185,7 +1320,7 @@ export function ResultsClient({
       {currentDrive && (
         <CloseDriveModal
           open={closeDriveOpen}
-          driveTitle={currentDrive.titleGu || currentDrive.titleEn}
+          driveTitle={driveDisplayName(currentDrive, lang)}
           notUploaded={notUploaded}
           incomplete={incompleteUploaded}
           onClose={() => setCloseDriveOpen(false)}
@@ -1194,54 +1329,6 @@ export function ResultsClient({
         />
       )}
 
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent className="max-w-[380px] rounded-2xl sm:max-w-[380px]">
-          <DialogHeader>
-            <DialogTitle className="text-base font-extrabold text-[var(--ink)]">{t("res.newDriveTitle")}</DialogTitle>
-          </DialogHeader>
-          <div>
-            <AdminLabel>{t("res.year")}</AdminLabel>
-            <AdminInput
-              type="number"
-              value={draft.year}
-              onChange={(v) => setDraft((prev) => ({ ...prev, year: v }))}
-            />
-            <AdminLabel>{t("res.titleEn")}</AdminLabel>
-            <AdminInput
-              value={draft.titleEn}
-              onChange={(v) => {
-                setDraft((prev) => ({ ...prev, titleEn: v }));
-                fromEn(v, (gu) => setDraft((prev) => ({ ...prev, titleGu: gu })));
-              }}
-            />
-            <AdminLabel>{t("res.titleGu")}</AdminLabel>
-            <AdminInput
-              gujarati
-              value={draft.titleGu}
-              onChange={(v) => {
-                setDraft((prev) => ({ ...prev, titleGu: v }));
-                guInput(v, (gu) => setDraft((prev) => ({ ...prev, titleGu: gu })), "gu");
-              }}
-            />
-            <p className="mt-2 text-[12px] font-medium text-[var(--faint)]">
-              {t("res.savedAs")}{" "}
-              <b className="text-[var(--ink)]">
-                {draft.titleEn.trim() || "…"}{" "}
-                {yearRangeSuffix(Number(draft.year) || new Date().getFullYear())}
-              </b>
-            </p>
-            {error && <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
-            <div className="mt-4 flex gap-2.5">
-              <AdminBtn className="flex-1 justify-center" onClick={createDrive}>
-                {busy ? <Loader2 className="size-4 animate-spin" /> : t("res.createDrive")}
-              </AdminBtn>
-              <AdminBtn variant="ghost" className="flex-1 justify-center" onClick={() => setNewOpen(false)}>
-                {t("common.cancel")}
-              </AdminBtn>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

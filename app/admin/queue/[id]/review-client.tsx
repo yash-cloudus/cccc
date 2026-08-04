@@ -288,6 +288,7 @@ export function ReviewClient({
           occupationOther: resolved[i].occupationOther || null,
           education: resolved[i].education || null,
           course: resolved[i].course || null,
+          specialization: resolved[i].specialization || null,
           isHead: isHeadRow,
         };
       }),
@@ -494,18 +495,22 @@ export function ReviewClient({
               onChange={(v) => patchFamily({ businessGu: v })}
             />
           </AdminField>
+
+          {/* Lives in the sticky family-details card, not atop the (often much
+              taller) member list, so it stays reachable while scrolling past
+              member 5, 6, 7… instead of scrolling out of view with member 1. */}
+          <button
+            type="button"
+            onClick={addMember}
+            className="mt-4 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-[var(--line-admin)] py-2.5 text-[12.5px] font-extrabold text-[var(--brand)]"
+          >
+            <Plus className="size-3.5" strokeWidth={2.6} /> {t("queue.addMember")}
+          </button>
         </section>
 
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <AdminH3 className="mb-0">{tf("queue.membersCount", { n: f.members.length })}</AdminH3>
-            <button
-              type="button"
-              onClick={addMember}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--line-admin)] px-2.5 py-1.5 text-[12px] font-extrabold text-[var(--brand)]"
-            >
-              <Plus className="size-3.5" strokeWidth={2.6} /> {t("queue.addMember")}
-            </button>
           </div>
 
           {f.members.map((m, idx) => {

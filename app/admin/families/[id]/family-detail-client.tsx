@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { MapPin, Pencil, UserPlus } from "lucide-react";
+import { ChevronLeft, MapPin, Pencil, UserPlus } from "lucide-react";
 import {
   AdminBtn,
   AdminH2,
@@ -173,30 +172,34 @@ export function FamilyDetailClient({
 
   return (
     <>
-      <Link
-        href="/admin/families"
-        className="mb-2.5 inline-block text-[13px] font-bold text-[var(--brand)] hover:underline"
-      >
-        {t("fam.backToFamilies")}
-      </Link>
-
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <AdminH2 className="mb-0.5">
-            {headName} {surname}
-          </AdminH2>
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={cn(
-                "inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold",
-                statusMeta.className,
-              )}
-            >
-              {t(statusMeta.labelKey)}
-            </span>
-            <span className="text-[12px] text-[var(--faint)]">
-              {tf("fam.memberCountN", { n: members.length })}
-            </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => router.push("/admin/families")}
+            aria-label={t("fam.backToFamilies")}
+            title={t("fam.backToFamilies")}
+            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-[var(--line-admin)] bg-white text-[var(--ink)] shadow-sm transition-colors hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]"
+          >
+            <ChevronLeft className="size-5" strokeWidth={2.4} />
+          </button>
+          <div className="min-w-0">
+            <AdminH2 className="mb-0.5">
+              {headName} {surname}
+            </AdminH2>
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={cn(
+                  "inline-block rounded-full px-2 py-0.5 text-[10.5px] font-bold",
+                  statusMeta.className,
+                )}
+              >
+                {t(statusMeta.labelKey)}
+              </span>
+              <span className="text-[12px] text-[var(--faint)]">
+                {tf("fam.memberCountN", { n: members.length })}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -240,185 +243,191 @@ export function FamilyDetailClient({
         </section>
       )}
 
-      {/* ── Family details ─────────────────────────────────────────────── */}
-      <section className="mb-5 rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4">
-        <AdminH3>{t("fam.familyDetails")}</AdminH3>
-        <AdminTable>
-          <tbody>
-            <Row label={t("fam.headName")}>
-              {family.headNameEn}
-              {family.headNameGu ? ` · ${family.headNameGu}` : ""}
-            </Row>
-            <Row label={t("fam.surname")}>
-              {family.surnameEn}
-              {family.surnameGu ? ` · ${family.surnameGu}` : ""}
-            </Row>
-            <Row label={t("fam.surnameGroup")}>
-              {pick(family.surnameGroupEn, family.surnameGroupGu)}
-            </Row>
-            <Row label={t("fam.address")}>{pick(family.addressEn, family.addressGu)}</Row>
-            {communityType === "GAM" && (
-              <Row label={t("fam.village")}>{pick(family.villageEn, family.villageGu)}</Row>
-            )}
-            <Row label={t("fam.city")}>{family.city}</Row>
-            <Row label={t("fam.nativePlace")}>{family.nativePlace}</Row>
-            <Row label={t("fam.email")}>{family.email}</Row>
-            <Row label={t("fam.business")}>{family.businessGu}</Row>
-            <Row label={t("fam.nativeElder")}>
-              {family.nativeElderNameEn || family.nativeElderNameGu
-                ? `${pick(family.nativeElderNameEn, family.nativeElderNameGu)}${
-                    family.nativeElderPhone ? ` · ${family.nativeElderPhone}` : ""
-                  }`
-                : ""}
-            </Row>
-            <Row label={t("fam.mapLocation")}>
-              {family.latitude != null && family.longitude != null ? (
-                <a
-                  href={`https://www.google.com/maps?q=${family.latitude},${family.longitude}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-semibold text-[var(--brand)] hover:underline"
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+        {/* ── Family details ───────────────────────────────────────────── */}
+        <section className="rounded-2xl border border-[var(--line-admin)] bg-white p-4 sm:p-5 lg:sticky lg:top-4">
+          <AdminH3>{t("fam.familyDetails")}</AdminH3>
+          <AdminTable>
+            <tbody>
+              <Row label={t("fam.headName")}>
+                {family.headNameEn}
+                {family.headNameGu ? ` · ${family.headNameGu}` : ""}
+              </Row>
+              <Row label={t("fam.surname")}>
+                {family.surnameEn}
+                {family.surnameGu ? ` · ${family.surnameGu}` : ""}
+              </Row>
+              <Row label={t("fam.surnameGroup")}>
+                {pick(family.surnameGroupEn, family.surnameGroupGu)}
+              </Row>
+              <Row label={t("fam.address")}>{pick(family.addressEn, family.addressGu)}</Row>
+              {communityType === "GAM" && (
+                <Row label={t("fam.village")}>{pick(family.villageEn, family.villageGu)}</Row>
+              )}
+              <Row label={t("fam.city")}>{family.city}</Row>
+              <Row label={t("fam.nativePlace")}>{family.nativePlace}</Row>
+              <Row label={t("fam.email")}>{family.email}</Row>
+              <Row label={t("fam.business")}>{family.businessGu}</Row>
+              <Row label={t("fam.nativeElder")}>
+                {family.nativeElderNameEn || family.nativeElderNameGu
+                  ? `${pick(family.nativeElderNameEn, family.nativeElderNameGu)}${
+                      family.nativeElderPhone ? ` · ${family.nativeElderPhone}` : ""
+                    }`
+                  : ""}
+              </Row>
+              <Row label={t("fam.mapLocation")}>
+                {family.latitude != null && family.longitude != null ? (
+                  <a
+                    href={`https://www.google.com/maps?q=${family.latitude},${family.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-semibold text-[var(--brand)] hover:underline"
+                  >
+                    <MapPin className="size-3.5" /> {t("fam.viewOnMap")}
+                  </a>
+                ) : null}
+              </Row>
+              <Row label={t("fam.consentAccepted")}>
+                {family.consentAccepted ? t("fam.yes") : t("fam.no")}
+              </Row>
+              <Row label={t("fam.submittedAt")}>{formatDate(family.submittedAt, lang)}</Row>
+              <Row label={t("fam.approvedAt")}>{formatDate(family.approvedAt, lang)}</Row>
+              {family.rejectReason && (
+                <Row label={t("fam.rejectReason")}>{family.rejectReason}</Row>
+              )}
+            </tbody>
+          </AdminTable>
+        </section>
+
+        {/* ── Members ──────────────────────────────────────────────────── */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <AdminH3 className="mb-0">
+              {t("fam.members")} ({members.length})
+            </AdminH3>
+          </div>
+
+          {members.length === 0 ? (
+            <p className="rounded-2xl border border-[var(--line-admin)] bg-white py-6 text-center text-[13px] text-[var(--faint)]">
+              {t("fam.noMembers")}
+            </p>
+          ) : (
+            members.map((m, i) => {
+              const col = MEMBER_COLORS[i % MEMBER_COLORS.length];
+              const name = pick(m.fullNameEn, m.fullNameGu);
+              return (
+                <div
+                  key={m.id}
+                  className={cn(
+                    "rounded-2xl border border-[var(--line-admin)] p-4 sm:p-5",
+                    m.isDeceased ? "bg-[#F6F4F0]" : "bg-white",
+                  )}
                 >
-                  <MapPin className="size-3.5" /> {t("fam.viewOnMap")}
-                </a>
-              ) : null}
-            </Row>
-            <Row label={t("fam.consentAccepted")}>
-              {family.consentAccepted ? t("fam.yes") : t("fam.no")}
-            </Row>
-            <Row label={t("fam.submittedAt")}>{formatDate(family.submittedAt, lang)}</Row>
-            <Row label={t("fam.approvedAt")}>{formatDate(family.approvedAt, lang)}</Row>
-            {family.rejectReason && (
-              <Row label={t("fam.rejectReason")}>{family.rejectReason}</Row>
-            )}
-          </tbody>
-        </AdminTable>
-      </section>
-
-      {/* ── Members ────────────────────────────────────────────────────── */}
-      <section className="rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4">
-        <AdminH3>
-          {t("fam.members")} ({members.length})
-        </AdminH3>
-
-        {members.length === 0 ? (
-          <p className="py-6 text-center text-[13px] text-[var(--faint)]">{t("fam.noMembers")}</p>
-        ) : (
-          members.map((m, i) => {
-            const col = MEMBER_COLORS[i % MEMBER_COLORS.length];
-            const name = pick(m.fullNameEn, m.fullNameGu);
-            return (
-              <div
-                key={m.id}
-                className={cn(
-                  "mb-3 rounded-[14px] border border-[var(--line)] p-4 last:mb-0",
-                  m.isDeceased ? "bg-[#F6F4F0]" : "bg-white",
-                )}
-              >
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] text-sm font-extrabold"
-                    style={{ background: col.bg, color: col.c }}
-                  >
-                    {name.trim()[0] ?? "?"}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[13.5px] font-bold text-[var(--ink)]">
-                      {m.fullNameEn}
-                      {m.fullNameGu ? ` · ${m.fullNameGu}` : ""}
-                      {m.isHead && (
-                        <span className="ml-1.5 rounded-[7px] bg-[var(--brand-tint)] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[var(--brand)]">
-                          {t("fam.head")}
-                        </span>
-                      )}
-                      {passwordLogin && m.hasPassword && (
-                        <span className="ml-1.5 rounded-[7px] bg-[var(--success-tint)] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[var(--success)]">
-                          {t("fam.holdsLogin")}
-                        </span>
-                      )}
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] text-sm font-extrabold"
+                      style={{ background: col.bg, color: col.c }}
+                    >
+                      {name.trim()[0] ?? "?"}
                     </div>
-                    <div className="text-[11.5px] text-[var(--faint)]">
-                      {m.relation || t("fam.memberFallback")} · {m.mobile || t("fam.noLogin")}
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13.5px] font-bold text-[var(--ink)]">
+                        {m.fullNameEn}
+                        {m.fullNameGu ? ` · ${m.fullNameGu}` : ""}
+                        {m.isHead && (
+                          <span className="ml-1.5 rounded-[7px] bg-[var(--brand-tint)] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[var(--brand)]">
+                            {t("fam.head")}
+                          </span>
+                        )}
+                        {passwordLogin && m.hasPassword && (
+                          <span className="ml-1.5 rounded-[7px] bg-[var(--success-tint)] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[var(--success)]">
+                            {t("fam.holdsLogin")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11.5px] text-[var(--faint)]">
+                        {m.relation || t("fam.memberFallback")} · {m.mobile || t("fam.noLogin")}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <AdminTable className="mt-3">
-                  <tbody>
-                    <Row label={t("fam.relation")}>{m.relation}</Row>
-                    <Row label={t("fam.gender")}>{m.gender}</Row>
-                    <Row label={t("fam.mobileNumber")}>{m.mobile}</Row>
-                    <Row label={t("fam.whatsappNumber")}>
-                      {m.hasWhatsApp ? m.mobile : m.whatsapp}
-                    </Row>
-                    <Row label={t("fam.birthDate")}>{formatDate(m.dateOfBirth, lang)}</Row>
-                    <Row label={t("fam.bloodGroup")}>{bloodLabel(m.bloodGroup)}</Row>
-                    <Row label={t("fam.occupation")}>{m.occupationOther || m.occupation}</Row>
-                    <Row label={t("fam.education")}>{m.education}</Row>
-                    <Row label={t("fam.course")}>{m.course}</Row>
-                    <Row label={t("fam.currentlyAt")}>{m.currentlyAt}</Row>
-                    <Row label={t("fam.showPhone")}>
-                      {m.showPhone ? t("fam.yes") : t("fam.no")}
-                    </Row>
-                  </tbody>
-                </AdminTable>
+                  <AdminTable className="mt-3">
+                    <tbody>
+                      <Row label={t("fam.relation")}>{m.relation}</Row>
+                      <Row label={t("fam.gender")}>{m.gender}</Row>
+                      <Row label={t("fam.mobileNumber")}>{m.mobile}</Row>
+                      <Row label={t("fam.whatsappNumber")}>
+                        {m.hasWhatsApp ? m.mobile : m.whatsapp}
+                      </Row>
+                      <Row label={t("fam.birthDate")}>{formatDate(m.dateOfBirth, lang)}</Row>
+                      <Row label={t("fam.bloodGroup")}>{bloodLabel(m.bloodGroup)}</Row>
+                      <Row label={t("fam.occupation")}>{m.occupationOther || m.occupation}</Row>
+                      <Row label={t("fam.education")}>{m.education}</Row>
+                      <Row label={t("fam.course")}>{m.course}</Row>
+                      <Row label={t("fam.currentlyAt")}>{m.currentlyAt}</Row>
+                      <Row label={t("fam.showPhone")}>
+                        {m.showPhone ? t("fam.yes") : t("fam.no")}
+                      </Row>
+                    </tbody>
+                  </AdminTable>
 
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => patchMember(m, { isVisible: !m.isVisible })}
-                    className={cn(
-                      "cursor-pointer rounded-[9px] px-[11px] py-1.5 text-[11.5px] font-bold",
-                      m.isVisible
-                        ? "bg-[var(--success-tint)] text-[var(--success)]"
-                        : "bg-[var(--line-soft)] text-[var(--muted)]",
-                    )}
-                  >
-                    {m.isVisible ? t("fam.visible") : t("fam.hidden")}
-                  </button>
-                  {!m.isHead && (
+                  <div className="mt-3 flex flex-wrap gap-1.5">
                     <button
                       type="button"
-                      onClick={() => makeHead(m)}
-                      className="cursor-pointer rounded-[9px] bg-[var(--brand-tint)] px-[11px] py-1.5 text-[11.5px] font-bold text-[var(--brand)]"
+                      onClick={() => patchMember(m, { isVisible: !m.isVisible })}
+                      className={cn(
+                        "cursor-pointer rounded-[9px] px-[11px] py-1.5 text-[11.5px] font-bold",
+                        m.isVisible
+                          ? "bg-[var(--success-tint)] text-[var(--success)]"
+                          : "bg-[var(--line-soft)] text-[var(--muted)]",
+                      )}
                     >
-                      {t("fam.makeHead")}
+                      {m.isVisible ? t("fam.visible") : t("fam.hidden")}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => changeLogin(m)}
-                    className="cursor-pointer rounded-[9px] bg-[#EEF1F6] px-[11px] py-1.5 text-[11.5px] font-bold text-[#4A5B72]"
-                  >
-                    {t("fam.changeLogin")}
-                  </button>
-                  {passwordLogin && m.mobile && (
+                    {!m.isHead && (
+                      <button
+                        type="button"
+                        onClick={() => makeHead(m)}
+                        className="cursor-pointer rounded-[9px] bg-[var(--brand-tint)] px-[11px] py-1.5 text-[11.5px] font-bold text-[var(--brand)]"
+                      >
+                        {t("fam.makeHead")}
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setPassword(m)}
-                      className="cursor-pointer rounded-[9px] bg-[var(--gold-tint)] px-[11px] py-1.5 text-[11.5px] font-bold text-[var(--warn)]"
+                      onClick={() => changeLogin(m)}
+                      className="cursor-pointer rounded-[9px] bg-[#EEF1F6] px-[11px] py-1.5 text-[11.5px] font-bold text-[#4A5B72]"
                     >
-                      {m.hasPassword ? t("fam.resetPassword") : t("fam.setPassword")}
+                      {t("fam.changeLogin")}
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => patchMember(m, { isDeceased: !m.isDeceased })}
-                    className={cn(
-                      "cursor-pointer rounded-[9px] px-[11px] py-1.5 text-[11.5px] font-bold",
-                      m.isDeceased
-                        ? "bg-[var(--ink)] text-white"
-                        : "bg-[var(--line-soft)] text-[var(--muted)]",
+                    {passwordLogin && m.mobile && (
+                      <button
+                        type="button"
+                        onClick={() => setPassword(m)}
+                        className="cursor-pointer rounded-[9px] bg-[var(--gold-tint)] px-[11px] py-1.5 text-[11.5px] font-bold text-[var(--warn)]"
+                      >
+                        {m.hasPassword ? t("fam.resetPassword") : t("fam.setPassword")}
+                      </button>
                     )}
-                  >
-                    {m.isDeceased ? t("fam.deceased") : t("fam.markDeceased")}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => patchMember(m, { isDeceased: !m.isDeceased })}
+                      className={cn(
+                        "cursor-pointer rounded-[9px] px-[11px] py-1.5 text-[11.5px] font-bold",
+                        m.isDeceased
+                          ? "bg-[var(--ink)] text-white"
+                          : "bg-[var(--line-soft)] text-[var(--muted)]",
+                      )}
+                    >
+                      {m.isDeceased ? t("fam.deceased") : t("fam.markDeceased")}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })
-        )}
-      </section>
+              );
+            })
+          )}
+        </section>
+      </div>
     </>
   );
 }

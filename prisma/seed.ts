@@ -313,7 +313,7 @@ async function seedCommunityData(
           create: [
             { fullNameEn: "Alpeshbhai Kanubhai Savaliya", relation: "Head", mobile: opts.ownerMobile, bloodGroup: "B_POS", occupation: "Vepar (Business)", occupationOther: "Textiles", currentlyAt: "Surat", isHead: true },
             { fullNameEn: "Nitaben Alpeshbhai Savaliya", relation: "Wife", bloodGroup: "A_POS", occupation: "Homemaker", currentlyAt: "Surat" },
-            { fullNameEn: "Harsh Alpeshbhai Savaliya", relation: "Son", bloodGroup: "B_POS", occupation: "Student", education: "Std 10", currentlyAt: "Surat" },
+            { fullNameEn: "Harsh Alpeshbhai Savaliya", relation: "Son", bloodGroup: "B_POS", occupation: "Student", education: "Standard 10", currentlyAt: "Surat" },
           ],
         },
       },

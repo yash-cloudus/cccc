@@ -386,6 +386,8 @@ model FamilyMember {
   occupationOther String?
   education       String?
   course          String?
+  /** Third level under `course` (e.g. College → BBA → this). Kept as its own column instead of being collapsed into `course` so the mid-level survives. */
+  specialization  String?
   currentlyAt     String?
   hasWhatsApp     Boolean         @default(true)
   /** Set only when `hasWhatsApp` is false — WhatsApp lives on a different number. */
@@ -819,6 +821,8 @@ model ResultEntry {
   standard      String
   stream        String?
   course        String?
+  /// Third level under `course` for standards whose Dropdown lists category nests further (e.g. College → BBA → this).
+  specialization String?
   totalMarks    Float?
   obtainedMarks Float?
   percentage    Float?
@@ -832,6 +836,8 @@ model ResultEntry {
   nextStream    String?
   /// Degree / course name for a next standard of College / Diploma.
   nextCourse    String?
+  /// Third level under `nextCourse`, mirroring `specialization` (e.g. next standard College → BE → this).
+  nextSpecialization String?
   studyOutcome  StudyOutcome?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
