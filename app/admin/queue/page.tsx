@@ -27,6 +27,7 @@ export default async function RegistrationQueuePage() {
     id: f.id,
     headEn: f.headNameEn,
     headGu: f.headNameGu || null,
+    photoUrl: f.familyMembers[0]?.photoUrl || null,
     surnameEn: f.surnameEn,
     surnameGu: f.surnameGu || null,
     city: f.city || "—",

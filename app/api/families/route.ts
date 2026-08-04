@@ -1,6 +1,7 @@
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { uploadDataUrl } from "@/lib/cloudinary";
 import { created, fail, fromZod, getClientIp, ok } from "@/lib/api";
 import { requireSession, hasRole } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/security/rate-limit";
@@ -114,6 +115,8 @@ const createSchema = z.object({
         hasWhatsApp: z.boolean().optional(),
         whatsapp: z.string().optional(),
         isHead: z.boolean().optional(),
+        /** Head only: a data URL from the registration form's photo picker. */
+        photo: z.string().max(900_000).optional(),
       }),
     )
     .min(1),
@@ -231,6 +234,12 @@ export async function POST(req: Request) {
       if (!v) return fail("Invalid village", 422);
     }
 
+    // Stored before the family row so a failed upload cannot leave a family
+    // half-written; `uploadDataUrl` returns null rather than throwing, so the
+    // registration still goes through, just without the picture.
+    const headPhoto = body.members.find((m, i) => (m.isHead ?? i === 0) && m.photo)?.photo;
+    const headPhotoUrl = headPhoto ? await uploadDataUrl(headPhoto, "family-heads") : null;
+
     const family = await prisma.family.create({
       data: {
         communityId,
@@ -279,6 +288,10 @@ export async function POST(req: Request) {
               hasWhatsApp: m.hasWhatsApp ?? true,
               whatsapp: m.hasWhatsApp === false ? m.whatsapp?.trim() || undefined : undefined,
               isHead,
+              // Only the head is asked for a photo, so only the head's is
+              // stored — a payload carrying one for every member would
+              // otherwise be an unauthenticated way to fill the image host.
+              photoUrl: isHead ? headPhotoUrl : null,
             };
           }),
         },

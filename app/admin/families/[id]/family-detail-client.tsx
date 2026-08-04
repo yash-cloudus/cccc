@@ -40,6 +40,8 @@ export type DetailMember = {
   hasWhatsApp: boolean;
   whatsapp: string | null;
   showPhone: boolean;
+  /** Head only — collected on the registration form. */
+  photoUrl: string | null;
   isHead: boolean;
   isVisible: boolean;
   isDeceased: boolean;
@@ -321,12 +323,21 @@ export function FamilyDetailClient({
                 )}
               >
                 <div className="flex items-center gap-2.5">
-                  <div
-                    className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] text-sm font-extrabold"
-                    style={{ background: col.bg, color: col.c }}
-                  >
-                    {name.trim()[0] ?? "?"}
-                  </div>
+                  {m.photoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={m.photoUrl}
+                      alt={name}
+                      className="size-[38px] shrink-0 rounded-[11px] object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="flex size-[38px] shrink-0 items-center justify-center rounded-[11px] text-sm font-extrabold"
+                      style={{ background: col.bg, color: col.c }}
+                    >
+                      {name.trim()[0] ?? "?"}
+                    </div>
+                  )}
                   <div className="min-w-0 flex-1">
                     <div className="text-[13.5px] font-bold text-[var(--ink)]">
                       {m.fullNameEn}

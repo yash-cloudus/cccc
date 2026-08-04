@@ -24,6 +24,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { api } from "@/lib/http";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
+import { PersonAvatar } from "@/components/ui/person-avatar";
 import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
@@ -49,6 +50,8 @@ export type FamilyRow = {
   id: string;
   headEn: string;
   headGu: string;
+  /** The head's photo, uploaded on the registration form. */
+  photoUrl: string | null;
   surnameEn: string;
   surnameGu: string;
   city: string;
@@ -509,6 +512,8 @@ export function FamiliesClient({
       id: created.id,
       headEn: created.headNameEn,
       headGu: created.headNameGu || "",
+      // Only registration collects a photo; a family added here has none yet.
+      photoUrl: null,
       surnameEn: created.surnameEn,
       surnameGu: created.surnameGu || "",
       city: created.city || "—",
@@ -688,12 +693,15 @@ export function FamiliesClient({
             header: t("fam.head"),
             primary: true,
             cell: (f) => (
-              <>
-                <b>{f.headEn}</b>
-                {f.headGu ? (
-                  <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{f.headGu}</div>
-                ) : null}
-              </>
+              <div className="flex items-center gap-2.5">
+                <PersonAvatar name={f.headGu || f.headEn} photoUrl={f.photoUrl} />
+                <div className="min-w-0">
+                  <b>{f.headEn}</b>
+                  {f.headGu ? (
+                    <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{f.headGu}</div>
+                  ) : null}
+                </div>
+              </div>
             ),
           },
           {

@@ -5,6 +5,7 @@ import { FileText, ImagePlus, Loader2, Maximize2 } from "lucide-react";
 import { AdminModal, AdminModalActions } from "@/components/admin/admin-form";
 import { AdminBtn, AdminInput, AdminLabel } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { useCommunity } from "@/providers/community-provider";
 import { NextStandardModal, type NextStandardValue } from "@/components/results/next-standard-modal";
 import {
   HIGHER_STANDARDS,
@@ -216,6 +217,8 @@ export function RejectResultModal({
   busy: boolean;
 }) {
   const { t } = useAdminT();
+  // Only a WhatsApp-API community actually sends that notice.
+  const waOn = useCommunity().authMode === "WHATSAPP_API";
   const [reason, setReason] = useState("");
   const [err, setErr] = useState(false);
 
@@ -228,7 +231,7 @@ export function RejectResultModal({
         <div className="border-b border-[#F1EBDE] px-6 py-[18px]">
           <h3 className="text-base font-extrabold text-[#2A2620]">{t("res.rejectResult")}</h3>
           <p className="mt-0.5 text-[12px] text-[#938C80]">
-            {row.studentName} — {t("res.rejectNote")}
+            {row.studentName} — {t(waOn ? "res.rejectNote" : "res.rejectNoteNoWa")}
           </p>
         </div>
         <div className="px-6 py-[18px]">

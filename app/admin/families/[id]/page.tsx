@@ -93,6 +93,7 @@ export default async function FamilyDetailPage({
       hasWhatsApp: m.hasWhatsApp,
       whatsapp: m.whatsapp,
       showPhone: m.showPhone,
+      photoUrl: m.photoUrl,
       isHead: m.isHead,
       isVisible: m.isVisible,
       isDeceased: m.isDeceased,

@@ -1,7 +1,7 @@
 "use client";
 
 import { AdminInput, AdminSelect } from "@/components/admin/admin-ui";
-import { AdminField, AdminFormRow } from "@/components/admin/admin-form";
+import { AdminField, AdminFilePicker, AdminFormRow } from "@/components/admin/admin-form";
 import { DateField } from "@/components/ui/date-field";
 import { PickerWithAdd } from "@/components/ui/picker-with-add";
 import { MemberPlacePicker, type PlaceOption } from "@/components/forms/member-place-picker";
@@ -47,6 +47,8 @@ export type MemberFormValues = {
   /** Only used when `hasWhatsApp` is false — WhatsApp lives on a different number. */
   whatsapp: string;
   whatsappIso: string;
+  /** Head only: the photo the family uploaded at registration. */
+  photoUrl: string;
   /** Living abroad — replaces the village/city answer with country + city. */
   isNri: boolean;
   nriCountry: string;
@@ -66,6 +68,7 @@ export const blankMemberForm = (isHead = false): MemberFormValues => ({
   hasWhatsApp: true,
   whatsapp: "",
   whatsappIso: DEFAULT_ISO,
+  photoUrl: "",
   isNri: false,
   nriCountry: "",
   nriCity: "",
@@ -121,6 +124,17 @@ export function MemberFields({
 
   return (
     <div className="space-y-1">
+      {/* Only the head has one — registration asks nobody else for a photo. */}
+      {isHead && (
+        <AdminField label="Photo · ફોટો">
+          <AdminFilePicker
+            value={values.photoUrl}
+            onChange={(url) => onChange({ photoUrl: url })}
+            folder="family-heads"
+            hint="Square photo of the family head"
+          />
+        </AdminField>
+      )}
       <AdminFormRow>
         <AdminField label="Name (English)" required error={err("fullNameEn")}>
           <AdminInput

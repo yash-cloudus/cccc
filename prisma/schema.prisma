@@ -412,6 +412,11 @@ model FamilyMember {
   nriCountry      String?
   nriCity         String?
 
+  /// Photo of this person. Only the family head is asked for one, at
+  /// registration — the column is on the member because that is whose face it
+  /// is, and so the same field can serve the rest of the household later.
+  photoUrl        String?         @db.Text
+
   hasWhatsApp     Boolean         @default(true)
   /** Set only when `hasWhatsApp` is false — WhatsApp lives on a different number. */
   whatsapp        String?

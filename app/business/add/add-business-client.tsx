@@ -17,6 +17,7 @@ import { useTranslitSync } from "@/hooks/use-translit-sync";
 import { api } from "@/lib/http";
 import { pickText, telLink, waLink } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useCommunity } from "@/providers/community-provider";
 
 type Category = { id: string; nameEn: string; nameGu: string | null };
 
@@ -98,6 +99,7 @@ export function AddBusinessClient({
   contactPerson: ContactPerson | null;
 }) {
   const { lang } = useLang();
+  const passwordLogin = useCommunity().authMode === "MOBILE_PASSWORD";
   const router = useRouter();
   const { fromEn, guInput } = useTranslitSync();
   const T = (g: string, e: string) => (lang === "gu" ? g : e);
@@ -251,21 +253,27 @@ export function AddBusinessClient({
                 </div>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2.5">
+              {/* Call only under password login — that community runs no
+                  WhatsApp channel, so the green button leads nowhere. */}
+              <div
+                className={cn("mt-3 grid gap-2.5", passwordLogin ? "grid-cols-1" : "grid-cols-2")}
+              >
                 <a
                   href={contactPhoneHref}
                   className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--brand-tint)] text-[13px] font-extrabold text-[var(--brand)]"
                 >
                   {T("કોલ કરો", "Call")}
                 </a>
-                <a
-                  href={contactWhatsappHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--success-tint)] text-[13px] font-extrabold text-[var(--wa-dark)]"
-                >
-                  WhatsApp
-                </a>
+                {!passwordLogin && (
+                  <a
+                    href={contactWhatsappHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--success-tint)] text-[13px] font-extrabold text-[var(--wa-dark)]"
+                  >
+                    WhatsApp
+                  </a>
+                )}
               </div>
 
               <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--faint)]">

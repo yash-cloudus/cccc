@@ -861,6 +861,8 @@ export const adminDict = {
   "res.reasonRequired": { gu: "કૃપા કરી કારણ લખો.", en: "Please enter a reason." },
   "res.reject": { gu: "નામંજૂર", en: "Reject" },
   "res.rejectNote": { gu: "WhatsApp પર જાણ થશે; કારણ એપમાં દેખાશે.", en: "notified on WhatsApp; the reason shows in the app." },
+  /** Same line for a community with no WhatsApp channel — see AuthMode. */
+  "res.rejectNoteNoWa": { gu: "કારણ એપમાં દેખાશે.", en: "the reason shows in the app." },
   "res.rejectReason": { gu: "નામંજૂરીનું કારણ *", en: "Reject reason *" },
   "res.rejectResult": { gu: "પરિણામ નામંજૂર કરો", en: "Reject result" },
   "res.reopenDrive": { gu: "ડ્રાઇવ ફરી ખોલો", en: "Reopen drive" },

@@ -287,6 +287,9 @@ export function ReviewClient({
           mobile: m.mobile || null,
           mobileIso: m.mobileIso || "in",
           whatsappIso: m.hasWhatsApp ? m.mobileIso || "in" : m.whatsappIso || "in",
+          // Head only, but sent for every row so the API never has to guess
+          // which one it may clear.
+          photoUrl: m.photoUrl || null,
           // Cleared with the flag, so a member who moved home does not keep a
           // country nobody can see any more.
           isNri: m.isNri,

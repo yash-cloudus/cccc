@@ -11,6 +11,7 @@ import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
+import { PhotoPicker } from "@/components/forms/photo-picker";
 import { api } from "@/lib/http";
 import { bloodToEnum, pickText, telLink, waLink } from "@/lib/format";
 import { GENDERS, genderFromRelation } from "@/lib/constants";
@@ -189,6 +190,7 @@ export function RegisterClient({
     loc: "",
     m1name: "",
     m1nameGu: "",
+    m1photo: "",
     m1mobile: "",
     m1mobileIso: DEFAULT_ISO,
     m1whatsapp: "",
@@ -538,6 +540,9 @@ export function RegisterClient({
           hasWhatsApp: form.hasWhatsApp,
           whatsapp: form.hasWhatsApp ? undefined : digitsOf(form.m1whatsapp) || undefined,
           isHead: true,
+          // Data URL — the server shrinks nothing, it only stores what the
+          // browser already downscaled (components/forms/photo-picker.tsx).
+          photo: form.m1photo || undefined,
           occupation: headOcc.occupation || undefined,
           occupationOther: headOcc.occupationOther || undefined,
           education: headOcc.education || undefined,
@@ -594,10 +599,17 @@ export function RegisterClient({
             {T("નોંધણી મળી ગઈ!", "Registration received!")}
           </div>
           <p className="mt-2 max-w-[320px] text-[13.5px] leading-relaxed text-[var(--ink-mid)]">
-            {T(
-              "એડમિન મંજૂરી આપશે એટલે તમારા WhatsApp નંબર પર જાણ થશે. પછી એ જ નંબરથી લોગિન કરી શકાશે.",
-              "Once the admin approves, you'll be notified on your WhatsApp number. You can then log in with that number.",
-            )}
+            {/* Password login has no WhatsApp channel at all — promising a
+                notification there would be a message that never arrives. */}
+            {passwordLogin
+              ? T(
+                  "2 થી 3 દિવસમાં તમે તમારા નંબર અને પાસવર્ડથી લોગિન કરી શકશો. અને છતાં ના થાય તો તમારી કમિટીનો સંપર્ક કરવો.",
+                  "Within 2–3 days you'll be able to log in with your number and password. If you still can't, please contact your committee.",
+                )
+              : T(
+                  "એડમિન મંજૂરી આપશે એટલે તમારા WhatsApp નંબર પર જાણ થશે. પછી એ જ નંબરથી લોગિન કરી શકાશે.",
+                  "Once the admin approves, you'll be notified on your WhatsApp number. You can then log in with that number.",
+                )}
           </p>
 
           {contactPerson ? (
@@ -620,21 +632,26 @@ export function RegisterClient({
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2.5">
+            {/* Call only under password login: that community runs no WhatsApp
+                channel, so the green button would send them somewhere nobody
+                is listening. */}
+            <div className={cn("mt-3 grid gap-2.5", passwordLogin ? "grid-cols-1" : "grid-cols-2")}>
               <a
                 href={contactPhoneHref}
                 className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--brand-tint)] text-[13px] font-extrabold text-[var(--brand)]"
               >
                 {T("કોલ કરો", "Call")}
               </a>
-              <a
-                href={contactWhatsappHref}
-                target="_blank"
-                rel="noreferrer"
-                className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--success-tint)] text-[13px] font-extrabold text-[var(--wa-dark)]"
-              >
-                WhatsApp
-              </a>
+              {!passwordLogin && (
+                <a
+                  href={contactWhatsappHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-11 items-center justify-center rounded-[14px] bg-[var(--success-tint)] text-[13px] font-extrabold text-[var(--wa-dark)]"
+                >
+                  WhatsApp
+                </a>
+              )}
             </div>
 
             <p className="mt-3 text-[11.5px] leading-relaxed text-[var(--faint)]">
@@ -674,6 +691,7 @@ export function RegisterClient({
                 loc: "",
                 m1name: "",
                 m1nameGu: "",
+                m1photo: "",
                 m1mobile: "",
                 m1mobileIso: DEFAULT_ISO,
                 m1whatsapp: "",
@@ -1098,6 +1116,17 @@ export function RegisterClient({
                     {T("પરિવારના વડા", "Family head")}
                   </span>
                 </div>
+                {/* Head only — the rest of the household is not asked for one. */}
+                <PhotoPicker
+                  className="mb-3.5"
+                  value={form.m1photo}
+                  onChange={(v) => setForm((prev) => ({ ...prev, m1photo: v }))}
+                  label={T("વડાનો ફોટો", "Head's photo")}
+                  hint={T(
+                    "મરજિયાત — ડિરેક્ટરીમાં પરિવારના વડા સાથે દેખાશે.",
+                    "Optional — shown with the family head in the directory.",
+                  )}
+                />
                 <Field label={`${T("પૂરું નામ", "Full name")} *`} error={errs2.m1name}>
                   <div className="relative">
                     <SpeechInput

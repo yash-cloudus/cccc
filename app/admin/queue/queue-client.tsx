@@ -29,6 +29,7 @@ import { REJECT_REASONS } from "@/lib/constants";
 import { api } from "@/lib/http";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
+import { PersonAvatar } from "@/components/ui/person-avatar";
 
 /** Chip labels for the stored (English) reject reasons — the value sent to the
  *  API stays the English constant, only the label is translated. */
@@ -43,6 +44,8 @@ export type QueueRow = {
   id: string;
   headEn: string;
   headGu: string | null;
+  /** The head's photo, uploaded on the registration form. */
+  photoUrl: string | null;
   surnameEn: string;
   surnameGu: string | null;
   city: string;
@@ -356,12 +359,15 @@ export function QueueClient({
             header: t("queue.colFamily"),
             primary: true,
             cell: (r) => (
-              <>
-                <b>{r.headEn}</b>
-                {r.headGu && r.headGu !== r.headEn ? (
-                  <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{r.headGu}</div>
-                ) : null}
-              </>
+              <div className="flex items-center gap-2.5">
+                <PersonAvatar name={r.headGu || r.headEn} photoUrl={r.photoUrl} />
+                <div className="min-w-0">
+                  <b>{r.headEn}</b>
+                  {r.headGu && r.headGu !== r.headEn ? (
+                    <div className="mt-0.5 text-[12px] font-medium text-[var(--ink-dim)]">{r.headGu}</div>
+                  ) : null}
+                </div>
+              </div>
             ),
           },
           {

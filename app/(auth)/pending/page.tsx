@@ -5,14 +5,21 @@ import { motion } from "framer-motion";
 import { Clock } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useLang } from "@/providers/lang-provider";
+import { useCommunity } from "@/providers/community-provider";
 
 export default function PendingPage() {
   const { t, lang } = useLang();
+  const passwordLogin = useCommunity().authMode === "MOBILE_PASSWORD";
   const router = useRouter();
 
   const title = lang === "gu" ? "મંજૂરી બાકી છે" : "Approval Pending";
-  const body =
-    lang === "gu"
+  // Password login has no WhatsApp channel — this community never sends that
+  // notice, so promising it here would be a message that never arrives.
+  const body = passwordLogin
+    ? lang === "gu"
+      ? "તમારી નોંધણી મળી ગઈ છે. 2 થી 3 દિવસમાં તમે તમારા નંબર અને પાસવર્ડથી લોગિન કરી શકશો. અને છતાં ના થાય તો તમારી કમિટીનો સંપર્ક કરવો."
+      : "Your registration has been received. Within 2–3 days you'll be able to log in with your number and password. If you still can't, please contact your committee."
+    : lang === "gu"
       ? "તમારા પરિવારની નોંધણી સમાજના એડમિન પાસે મંજૂરી માટે છે. મંજૂરી થતાં WhatsApp પર જાણ થશે."
       : "Your family registration is with the Samaj admin for approval. You will be notified on WhatsApp once approved.";
 

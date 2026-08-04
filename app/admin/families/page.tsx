@@ -41,6 +41,7 @@ export default async function FamiliesPage() {
     id: f.id,
     headEn: f.headNameEn,
     headGu: f.headNameGu || "",
+    photoUrl: f.familyMembers[0]?.photoUrl || null,
     surnameEn: f.surnameEn,
     surnameGu: f.surnameGu || "",
     city: f.city || "—",

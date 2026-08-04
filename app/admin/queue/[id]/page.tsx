@@ -94,6 +94,7 @@ export default async function ReviewRegistrationPage({
       mobile: m.mobile || "",
       mobileIso: m.mobileIso || "in",
       whatsappIso: m.whatsappIso || "in",
+      photoUrl: m.photoUrl || "",
       isNri: m.isNri,
       nriCountry: m.nriCountry || "",
       nriCity: m.nriCity || "",

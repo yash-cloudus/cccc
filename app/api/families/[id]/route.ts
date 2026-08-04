@@ -32,6 +32,8 @@ const memberSchema = z.object({
   hasWhatsApp: z.boolean().optional(),
   whatsapp: z.string().optional().nullable(),
   isHead: z.boolean().optional(),
+  /** Head only. A stored URL from /api/upload, never a data URL. */
+  photoUrl: z.string().max(500).optional().nullable(),
 });
 
 const putSchema = z.object({
@@ -159,6 +161,9 @@ export async function PUT(req: Request, { params }: Params) {
             hasWhatsApp: m.hasWhatsApp ?? true,
             whatsapp: m.whatsapp ?? null,
             isHead: m.isHead ?? false,
+            // Only touched when the caller sent the field, so an editor that
+            // does not know about photos cannot silently wipe one.
+            ...(m.photoUrl !== undefined ? { photoUrl: m.photoUrl || null } : {}),
           };
           if (m.id && existing.familyMembers.some((e) => e.id === m.id)) {
             await tx.familyMember.update({ where: { id: m.id }, data });

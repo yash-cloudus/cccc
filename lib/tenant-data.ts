@@ -249,10 +249,11 @@ export async function getFamilies(
       surnameGroup: true,
       villageArea: true,
       headUser: { select: { mobile: true } },
-      // The head member carries the contact number shown in the admin table.
+      // The head member carries the contact number and the photo shown in the
+      // admin tables.
       familyMembers: {
         where: { isHead: true },
-        select: { mobile: true },
+        select: { mobile: true, mobileIso: true, photoUrl: true },
         take: 1,
       },
       _count: { select: { familyMembers: true } },
