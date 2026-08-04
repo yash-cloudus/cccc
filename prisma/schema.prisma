@@ -89,6 +89,21 @@ enum CommunityStatus {
   SUSPENDED
 }
 
+/// How members sign in to one community, and which messaging channel that
+/// community may automate.
+///
+/// `WHATSAPP_API` is the default because it is what every community did before
+/// this column existed — mobile + OTP, WhatsApp notify toggles live. A new
+/// column must not change how an existing tenant behaves.
+enum AuthMode {
+  /// Mobile + a 6-digit password held by the whole household. No automation.
+  MOBILE_PASSWORD
+  /// Mobile + OTP. The only mode where WhatsApp automation is allowed to run.
+  WHATSAPP_API
+  /// Mobile + OTP, no automation. Provider not chosen yet.
+  SMS
+}
+
 /// A tenant. One Community == one "app" created by the Main Admin.
 /// `slug` is the subdomain: {slug}.community.in
 model Community {
@@ -127,9 +142,16 @@ model Community {
   settingsJson        String? @db.LongText
   showDirectoryPhones Boolean @default(true)
 
+  /// Login + messaging mode. A column rather than a `Setting` row because every
+  /// request already loads the Community (`getActiveCommunity`), and because
+  /// `Setting` is writable by any community admin — this decides how login
+  /// works, so it must stay in the Main Admin's hands.
+  authMode AuthMode @default(WHATSAPP_API)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  integration           CommunityIntegration?
   users                 User[]
   surnameGroups         SurnameGroup[]
   villageAreas          VillageArea[]
@@ -152,6 +174,30 @@ model Community {
   educations            Education[]
 
   @@index([status])
+}
+
+/// Per-community messaging provider credentials, entered only in the Main Admin
+/// panel.
+///
+/// A separate table, not columns on `Community`, because `Community` rows get
+/// handed around whole — `getActiveCommunity()` returns the model and
+/// `GET /api/platform/communities` spreads it into JSON. Prisma will not load a
+/// relation unless asked, so a secret parked here cannot ride along by accident.
+/// Never add `include: { integration: true }` to a route that serialises rows.
+///
+/// `*Enc` fields are AES-256-GCM ciphertext from `lib/security/crypto.ts`.
+model CommunityIntegration {
+  id          String    @id @default(cuid())
+  communityId String    @unique
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  waApiKeyEnc    String? @db.Text
+  waFirmIdEnc    String? @db.Text
+  /// The sender's own WhatsApp number — an identifier, not a credential.
+  waSenderMobile String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Role {
@@ -294,6 +340,11 @@ model Family {
   nativeElderNameEn String?
   nativeElderNameGu String?
   nativeElderPhone  String?
+  /// MOBILE_PASSWORD mode: the one member mobile the whole household signs in
+  /// with. The credential itself is the `User` row keyed
+  /// (communityId, loginMobile) — this only records which number was chosen, so
+  /// the admin screen can show it without guessing.
+  loginMobile       String?
   status            RegistrationStatus @default(PENDING)
   rejectReason      String?            @db.Text
   whatsappNotified  Boolean            @default(false)

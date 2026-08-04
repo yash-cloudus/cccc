@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
 import { getFamily } from "@/lib/tenant-data";
 import { FamilyDetailClient, type FamilyDetail } from "./family-detail-client";
@@ -26,9 +27,23 @@ export default async function FamilyDetailPage({
   const family = await getFamily(community.id, id);
   if (!family) notFound();
 
+  // Which of this household's numbers actually carries a password. One query
+  // for the whole family rather than one per member.
+  const memberMobiles = family.familyMembers
+    .map((m) => m.mobile)
+    .filter((m): m is string => Boolean(m));
+  const accounts = memberMobiles.length
+    ? await prisma.user.findMany({
+        where: { communityId: community.id, mobile: { in: memberMobiles } },
+        select: { mobile: true, passwordHash: true },
+      })
+    : [];
+  const withPassword = new Set(accounts.filter((u) => u.passwordHash).map((u) => u.mobile));
+
   const data: FamilyDetail = {
     id: family.id,
     status: family.status,
+    loginMobile: family.loginMobile,
     headNameEn: family.headNameEn,
     headNameGu: family.headNameGu,
     surnameEn: family.surnameEn,
@@ -72,8 +87,15 @@ export default async function FamilyDetailPage({
       isHead: m.isHead,
       isVisible: m.isVisible,
       isDeceased: m.isDeceased,
+      hasPassword: Boolean(m.mobile && withPassword.has(m.mobile)),
     })),
   };
 
-  return <FamilyDetailClient family={data} communityType={community.type} />;
+  return (
+    <FamilyDetailClient
+      family={data}
+      communityType={community.type}
+      authMode={community.authMode}
+    />
+  );
 }

@@ -223,6 +223,10 @@ export function FamiliesClient({
     return base;
   });
   const [addBusy, setAddBusy] = useState(false);
+  /** Errors stay hidden until Save is pressed — a form that opens red reads as
+   *  broken. After that they recompute on every render, so they clear as the
+   *  admin fixes each field. */
+  const [triedCreate, setTriedCreate] = useState(false);
 
   const [occupationTreeState, setOccupationTreeState] = useState(occupationTree);
 
@@ -311,44 +315,58 @@ export function FamiliesClient({
     }));
   }
 
-  async function createFamily() {
-    if (!form.headNameEn.trim()) {
-      setError(t("fam.errHeadName"));
-      return;
-    }
+  /**
+   * Women are not asked for a phone number, so switching a member to female
+   * drops anything typed for them — a hidden field must never submit a value.
+   * Only fires on an explicit change, so records loaded from the database keep
+   * whatever they already had.
+   */
+  function setMemberGenderDraft(index: number, gender: string) {
+    updateMemberDraft(index, {
+      gender,
+      ...(gender === "FEMALE" ? { mobile: "", whatsapp: "", hasWhatsApp: true } : {}),
+    });
+  }
+
+  /**
+   * `field -> message`, so the message can sit under the box it belongs to
+   * rather than in one banner at the top of a long form.
+   */
+  function validateNewFamily(): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (!form.headNameEn.trim()) e.headNameEn = t("fam.errHeadName");
     if (!form.headPlace.trim()) {
-      setError(communityType === "PARIVAR" ? t("fam.errHeadCity") : t("fam.errHeadVillage"));
-      return;
+      e.headPlace = communityType === "PARIVAR" ? t("fam.errHeadCity") : t("fam.errHeadVillage");
     }
     if (communityType === "GAM" && !form.surnameEn.trim() && !form.surnameGroupId) {
-      setError(t("fam.errSurname"));
-      return;
+      e.surnameEn = t("fam.errSurname");
     }
-    if (!form.addressEn.trim()) {
-      setError(t("fam.errAddress"));
-      return;
-    }
+    if (!form.addressEn.trim()) e.addressEn = t("fam.errAddress");
+    // Asked of every head, male or female — it is the household's login.
     if (!/^[6-9]\d{9}$/.test(form.headMobile.replace(/\D/g, ""))) {
-      setError(t("fam.errHeadMobile"));
-      return;
+      e.headMobile = t("fam.errHeadMobile");
     }
-    if (!form.headGender) {
-      setError(t("fam.errHeadGender"));
-      return;
-    }
+    if (!form.headGender) e.headGender = t("fam.errHeadGender");
+    // Required here because this form only ever creates. The edit form leaves
+    // it optional so a record saved before the rule can still be corrected.
+    if (!form.headDateOfBirth) e.headDateOfBirth = t("fam.errDob");
+
+    form.members.forEach((m, i) => {
+      if (!m.fullNameEn.trim() && !m.fullNameGu.trim()) return;
+      if (!m.relation.trim()) e[`m${i}relation`] = tf("fam.errMemberRelation", { n: i + 2 });
+      if (!m.gender) e[`m${i}gender`] = tf("fam.errMemberGender", { n: i + 2 });
+      if (!m.dateOfBirth) e[`m${i}dob`] = t("fam.errDob");
+    });
+    return e;
+  }
+
+  const errsCreate = triedCreate ? validateNewFamily() : ({} as Record<string, string>);
+
+  async function createFamily() {
+    setTriedCreate(true);
+    if (Object.keys(validateNewFamily()).length > 0) return;
 
     const keptMembers = form.members.filter((m) => m.fullNameEn.trim() || m.fullNameGu.trim());
-
-    const missingRelation = keptMembers.findIndex((m) => !m.relation.trim());
-    if (missingRelation >= 0) {
-      setError(tf("fam.errMemberRelation", { n: missingRelation + 2 }));
-      return;
-    }
-    const missingGender = keptMembers.findIndex((m) => !m.gender);
-    if (missingGender >= 0) {
-      setError(tf("fam.errMemberGender", { n: missingGender + 2 }));
-      return;
-    }
 
     setAddBusy(true);
     setError(null);
@@ -564,6 +582,8 @@ export function FamiliesClient({
                     }
                   : base,
               );
+              setTriedCreate(false);
+              setError(null);
               setAddOpen(true);
             }}
           >
@@ -731,6 +751,7 @@ export function FamiliesClient({
           lockedSurname={lockedSurname}
           surnameGroups={groups}
           allowNewSurname
+          errors={errsCreate}
           t={(gu, en) => (lang === "en" ? en : gu)}
         />
         <AdminFormSection
@@ -758,7 +779,7 @@ export function FamiliesClient({
                 }}
               />
             </AdminField>
-            <AdminField label={t("fam.nameEn")} required>
+            <AdminField label={t("fam.nameEn")} required error={errsCreate.headNameEn}>
               <AdminInput
                 speech
                 value={form.headNameEn}
@@ -771,7 +792,8 @@ export function FamiliesClient({
           </AdminFormRow>
 
           <AdminFormRow>
-            <AdminField label={t("fam.mobileNumber")} required>
+            {/* Always asked of the head, male or female — it is the login. */}
+            <AdminField label={t("fam.mobileNumber")} required error={errsCreate.headMobile}>
               <AdminInput
                 value={form.headMobile}
                 onChange={(v) =>
@@ -780,7 +802,7 @@ export function FamiliesClient({
                 placeholder={t("fam.mobilePlaceholder")}
               />
             </AdminField>
-            <AdminField label={t("fam.gender")} required>
+            <AdminField label={t("fam.gender")} required error={errsCreate.headGender}>
               <AdminSelect
                 value={form.headGender}
                 onChange={(v) => setForm((prev) => ({ ...prev, headGender: v }))}
@@ -796,6 +818,7 @@ export function FamiliesClient({
           <AdminField
             label={communityType === "GAM" ? t("fam.villageCity") : t("fam.city")}
             required
+            error={errsCreate.headPlace}
             hint={t("fam.headPlaceHint")}
           >
             <MemberPlacePicker
@@ -809,7 +832,9 @@ export function FamiliesClient({
           </AdminField>
 
           <AdminFormRow>
-            <AdminField label={t("fam.birthDate")}>
+            {/* Required here — this form only creates. The edit form leaves it
+                optional so records saved before the rule stay editable. */}
+            <AdminField label={t("fam.birthDate")} required error={errsCreate.headDateOfBirth}>
               <DateField
                 dob
                 variant="admin"
@@ -891,17 +916,18 @@ export function FamiliesClient({
             </AdminFormRow>
 
             <AdminFormRow>
-              <AdminField label={t("fam.relation")} required>
+              <AdminField label={t("fam.relation")} required error={errsCreate[`m${i}relation`]}>
                 <AdminSelect
                   value={m.relation}
-                  onChange={(v) =>
+                  onChange={(v) => {
                     // Most relations state the gender; fill it in, but never
-                    // overwrite an answer already given.
-                    updateMemberDraft(i, {
-                      relation: v,
-                      ...(m.gender ? {} : { gender: genderFromRelation(v) ?? "" }),
-                    })
-                  }
+                    // overwrite an answer already given. "Daughter" implies
+                    // FEMALE without anyone touching the gender box, so the
+                    // number has to be dropped here too.
+                    const gender = m.gender || genderFromRelation(v) || "";
+                    updateMemberDraft(i, { relation: v });
+                    if (gender !== m.gender) setMemberGenderDraft(i, gender);
+                  }}
                   className="w-full"
                   options={[
                     { value: "", label: t("fam.selectRelation") },
@@ -912,10 +938,10 @@ export function FamiliesClient({
                   ]}
                 />
               </AdminField>
-              <AdminField label={t("fam.gender")} required>
+              <AdminField label={t("fam.gender")} required error={errsCreate[`m${i}gender`]}>
                 <AdminSelect
                   value={m.gender}
-                  onChange={(v) => updateMemberDraft(i, { gender: v })}
+                  onChange={(v) => setMemberGenderDraft(i, v)}
                   className="w-full"
                   options={[
                     { value: "", label: t("fam.selectGender") },
@@ -925,14 +951,17 @@ export function FamiliesClient({
               </AdminField>
             </AdminFormRow>
 
-            <AdminField label={t("fam.mobileNumber")}>
-              <AdminInput
-                value={m.mobile}
-                onChange={(v) =>
-                  updateMemberDraft(i, { mobile: v.replace(/\D/g, "").slice(0, 10) })
-                }
-              />
-            </AdminField>
+            {/* Not asked of women — unlike the head's, whose number is the login. */}
+            {m.gender !== "FEMALE" && (
+              <AdminField label={t("fam.mobileNumber")}>
+                <AdminInput
+                  value={m.mobile}
+                  onChange={(v) =>
+                    updateMemberDraft(i, { mobile: v.replace(/\D/g, "").slice(0, 10) })
+                  }
+                />
+              </AdminField>
+            )}
 
             <AdminField
               label={communityType === "GAM" ? t("fam.villageCity") : t("fam.city")}
@@ -949,7 +978,7 @@ export function FamiliesClient({
             </AdminField>
 
             <AdminFormRow>
-              <AdminField label={t("fam.birthDate")}>
+              <AdminField label={t("fam.birthDate")} required error={errsCreate[`m${i}dob`]}>
                 <DateField
                   dob
                   variant="admin"

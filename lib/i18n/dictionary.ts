@@ -57,6 +57,22 @@ const gu = {
   all: "\u0AAC\u0AA7\u0ABE",
   servicesLabel: "\u0AB8\u0AC7\u0AB5\u0ABE\u0A93",
   shortBrand: "\u0AB6\u0ACD\u0AB0\u0AC0",
+  // Password login (MOBILE_PASSWORD communities)
+  password: "\u0AAA\u0ABE\u0AB8\u0AB5\u0AB0\u0ACD\u0AA1 (6 \u0A85\u0A82\u0A95)",
+  passwordAgain: "\u0AAA\u0ABE\u0AB8\u0AB5\u0AB0\u0ACD\u0AA1 \u0AAB\u0AB0\u0AC0 \u0AB2\u0A96\u0ACB",
+  forgotPassword:
+    "\u0AAA\u0ABE\u0AB8\u0AB5\u0AB0\u0ACD\u0AA1 \u0AAD\u0AC2\u0AB2\u0AC0 \u0A97\u0AAF\u0ABE? \u0AB8\u0AAE\u0ABE\u0A9C\u0AA8\u0ABE \u0A8F\u0AA1\u0AAE\u0ABF\u0AA8\u0AA8\u0ACB \u0AB8\u0A82\u0AAA\u0AB0\u0ACD\u0A95 \u0A95\u0AB0\u0ACB",
+  loginNumber: "\u0AB2\u0ACB\u0A97\u0ABF\u0AA8 \u0AA8\u0A82\u0AAC\u0AB0",
+  pickLoginNumber:
+    "\u0AB2\u0ACB\u0A97\u0ABF\u0AA8 \u0AAE\u0ABE\u0A9F\u0AC7 \u0AA8\u0A82\u0AAC\u0AB0 \u0AAA\u0AB8\u0A82\u0AA6 \u0A95\u0AB0\u0ACB",
+  loginNumberHelp:
+    "\u0A86\u0A96\u0ACB \u0AAA\u0AB0\u0ABF\u0AB5\u0ABE\u0AB0 \u0A86 \u0A8F\u0A95 \u0A9C \u0AA8\u0A82\u0AAC\u0AB0 \u0A85\u0AA8\u0AC7 \u0AAA\u0ABE\u0AB8\u0AB5\u0AB0\u0ACD\u0AA1\u0AA5\u0AC0 \u0AB2\u0ACB\u0A97\u0ABF\u0AA8 \u0A95\u0AB0\u0AB6\u0AC7",
+  needOneMobile:
+    "\u0A93\u0A9B\u0ABE\u0AAE\u0ABE\u0A82 \u0A93\u0A9B\u0ACB \u0A8F\u0A95 \u0AB8\u0AAD\u0ACD\u0AAF\u0AA8\u0ACB \u0AAE\u0ACB\u0AAC\u0ABE\u0A88\u0AB2 \u0A89\u0AAE\u0AC7\u0AB0\u0ACB",
+  password6:
+    "6 \u0A85\u0A82\u0A95\u0AA8\u0ACB \u0AAA\u0ABE\u0AB8\u0AB5\u0AB0\u0ACD\u0AA1 \u0AA8\u0ABE\u0A96\u0ACB",
+  passwordMismatch:
+    "\u0AAA\u0ABE\u0AB8\u0AB5\u0AB0\u0ACD\u0AA1 \u0AAE\u0AC7\u0AB3 \u0A96\u0ABE\u0AA4\u0ACB \u0AA8\u0AA5\u0AC0",
 };
 
 export const dict: Dict = {
@@ -115,6 +131,18 @@ export const dict: Dict = {
   all: { gu: gu.all, en: "All" },
   servicesLabel: { gu: gu.servicesLabel, en: "SERVICES" },
   shortBrand: { gu: gu.shortBrand, en: "Shree" },
+  password: { gu: gu.password, en: "Password (6 digits)" },
+  passwordAgain: { gu: gu.passwordAgain, en: "Re-enter password" },
+  forgotPassword: { gu: gu.forgotPassword, en: "Forgot password? Contact your community admin" },
+  loginNumber: { gu: gu.loginNumber, en: "Login number" },
+  pickLoginNumber: { gu: gu.pickLoginNumber, en: "Pick the number to log in with" },
+  loginNumberHelp: {
+    gu: gu.loginNumberHelp,
+    en: "The whole family logs in with this one number and password",
+  },
+  needOneMobile: { gu: gu.needOneMobile, en: "At least one member needs a mobile number" },
+  password6: { gu: gu.password6, en: "Enter a 6-digit password" },
+  passwordMismatch: { gu: gu.passwordMismatch, en: "Passwords do not match" },
 };
 
 export function t(key: keyof typeof dict, lang: Lang): string {

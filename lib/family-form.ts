@@ -75,6 +75,7 @@ export function validateFamilyByType(
   return null;
 }
 
+/** OTP communities: the head's number *is* the household's login. */
 export function validateHeadMobile(
   members: { mobile?: string | null; isHead?: boolean }[],
 ): string | null {
@@ -82,6 +83,30 @@ export function validateHeadMobile(
   const mobile = head?.mobile?.replace(/\D/g, "") ?? "";
   if (!/^[6-9]\d{9}$/.test(mobile)) {
     return "Head mobile is required (10 digits, starts with 6–9)";
+  }
+  return null;
+}
+
+/**
+ * MOBILE_PASSWORD communities: any member may hold the login, so the head's
+ * number is optional — but the household still needs exactly one real, chosen
+ * number.
+ *
+ * The "must belong to a member" check is not cosmetic. `POST /api/families` is
+ * public, so without it a caller could name any number and have a `User` row
+ * created for someone who is in no family — which the approval cascade (which
+ * walks `family.familyMembers`) would then never reach.
+ */
+export function validateLoginMobile(
+  members: { mobile?: string | null }[],
+  loginMobile: string | null | undefined,
+): string | null {
+  const digits = (loginMobile || "").replace(/\D/g, "");
+  if (!/^[6-9]\d{9}$/.test(digits)) {
+    return "Pick a login mobile (10 digits, starts with 6–9)";
+  }
+  if (!members.some((m) => m.mobile?.replace(/\D/g, "") === digits)) {
+    return "The login mobile must belong to one of the members";
   }
   return null;
 }

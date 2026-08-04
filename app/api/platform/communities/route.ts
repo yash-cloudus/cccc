@@ -11,6 +11,7 @@ import {
   normalizeSlug,
 } from "@/lib/platform";
 import { seedCommunityDefaults } from "@/lib/community-defaults";
+import { encryptSecret, maskSecret, tryDecryptSecret } from "@/lib/security/crypto";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -36,14 +37,26 @@ export async function GET() {
           orderBy: { createdAt: "asc" },
           include: { profile: true },
         },
+        integration: true,
       },
     });
     return ok({
       communities: communities.map((c) => {
         const owner = c.users[0] || null;
-        const { users: _u, ...rest } = c;
+        // `integration` is destructured out before the spread below, which
+        // spreads the whole community row. Ciphertext must never ride along —
+        // only the last four characters, so the admin can tell which key is in
+        // there without being handed it back.
+        const { users: _u, integration, ...rest } = c;
         return {
           ...rest,
+          integration: integration
+            ? {
+                apiKeyMask: maskSecret(tryDecryptSecret(integration.waApiKeyEnc)),
+                firmIdMask: maskSecret(tryDecryptSecret(integration.waFirmIdEnc)),
+                senderMobile: integration.waSenderMobile,
+              }
+            : null,
           owner: owner
             ? {
                 id: owner.id,
@@ -84,6 +97,10 @@ const createSchema = z
     primarySurnameEn: z.string().max(80).optional().default(""),
     primarySurnameGu: z.string().max(80).optional().default(""),
     village: z.string().max(120).optional().default(""),
+    authMode: z.enum(["MOBILE_PASSWORD", "WHATSAPP_API", "SMS"]).default("WHATSAPP_API"),
+    waApiKey: z.string().max(500).optional().default(""),
+    waFirmId: z.string().max(200).optional().default(""),
+    waSenderMobile: z.string().max(20).optional().default(""),
   })
   .superRefine((v, ctx) => {
     if (v.type === "PARIVAR" && !v.primarySurnameEn.trim()) {
@@ -127,8 +144,25 @@ export async function POST(req: Request) {
           secondaryColor: body.secondaryColor,
           groupingLabel: groupingLabel(body.type),
           village: body.village.trim() || null,
+          authMode: body.authMode,
         },
       });
+
+      // Only when all three are present — partial credentials cannot send, and
+      // a half-filled row would read as "configured" to every caller.
+      const apiKey = body.waApiKey.trim();
+      const firmId = body.waFirmId.trim();
+      const senderMobile = body.waSenderMobile.trim();
+      if (body.authMode === "WHATSAPP_API" && apiKey && firmId && senderMobile) {
+        await tx.communityIntegration.create({
+          data: {
+            communityId: community.id,
+            waApiKeyEnc: encryptSecret(apiKey),
+            waFirmIdEnc: encryptSecret(firmId),
+            waSenderMobile: senderMobile,
+          },
+        });
+      }
 
       const ownerRole = await tx.role.findUniqueOrThrow({ where: { name: "OWNER" } });
       const memberRole = await tx.role.findUniqueOrThrow({ where: { name: "MEMBER" } });
@@ -171,6 +205,9 @@ export async function POST(req: Request) {
   } catch (e) {
     if (e instanceof z.ZodError) return fromZod(e);
     if (e instanceof Error && e.message === "FORBIDDEN") return fail("Forbidden", 403);
+    if (e instanceof Error && e.message.includes("ENCRYPTION_KEY")) {
+      return fail("Server is missing ENCRYPTION_KEY — cannot store integration credentials", 500);
+    }
     console.error(e);
     return fail("Failed to create community", 500);
   }

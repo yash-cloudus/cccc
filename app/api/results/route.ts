@@ -201,7 +201,16 @@ export async function PATCH(req: Request) {
       return fail("Forbidden", 403);
     }
     const communityId = await getWritableCommunityId();
-    const settings = getResultModuleSettings(await getCommunitySettingsMap(communityId));
+    const [settingsMap, community] = await Promise.all([
+      getCommunitySettingsMap(communityId),
+      prisma.community.findUniqueOrThrow({ where: { id: communityId }, select: { authMode: true } }),
+    ]);
+    const settings = getResultModuleSettings(settingsMap);
+    // WhatsApp automation only runs where WhatsApp is the community's channel.
+    // Gated here because this `notify` object is the only reader of waApprove /
+    // waReject in the app — if a second automation appears, move the gate into
+    // getResultModuleSettings so the type checker enforces it.
+    const waAutomation = community.authMode === "WHATSAPP_API";
 
     const body = z
       .object({
@@ -311,9 +320,11 @@ export async function PATCH(req: Request) {
     return ok({
       entry,
       notify:
-        body.status === "APPROVED" && settings.waApprove
+        body.status === "APPROVED" && settings.waApprove && waAutomation
           ? { mobile, message: `Congratulations ${studentName}! Your result has been approved.${nextNote}` }
-          : (body.status === "REJECTED" || body.status === "RESUBMIT") && settings.waReject
+          : (body.status === "REJECTED" || body.status === "RESUBMIT") &&
+              settings.waReject &&
+              waAutomation
             ? {
                 mobile,
                 message: `Hi ${studentName}, your result was rejected: ${body.rejectReason || entry.rejectReason || "Please re-upload."}`,

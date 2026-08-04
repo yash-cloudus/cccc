@@ -1,10 +1,12 @@
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import type { BloodGroupType, CommunityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { created, fail } from "@/lib/api";
 import { requireAdmin, handleApiError } from "@/lib/admin-guard";
 import { getParivarLockedSurname } from "@/lib/community-defaults";
 import { validateFamilyByType, validateHeadMobile } from "@/lib/family-form";
+import { dobPassword, pickLoginMember } from "@/lib/auth/family-login";
 
 const schema = z.object({
   headNameEn: z.string().min(1),
@@ -116,8 +118,9 @@ export async function POST(req: Request) {
 
     const community = await prisma.community.findUniqueOrThrow({
       where: { id: communityId },
-      select: { type: true },
+      select: { type: true, authMode: true },
     });
+    const passwordLogin = community.authMode === "MOBILE_PASSWORD";
 
     const typeErr = validateFamilyByType(community.type, {
       headNameEn: body.headNameEn,
@@ -137,8 +140,16 @@ export async function POST(req: Request) {
     });
     if (typeErr) return fail(typeErr, 422);
 
-    const headMobileErr = validateHeadMobile(body.members);
-    if (headMobileErr) return fail(headMobileErr, 422);
+    if (passwordLogin) {
+      // The head's number is optional under password login — any member's may
+      // carry it — but the household still needs one reachable number.
+      if (!body.members.some((m) => /^[6-9]\d{9}$/.test(m.mobile?.replace(/\D/g, "") ?? ""))) {
+        return fail("At least one member needs a mobile number", 422);
+      }
+    } else {
+      const headMobileErr = validateHeadMobile(body.members);
+      if (headMobileErr) return fail(headMobileErr, 422);
+    }
 
     let group;
     let groupCreated = false;
@@ -215,13 +226,38 @@ export async function POST(req: Request) {
       include: { familyMembers: true, surnameGroup: true },
     });
 
-    for (const m of family.familyMembers) {
-      if (!m.mobile) continue;
-      await prisma.user.upsert({
-        where: { communityId_mobile: { communityId, mobile: m.mobile } },
-        update: { status: "APPROVED" },
-        create: { communityId, mobile: m.mobile, status: "APPROVED" },
-      });
+    if (passwordLogin) {
+      // Same rule the backfill uses, so a family typed in by an admin behaves
+      // exactly like one that was migrated: the head's number, and their date
+      // of birth as the starting password.
+      const login = pickLoginMember(family.familyMembers);
+      const mobile = login?.mobile?.replace(/\D/g, "") || "";
+      if (mobile) {
+        await prisma.family.update({ where: { id: family.id }, data: { loginMobile: mobile } });
+        const password = dobPassword(login?.dateOfBirth ?? null);
+        const existing = await prisma.user.findUnique({
+          where: { communityId_mobile: { communityId, mobile } },
+          select: { id: true, passwordHash: true },
+        });
+        // Never replace a password that already exists — that number may belong
+        // to an admin, or to a household that already chose one.
+        const passwordHash =
+          password && !existing?.passwordHash ? await bcrypt.hash(password, 10) : undefined;
+        await prisma.user.upsert({
+          where: { communityId_mobile: { communityId, mobile } },
+          update: { status: "APPROVED", ...(passwordHash ? { passwordHash } : {}) },
+          create: { communityId, mobile, status: "APPROVED", passwordHash },
+        });
+      }
+    } else {
+      for (const m of family.familyMembers) {
+        if (!m.mobile) continue;
+        await prisma.user.upsert({
+          where: { communityId_mobile: { communityId, mobile: m.mobile } },
+          update: { status: "APPROVED" },
+          create: { communityId, mobile: m.mobile, status: "APPROVED" },
+        });
+      }
     }
 
     return created({

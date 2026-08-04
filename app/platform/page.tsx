@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, Copy, Download, Eye, EyeOff, ImagePlus, LayoutGrid, Loader2, LogOut, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, Download, Eye, EyeOff, ImagePlus, KeyRound, LayoutGrid, Loader2, LogOut, MessageCircle, MessageSquareText, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
 import { ROOT_DOMAIN } from "@/lib/constants";
 import { BrandColorsPicker } from "@/components/shared/brand-colors-picker";
 import { HostLabel } from "@/components/host-label";
@@ -32,9 +32,16 @@ type ApiCommunity = {
   logoUrl: string | null;
   type: "PARIVAR" | "GAM";
   status: "LIVE" | "DRAFT" | "SUSPENDED";
+  authMode: AuthMode;
   primaryColor: string;
   secondaryColor: string;
   groupingLabel: string | null;
+  /** Masks only — the API never returns a stored key, encrypted or otherwise. */
+  integration?: {
+    apiKeyMask: string | null;
+    firmIdMask: string | null;
+    senderMobile: string | null;
+  } | null;
   _count?: {
     families: number;
     users: number;
@@ -62,6 +69,57 @@ function apiError(json: unknown, fallback: string): string {
 
 type View = "apps" | "create" | "settings";
 type UIType = "parivar" | "gam";
+type AuthMode = "MOBILE_PASSWORD" | "WHATSAPP_API" | "SMS";
+
+/**
+ * How members of this app sign in, and whether it may automate WhatsApp.
+ *
+ * SMS is selectable but has no provider yet — it behaves exactly like
+ * WHATSAPP_API minus the automation, so the copy says "OTP" rather than just
+ * "coming soon". An admin who reads "coming soon" and then watches members log
+ * in anyway has been told the wrong thing.
+ */
+const AUTH_MODES: {
+  k: AuthMode;
+  title: string;
+  desc: string;
+  note?: string;
+  icon: typeof KeyRound;
+  /** Own accent per mode, like TYPE_BADGE — three identical cards are three
+   *  things you have to read before you can tell them apart. */
+  tint: string;
+  text: string;
+  ring: string;
+}[] = [
+  {
+    k: "MOBILE_PASSWORD",
+    title: "Mobile No / Password",
+    desc: "One number + a 6-digit password for the whole family. No WhatsApp automation.",
+    note: "Existing families get the head’s mobile and their date of birth (13/11/2004 → 131104) as the first password.",
+    icon: KeyRound,
+    tint: "bg-[var(--violet-tint)]",
+    text: "text-[var(--violet)]",
+    ring: "border-[var(--violet)] bg-[var(--violet-tint)]",
+  },
+  {
+    k: "WHATSAPP_API",
+    title: "WhatsApp API",
+    desc: "Mobile + OTP. The only mode that may auto-send WhatsApp messages.",
+    icon: MessageCircle,
+    tint: "bg-[var(--success-tint)]",
+    text: "text-[var(--wa-dark)]",
+    ring: "border-[var(--wa)] bg-[var(--success-tint)]",
+  },
+  {
+    k: "SMS",
+    title: "SMS — coming soon",
+    desc: "Mobile + OTP, no automation. Runs on the dev OTP until a provider is chosen.",
+    icon: MessageSquareText,
+    tint: "bg-[var(--info-tint)]",
+    text: "text-[var(--info)]",
+    ring: "border-[var(--info)] bg-[var(--info-tint)]",
+  },
+];
 
 /** Distinct accent per app type so Parivar/Gam are visually distinguishable at a glance. */
 const TYPE_BADGE: Record<"PARIVAR" | "GAM", { tint: string; text: string; solid: string }> = {
@@ -86,6 +144,12 @@ type Form = {
   primarySurnameEn: string;
   primarySurnameGu: string;
   village: string;
+  authMode: AuthMode;
+  // Write-only. The API never sends these back — an empty field on edit means
+  // "leave whatever is stored alone".
+  waApiKey: string;
+  waFirmId: string;
+  waSenderMobile: string;
   _subTouched?: boolean;
   _userTouched?: boolean;
 };
@@ -107,6 +171,10 @@ const blankForm = (): Form => ({
   primarySurnameEn: "",
   primarySurnameGu: "",
   village: "",
+  authMode: "WHATSAPP_API",
+  waApiKey: "",
+  waFirmId: "",
+  waSenderMobile: "",
 });
 
 export default function PlatformPage() {
@@ -120,6 +188,8 @@ export default function PlatformPage() {
   const [f, setF] = useState<Form>(blankForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** What switching to MOBILE_PASSWORD did to the families already in the app. */
+  const [backfillNote, setBackfillNote] = useState<string | null>(null);
   const [creds, setCreds] = useState<{
     username: string;
     password: string;
@@ -353,6 +423,11 @@ export default function PlatformPage() {
       adminPhone: a.owner?.mobile || "",
       adminUsername: a.owner?.username || defaultAdminUsername(a.slug),
       adminPassword: "", // blank for security — only sent if changed
+      authMode: a.authMode,
+      // Same rule as the password: never populated, only sent when retyped.
+      waApiKey: "",
+      waFirmId: "",
+      waSenderMobile: a.integration?.senderMobile || "",
       _subTouched: true,
       _userTouched: true,
     });
@@ -391,10 +466,27 @@ export default function PlatformPage() {
             ...(f.adminPhone ? { adminPhone: f.adminPhone } : {}),
             adminUsername: username,
             ...(f.adminPassword.trim() ? { adminPassword: f.adminPassword.trim() } : {}),
+            authMode: f.authMode,
+            // Blank means "keep what is stored" — the server only overwrites a
+            // credential it was actually handed.
+            ...(f.waApiKey.trim() ? { waApiKey: f.waApiKey.trim() } : {}),
+            ...(f.waFirmId.trim() ? { waFirmId: f.waFirmId.trim() } : {}),
+            waSenderMobile: f.waSenderMobile.trim(),
           }),
         });
         const json = await res.json();
         if (!json.success) return setError(apiError(json, "Failed to save."));
+        // Switching to password login rewrites every existing family's login.
+        // Say what actually happened — silence here reads as "nothing changed",
+        // when in fact 200 households just got new credentials.
+        const b = json.data?.backfill;
+        if (b) {
+          const parts = [`${b.withPassword} families got a password from the head's date of birth`];
+          if (b.needsPassword) parts.push(`${b.needsPassword} have no date of birth — set those manually`);
+          if (b.noMobile) parts.push(`${b.noMobile} have no mobile number and cannot log in`);
+          if (b.alreadySet) parts.push(`${b.alreadySet} already had a password and were left alone`);
+          setBackfillNote(parts.join(" · "));
+        }
         await load();
         setView("apps");
         setEditingId(null);
@@ -423,10 +515,23 @@ export default function PlatformPage() {
           primarySurnameEn: f.primarySurnameEn.trim(),
           primarySurnameGu: f.primarySurnameGu.trim(),
           village: f.village.trim(),
+          authMode: f.authMode,
+          waApiKey: f.waApiKey.trim(),
+          waFirmId: f.waFirmId.trim(),
+          waSenderMobile: f.waSenderMobile.trim(),
         };
 
         if (f.type === "parivar" && !f.primarySurnameEn.trim()) {
           return setError("Primary surname is required for Parivar communities.");
+        }
+        if (
+          f.authMode === "WHATSAPP_API" &&
+          (f.waApiKey.trim() || f.waFirmId.trim() || f.waSenderMobile.trim()) &&
+          !(f.waApiKey.trim() && f.waFirmId.trim() && f.waSenderMobile.trim())
+        ) {
+          // Partial credentials cannot send, so half-filling them would look
+          // configured while behaving exactly like not configured.
+          return setError("Fill in all three WhatsApp API fields, or leave all three blank.");
         }
 
         const res = await fetch("/api/platform/communities", {
@@ -738,6 +843,26 @@ export default function PlatformPage() {
                 </>
               ) : (
                 <>
+                  {backfillNote && (
+                    <div className="mb-5 flex items-start gap-3 rounded-[13px] border border-[var(--warn)] bg-[var(--warn-tint)] px-4 py-3">
+                      <KeyRound className="mt-0.5 size-4 shrink-0 text-[var(--warn)]" />
+                      <div className="min-w-0 flex-1 text-[12.5px] leading-relaxed font-semibold text-[var(--warn)]">
+                        Switched to password login. {backfillNote}.
+                        <div className="mt-1 font-medium opacity-90">
+                          A date of birth is printed on the member&rsquo;s own directory card, so
+                          these starting passwords are not secret. Reset any of them from the
+                          family page in the community admin.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setBackfillNote(null)}
+                        className="shrink-0 text-[12px] font-extrabold text-[var(--warn)] underline"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
                   <div className="mb-5 flex flex-wrap items-center gap-3">
                     <div className="mr-auto">
                       <h2 className="m-0 text-[22px] font-extrabold text-[var(--platform-ink)]">Your apps</h2>
@@ -1087,6 +1212,104 @@ export default function PlatformPage() {
                     </button>
                   ))}
                 </div>
+
+                <Section label="LOGIN METHOD" />
+                <div className="mb-[18px] flex gap-3 max-sm:flex-col">
+                  {AUTH_MODES.map((m) => {
+                    const active = f.authMode === m.k;
+                    const Icon = m.icon;
+                    return (
+                      <button
+                        key={m.k}
+                        type="button"
+                        onClick={() => setField("authMode", m.k)}
+                        className={cn(
+                          "flex-1 cursor-pointer rounded-[13px] border-[1.5px] p-3.5 text-left transition-colors",
+                          active ? m.ring : "border-[var(--line-input)] bg-white hover:border-[var(--platform-line)]",
+                        )}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className={cn(
+                              "flex size-8 shrink-0 items-center justify-center rounded-[9px]",
+                              m.tint,
+                              m.text,
+                            )}
+                          >
+                            <Icon className="size-[17px]" strokeWidth={2.2} />
+                          </span>
+                          <span className="text-sm font-extrabold text-[var(--platform-ink)]">
+                            {m.title}
+                          </span>
+                          {active && <Check className={cn("ml-auto size-4 shrink-0", m.text)} />}
+                        </div>
+                        <div className="mt-2 text-[11.5px] leading-snug text-[var(--platform-muted)]">
+                          {m.desc}
+                        </div>
+                        {m.note && active && (
+                          <div className={cn("mt-1.5 text-[11.5px] leading-snug font-bold", m.text)}>
+                            {m.note}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {f.authMode === "WHATSAPP_API" && (
+                  <>
+                    <Section label="WHATSAPP API (ARTHIX)" />
+                    <div className="mb-2 grid grid-cols-2 gap-3.5 max-sm:grid-cols-1">
+                      <Field label="ARTHIX_API_KEY">
+                        <input
+                          className="mafld"
+                          type="password"
+                          autoComplete="off"
+                          value={f.waApiKey}
+                          placeholder={
+                            editing && apps.find((a) => a.id === editingId)?.integration?.apiKeyMask
+                              ? `${apps.find((a) => a.id === editingId)?.integration?.apiKeyMask} — leave blank to keep`
+                              : "Paste the API key"
+                          }
+                          onChange={(e) => setField("waApiKey", e.target.value)}
+                        />
+                      </Field>
+                      <Field label="ARTHIX_FIRM_ID">
+                        <input
+                          className="mafld"
+                          type="password"
+                          autoComplete="off"
+                          value={f.waFirmId}
+                          placeholder={
+                            editing && apps.find((a) => a.id === editingId)?.integration?.firmIdMask
+                              ? `${apps.find((a) => a.id === editingId)?.integration?.firmIdMask} — leave blank to keep`
+                              : "Paste the firm id"
+                          }
+                          onChange={(e) => setField("waFirmId", e.target.value)}
+                        />
+                      </Field>
+                    </div>
+                    <div className="mb-[18px]">
+                      <Field label="Sender mobile number">
+                        <input
+                          className="mafld"
+                          inputMode="numeric"
+                          maxLength={10}
+                          value={f.waSenderMobile}
+                          placeholder="e.g. 9876543210"
+                          onChange={(e) =>
+                            setField("waSenderMobile", e.target.value.replace(/\D/g, "").slice(0, 10))
+                          }
+                        />
+                      </Field>
+                      <p className="mt-2 text-[12px] font-semibold text-[var(--platform-muted)]">
+                        Stored encrypted, per community — never in env, never shown to the community
+                        admin. Until the ARTHIX endpoint is wired, messages still go out through the
+                        admin&rsquo;s own WhatsApp tab and OTP stays on the dev code.
+                      </p>
+                    </div>
+                  </>
+                )}
 
                 {!editing && f.type === "parivar" && (
                   <>

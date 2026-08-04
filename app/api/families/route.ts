@@ -1,7 +1,9 @@
 import { z } from "zod";
+import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { created, fail, fromZod, ok } from "@/lib/api";
+import { created, fail, fromZod, getClientIp, ok } from "@/lib/api";
 import { requireSession, hasRole } from "@/lib/auth/session";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { getActiveCommunityId, getWritableCommunityId } from "@/lib/tenant";
 
 export async function GET(req: Request) {
@@ -77,6 +79,10 @@ const createSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   consentAccepted: z.boolean(),
+  // MOBILE_PASSWORD communities only. Optional at the schema level because the
+  // same shape serves OTP tenants; required by a runtime branch below.
+  loginMobile: z.string().regex(/^[6-9]\d{9}$/).optional(),
+  loginPassword: z.string().regex(/^\d{6}$/).optional(),
   members: z
     .array(
       z.object({
@@ -104,6 +110,15 @@ const createSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    // Unauthenticated by design (middleware allowlists it) — and now it hashes a
+    // password, which is ~60ms of CPU per call. The real gate is still that every
+    // family lands PENDING for a human to approve.
+    // ponytail: in-memory limiter, so per-instance. Redis if this ever runs multi-node.
+    const ip = getClientIp(req);
+    if (!rateLimit(`famreg:${ip}`, 5, 3_600_000).allowed) {
+      return fail("Too many registrations from this network, try again later", 429);
+    }
+
     const body = createSchema.parse(await req.json());
     if (!body.consentAccepted) return fail("Consent is required");
 
@@ -112,11 +127,14 @@ export async function POST(req: Request) {
 
     const community = await prisma.community.findUniqueOrThrow({
       where: { id: communityId },
-      select: { type: true },
+      select: { type: true, authMode: true },
     });
+    const passwordLogin = community.authMode === "MOBILE_PASSWORD";
 
     const { getParivarLockedSurname } = await import("@/lib/community-defaults");
-    const { validateFamilyByType, validateHeadMobile } = await import("@/lib/family-form");
+    const { validateFamilyByType, validateHeadMobile, validateLoginMobile } = await import(
+      "@/lib/family-form"
+    );
 
     const typeErr = validateFamilyByType(community.type, {
       headNameEn: body.headNameEn,
@@ -136,8 +154,32 @@ export async function POST(req: Request) {
     });
     if (typeErr) return fail(typeErr, 422);
 
-    const headMobileErr = validateHeadMobile(body.members);
-    if (headMobileErr) return fail(headMobileErr, 422);
+    if (passwordLogin) {
+      // The head's number is optional here — the household picks whichever
+      // member's number it wants to sign in with.
+      if (!body.loginMobile || !body.loginPassword) {
+        return fail("A login mobile and 6-digit password are required", 422);
+      }
+      const loginErr = validateLoginMobile(body.members, body.loginMobile);
+      if (loginErr) return fail(loginErr, 422);
+
+      // A public endpoint must never set or replace the password on a mobile
+      // that already has an account — that is a takeover, not a signup. Checked
+      // before the family is written so a rejected attempt leaves nothing behind.
+      const taken = await prisma.user.findUnique({
+        where: { communityId_mobile: { communityId, mobile: body.loginMobile } },
+        select: { id: true },
+      });
+      if (taken) {
+        return fail(
+          "This mobile number is already registered. Ask the community admin to add you to that family.",
+          409,
+        );
+      }
+    } else {
+      const headMobileErr = validateHeadMobile(body.members);
+      if (headMobileErr) return fail(headMobileErr, 422);
+    }
 
     let surname = community.type === "PARIVAR"
       ? await getParivarLockedSurname(prisma, communityId)
@@ -195,6 +237,7 @@ export async function POST(req: Request) {
         nativeElderPhone: body.nativeElderPhone,
         latitude: body.latitude,
         longitude: body.longitude,
+        loginMobile: passwordLogin ? body.loginMobile : null,
         consentAccepted: true,
         status: "PENDING",
         familyMembers: {
@@ -223,14 +266,29 @@ export async function POST(req: Request) {
       include: { familyMembers: true, surnameGroup: true },
     });
 
-    for (const m of body.members) {
-      const mobile = m.mobile?.replace(/\D/g, "");
-      if (!mobile) continue;
-      await prisma.user.upsert({
-        where: { communityId_mobile: { communityId, mobile } },
-        update: {},
-        create: { communityId, mobile, status: "PENDING" },
+    if (passwordLogin) {
+      // Exactly one account for the whole household — the number they picked.
+      // Other members' numbers stay directory contacts and get no credential.
+      // `create`, never `upsert`: the 409 above already proved the row is free,
+      // and an update here would be the takeover it is guarding against.
+      await prisma.user.create({
+        data: {
+          communityId,
+          mobile: body.loginMobile!,
+          passwordHash: await bcrypt.hash(body.loginPassword!, 10),
+          status: "PENDING",
+        },
       });
+    } else {
+      for (const m of body.members) {
+        const mobile = m.mobile?.replace(/\D/g, "");
+        if (!mobile) continue;
+        await prisma.user.upsert({
+          where: { communityId_mobile: { communityId, mobile } },
+          update: {},
+          create: { communityId, mobile, status: "PENDING" },
+        });
+      }
     }
 
     return created(family);

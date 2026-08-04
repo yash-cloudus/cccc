@@ -18,19 +18,43 @@ import {
 import { useAdminT } from "@/lib/i18n/admin-dictionary";
 import { api } from "@/lib/http";
 
-export function SettingsClient({ stored }: { stored: Record<string, string> }) {
+export function SettingsClient({
+  stored,
+  authMode,
+}: {
+  stored: Record<string, string>;
+  authMode: string;
+}) {
   const { t, tf } = useAdminT();
+
+  /**
+   * The WhatsApp result toggles only do something in a WHATSAPP_API community —
+   * elsewhere the API ignores them. Hidden rather than disabled, per the rule in
+   * lib/admin-settings.ts: a switch with no consumer is a switch that lies.
+   *
+   * Stored values are left in the database, so flipping the community back to
+   * WhatsApp restores the admin's earlier choice instead of silently resetting.
+   */
+  const sections = useMemo(() => {
+    if (authMode === "WHATSAPP_API") return SETTINGS_SECTIONS;
+    return SETTINGS_SECTIONS.map((s) =>
+      s.id === "result"
+        ? { ...s, items: s.items.filter((i) => i.key !== "waApprove" && i.key !== "waReject") }
+        : s,
+    );
+  }, [authMode]);
+
   // One flat map keyed `<section>.<item>` — mirrors the Setting table exactly.
   const initial = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const section of SETTINGS_SECTIONS) {
+    for (const section of sections) {
       for (const item of section.items) {
         map[settingKey(section.id, item.key)] =
           item.type === "adPricing" ? getAdPricingSettingValue(stored) : settingValue(stored, section, item);
       }
     }
     return map;
-  }, [stored]);
+  }, [stored, sections]);
 
   const [values, setValues] = useState<Record<string, string>>(initial);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -67,7 +91,7 @@ export function SettingsClient({ stored }: { stored: Record<string, string> }) {
       <AdminH2 info={<>{t("set.info")}</>}>{t("nav.settings")}</AdminH2>
 
       <div className="flex flex-col gap-5">
-        {SETTINGS_SECTIONS.map((section) => (
+        {sections.map((section) => (
           <section
             key={section.id}
             className="rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4"

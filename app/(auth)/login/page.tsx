@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 import { motion } from "framer-motion";
+import { Eye, EyeOff } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
@@ -18,8 +19,13 @@ export default function LoginPage() {
   const community = useCommunity();
   const router = useRouter();
   const [mobile, setMobile] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const brandName = lang === "gu" ? community.nameGu || community.nameEn : community.nameEn;
+  // MOBILE_PASSWORD communities have no OTP at all — the API refuses to mint
+  // one — so this swaps the whole credential block rather than hiding a button.
+  const passwordLogin = community.authMode === "MOBILE_PASSWORD";
 
   // Member login only on {slug}.localhost / {slug}.community.in
   useEffect(() => {
@@ -63,7 +69,11 @@ export default function LoginPage() {
       if (res.data?.data?.devCode) {
         toast.message(`Dev OTP: ${res.data.data.devCode}`, { duration: 10_000 });
       }
-      router.push(`/otp?mobile=${digits}`);
+      // The code length depends on the community: a fixed dev code is 4 digits,
+      // a real provider code is 6. The OTP screen has to draw the right number
+      // of boxes or the code cannot be typed in at all.
+      const len = res.data?.data?.length;
+      router.push(`/otp?mobile=${digits}${len ? `&len=${len}` : ""}`);
     } catch (err: unknown) {
       const ax = err as { response?: { data?: { error?: string; pending?: boolean } } };
       if (ax.response?.data?.pending) {
@@ -71,6 +81,33 @@ export default function LoginPage() {
         return;
       }
       toast.error(ax.response?.data?.error || "Failed to send OTP");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function passwordSubmit() {
+    const digits = mobile.replace(/\D/g, "");
+    if (digits.length !== 10) {
+      toast.error(t("mobile") + " — 10 digits required");
+      return;
+    }
+    if (!/^\d{6}$/.test(password)) {
+      toast.error(t("password6"));
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await axios.post("/api/auth/member-login", { mobile: digits, password });
+      if (res.data?.success === false) throw new Error(res.data.error);
+      router.push("/dashboard");
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { error?: string; pending?: boolean } } };
+      if (ax.response?.data?.pending) {
+        router.push("/pending");
+        return;
+      }
+      toast.error(ax.response?.data?.error || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -136,27 +173,71 @@ export default function LoginPage() {
             />
           </div>
 
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => sendOtp("whatsapp")}
-            className="samaj-btn-wa mt-3 flex w-full items-center justify-center gap-2 px-4 py-4 text-[15px] disabled:opacity-60"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M12 2.2A9.8 9.8 0 0 0 3.5 17L2.2 21.8l5-1.3A9.8 9.8 0 1 0 12 2.2Zm5.2 13.9c-.2.6-1.3 1.2-1.8 1.2s-1 .2-3.3-.7a11.3 11.3 0 0 1-4.6-4.1c-.3-.5-1-1.5-1-2.8 0-1.4.7-2 1-2.3.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.6c-.2.2-.3.4-.1.7.5.8 1 1.4 1.7 1.8.5.4.9.5 1.2.2l.6-.6c.2-.2.4-.2.6-.1l1.8.9c.2.1.4.2.4.3.1.3.1.6 0 .9Z" />
-            </svg>
-            {t("getOtpWa")}
-          </button>
+          {passwordLogin ? (
+            <>
+              <div className="mb-1.5 mt-3 text-xs font-bold text-[var(--ink-mid)]">
+                {t("password")}
+              </div>
+              {/* Same eye as the registration form — a 6-digit PIN typed as
+                  dots gives no way to spot a slip before submitting. */}
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  inputMode="numeric"
+                  autoComplete="current-password"
+                  maxLength={6}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  onKeyDown={(e) => e.key === "Enter" && !loading && passwordSubmit()}
+                  placeholder="••••••"
+                  className="w-full rounded-[15px] border-[1.5px] border-[var(--line-input)] bg-white p-[15px] pr-12 text-[17px] font-bold tracking-[0.3em] text-[var(--ink)] outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-3 text-[var(--faint)]"
+                >
+                  {showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
+                </button>
+              </div>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={passwordSubmit}
+                className="samaj-btn mt-3 flex w-full items-center justify-center gap-2 px-4 py-4 text-[15px] disabled:opacity-60"
+              >
+                {t("login")}
+              </button>
+              <p className="mt-3 text-center text-[12px] font-medium text-[var(--faint)]">
+                {t("forgotPassword")}
+              </p>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => sendOtp("whatsapp")}
+                className="samaj-btn-wa mt-3 flex w-full items-center justify-center gap-2 px-4 py-4 text-[15px] disabled:opacity-60"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M12 2.2A9.8 9.8 0 0 0 3.5 17L2.2 21.8l5-1.3A9.8 9.8 0 1 0 12 2.2Zm5.2 13.9c-.2.6-1.3 1.2-1.8 1.2s-1 .2-3.3-.7a11.3 11.3 0 0 1-4.6-4.1c-.3-.5-1-1.5-1-2.8 0-1.4.7-2 1-2.3.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.6c-.2.2-.3.4-.1.7.5.8 1 1.4 1.7 1.8.5.4.9.5 1.2.2l.6-.6c.2-.2.4-.2.6-.1l1.8.9c.2.1.4.2.4.3.1.3.1.6 0 .9Z" />
+                </svg>
+                {t("getOtpWa")}
+              </button>
 
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => sendOtp("sms")}
-            className="mt-3 w-full text-center text-[12.5px] font-medium text-[var(--faint)]"
-          >
-            {t("noWa")}{" "}
-            <span className="font-bold text-[var(--brand)] underline">{t("smsOtp")}</span>
-          </button>
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => sendOtp("sms")}
+                className="mt-3 w-full text-center text-[12.5px] font-medium text-[var(--faint)]"
+              >
+                {t("noWa")}{" "}
+                <span className="font-bold text-[var(--brand)] underline">{t("smsOtp")}</span>
+              </button>
+            </>
+          )}
         </div>
 
         <div className="mt-2 w-full max-w-[310px] border-t border-dashed border-[var(--line-input)] pt-[18px]">

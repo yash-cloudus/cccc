@@ -66,6 +66,7 @@ export function MemberFields({
   onAddPlace,
   communityType = "PARIVAR",
   isHead,
+  errors,
   /** Distinguishes concurrent transliterations when several members are on screen. */
   syncKey = "member",
 }: {
@@ -78,14 +79,32 @@ export function MemberFields({
   onAddPlace?: (entry: { nameEn: string; nameGu: string }) => void | Promise<void>;
   communityType?: "PARIVAR" | "GAM";
   isHead?: boolean;
+  /** `field -> message`, shown under the field rather than as a toast. */
+  errors?: Record<string, string>;
   syncKey?: string;
 }) {
   const { fromEn, guInput } = useTranslitSync();
+  const err = (k: string) => errors?.[k];
+
+  /**
+   * Women are not asked for a phone number. The head is the exception: their
+   * number is the household's login, so it is asked for whatever their gender.
+   */
+  const wantsMobile = isHead || values.gender !== "FEMALE";
+
+  /** Dropping the number when a member becomes female keeps a hidden field from
+   *  submitting one. Only fires on an explicit change, so a record loaded from
+   *  the database keeps whatever it already had. */
+  const setGender = (gender: string) =>
+    onChange({
+      gender,
+      ...(!isHead && gender === "FEMALE" ? { mobile: "", whatsapp: "", hasWhatsApp: true } : {}),
+    });
 
   return (
     <div className="space-y-1">
       <AdminFormRow>
-        <AdminField label="Name (English)" required>
+        <AdminField label="Name (English)" required error={err("fullNameEn")}>
           <AdminInput
             speech
             value={values.fullNameEn}
@@ -108,7 +127,7 @@ export function MemberFields({
       </AdminFormRow>
 
       <AdminFormRow>
-        <AdminField label="Relation · સંબંધ" required={!isHead}>
+        <AdminField label="Relation · સંબંધ" required={!isHead} error={err("relation")}>
           {isHead ? (
             <div className="flex min-h-[42px] items-center rounded-[11px] border border-[var(--line-admin)] bg-[var(--surface-admin)] px-3 text-[13px] font-semibold text-[var(--ink-dim)]">
               Head · વડા
@@ -116,14 +135,15 @@ export function MemberFields({
           ) : relations.length > 0 ? (
             <AdminSelect
               value={values.relation}
-              onChange={(v) =>
+              onChange={(v) => {
                 // Most relations state the gender; fill it in, but never
-                // overwrite an answer already given.
-                onChange({
-                  relation: v,
-                  ...(values.gender ? {} : { gender: genderFromRelation(v) ?? "" }),
-                })
-              }
+                // overwrite an answer already given. "Daughter" implies FEMALE
+                // without the gender box being touched, so route it through
+                // setGender so the number is dropped too.
+                onChange({ relation: v });
+                const implied = values.gender || genderFromRelation(v) || "";
+                if (implied !== values.gender) setGender(implied);
+              }}
               className="w-full"
               options={[
                 { value: "", label: "Select relation…" },
@@ -140,10 +160,10 @@ export function MemberFields({
           )}
         </AdminField>
 
-        <AdminField label="Gender · જાતિ" required>
+        <AdminField label="Gender · જાતિ" required error={err("gender")}>
           <AdminSelect
             value={values.gender}
-            onChange={(v) => onChange({ gender: v })}
+            onChange={setGender}
             className="w-full"
             options={[
               { value: "", label: "Select gender…" },
@@ -168,7 +188,11 @@ export function MemberFields({
       </AdminField>
 
       <AdminFormRow>
-        <AdminField label="Birth date · જન્મ">
+        {/* Not marked required here: this component also edits records saved
+            before the rule existed, and blocking a name fix on a missing birth
+            date would be worse than the gap. New entries are gated by the
+            forms that create them. */}
+        <AdminField label="Birth date · જન્મ" error={err("dateOfBirth")}>
           <DateField
             dob
             variant="admin"
@@ -187,21 +211,27 @@ export function MemberFields({
         </AdminField>
       </AdminFormRow>
 
-      <AdminFormRow>
-        <AdminField label={isHead ? "Mobile (login) · મોબાઈલ" : "Mobile · મોબાઈલ"} required={isHead}>
-          <AdminInput
-            type="tel"
-            value={values.mobile}
-            placeholder="10-digit mobile"
-            onChange={(v) => onChange({ mobile: v.replace(/\D/g, "").slice(0, 10) })}
+      {wantsMobile && (
+        <AdminFormRow>
+          <AdminField
+            label={isHead ? "Mobile (login) · મોબાઈલ" : "Mobile · મોબાઈલ"}
+            required={isHead}
+            error={err("mobile")}
+          >
+            <AdminInput
+              type="tel"
+              value={values.mobile}
+              placeholder="10-digit mobile"
+              onChange={(v) => onChange({ mobile: v.replace(/\D/g, "").slice(0, 10) })}
+            />
+          </AdminField>
+          <WhatsAppField
+            hasWhatsApp={values.hasWhatsApp}
+            whatsapp={values.whatsapp}
+            onChange={onChange}
           />
-        </AdminField>
-        <WhatsAppField
-          hasWhatsApp={values.hasWhatsApp}
-          whatsapp={values.whatsapp}
-          onChange={onChange}
-        />
-      </AdminFormRow>
+        </AdminFormRow>
+      )}
 
       <CascadingOccupationFields tree={occupationTree} values={values} onChange={onChange} />
     </div>

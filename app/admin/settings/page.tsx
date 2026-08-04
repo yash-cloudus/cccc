@@ -13,5 +13,5 @@ export default async function AdminSettingsPage() {
   const stored: Record<string, string> = {};
   for (const r of rows) stored[r.key] = r.value;
 
-  return <SettingsClient stored={stored} />;
+  return <SettingsClient stored={stored} authMode={community.authMode} />;
 }

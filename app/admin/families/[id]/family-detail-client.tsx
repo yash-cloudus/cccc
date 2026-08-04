@@ -38,11 +38,14 @@ export type DetailMember = {
   isHead: boolean;
   isVisible: boolean;
   isDeceased: boolean;
+  /** MOBILE_PASSWORD: this member's number has a login password set. */
+  hasPassword: boolean;
 };
 
 export type FamilyDetail = {
   id: string;
   status: FamilyStatus;
+  loginMobile: string | null;
   headNameEn: string;
   headNameGu: string | null;
   surnameEn: string;
@@ -97,14 +100,21 @@ function Row({ label, children }: { label: string; children?: React.ReactNode })
 export function FamilyDetailClient({
   family,
   communityType,
+  authMode,
 }: {
   family: FamilyDetail;
   communityType: "PARIVAR" | "GAM";
+  authMode: string;
 }) {
   const router = useRouter();
   const { t, tf, lang } = useAdminT();
   const [members, setMembers] = useState<DetailMember[]>(family.members);
   const [error, setError] = useState<string | null>(null);
+  const passwordLogin = authMode === "MOBILE_PASSWORD";
+  const loginMember =
+    members.find((m) => m.mobile && m.mobile === family.loginMobile) ??
+    members.find((m) => m.hasPassword) ??
+    null;
 
   const pick = (en: string | null, gu: string | null) =>
     (lang === "en" ? en || gu : gu || en) || "";
@@ -141,6 +151,24 @@ export function FamilyDetailClient({
     const res = await api.patch(`/api/admin/family-members`, { id: m.id, mobile: mobile || null });
     if (!res.ok) setError(res.error);
     else router.refresh();
+  }
+
+  /** Sets the household password and, with it, which number holds the login. */
+  async function setPassword(m: DetailMember) {
+    const value = window.prompt(t("fam.setPasswordPrompt"), "");
+    if (value === null) return;
+    const loginPassword = value.trim();
+    if (!/^\d{6}$/.test(loginPassword)) {
+      setError(t("fam.passwordMustBe6"));
+      return;
+    }
+    const res = await api.patch(`/api/admin/family-members`, { id: m.id, loginPassword });
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    setError(null);
+    router.refresh();
   }
 
   return (
@@ -187,6 +215,29 @@ export function FamilyDetailClient({
 
       {error && (
         <p className="mb-3 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>
+      )}
+
+      {/* ── Login (MOBILE_PASSWORD only) ───────────────────────────────── */}
+      {passwordLogin && (
+        <section className="mb-5 rounded-2xl border border-[var(--line-admin)] bg-white p-5 max-md:p-4">
+          <AdminH3>{t("fam.login")}</AdminH3>
+          {/* The number and the password are separate facts. A migrated family
+              whose head had no date of birth has the first and not the second —
+              showing only "not set" would hide which number needs one. */}
+          {loginMember?.mobile && (
+            <p className="text-[13px] text-[var(--ink-soft)]">
+              {t("fam.loginNumber")}: <b>{loginMember.mobile}</b>
+              {" · "}
+              {pick(loginMember.fullNameEn, loginMember.fullNameGu)}
+            </p>
+          )}
+          {!loginMember?.hasPassword && (
+            <p className="mt-1 text-[13px] font-semibold text-[var(--danger)]">
+              {t("fam.loginNotSet")}
+            </p>
+          )}
+          <p className="mt-1.5 text-[12px] text-[var(--faint)]">{t("fam.loginHelp")}</p>
+        </section>
       )}
 
       {/* ── Family details ─────────────────────────────────────────────── */}
@@ -280,6 +331,11 @@ export function FamilyDetailClient({
                           {t("fam.head")}
                         </span>
                       )}
+                      {passwordLogin && m.hasPassword && (
+                        <span className="ml-1.5 rounded-[7px] bg-[var(--success-tint)] px-1.5 py-0.5 text-[9.5px] font-extrabold text-[var(--success)]">
+                          {t("fam.holdsLogin")}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[11.5px] text-[var(--faint)]">
                       {m.relation || t("fam.memberFallback")} · {m.mobile || t("fam.noLogin")}
@@ -336,6 +392,15 @@ export function FamilyDetailClient({
                   >
                     {t("fam.changeLogin")}
                   </button>
+                  {passwordLogin && m.mobile && (
+                    <button
+                      type="button"
+                      onClick={() => setPassword(m)}
+                      className="cursor-pointer rounded-[9px] bg-[var(--gold-tint)] px-[11px] py-1.5 text-[11.5px] font-bold text-[var(--warn)]"
+                    >
+                      {m.hasPassword ? t("fam.resetPassword") : t("fam.setPassword")}
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => patchMember(m, { isDeceased: !m.isDeceased })}

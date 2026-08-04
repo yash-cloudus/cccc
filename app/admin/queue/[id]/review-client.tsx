@@ -131,8 +131,12 @@ export function ReviewClient({
   const isQueueReview = !fromFamilies && f.status === "PENDING";
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"save" | "approve" | "reject" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** `memberId.field -> message`, filled on a failed save so the message can
+   *  sit under the field rather than in a toast. */
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [backConfirmOpen, setBackConfirmOpen] = useState(false);
 
@@ -294,39 +298,51 @@ export function ReviewClient({
    * The head's mobile is only demanded when approving — that is when it becomes
    * a login. Saving a half-corrected legacy family must stay possible.
    */
-  function validate(forApproval: boolean): string | null {
-    if (!head) return t("queue.valNoMembers");
-    if (!head.fullNameEn.trim()) return t("queue.valHeadName");
-    if (!f.addressEn.trim()) return t("queue.valAddress");
-    const unnamed = f.members.findIndex((m) => !m.fullNameEn.trim());
-    if (unnamed >= 0) return tf("queue.valMemberName", { n: unnamed + 1 });
-    // Same rule as the member wizard: every non-head member needs a relation.
-    const unrelated = f.members.findIndex(
-      (m) => !m.isHead && !m.relation.trim(),
-    );
-    if (unrelated >= 0) return tf("queue.valMemberRelation", { n: unrelated + 1 });
-    // Families registered before gender existed are backfilled from relation
-    // where it was implied, so this normally only catches the head.
-    const ungendered = f.members.findIndex((m) => !m.gender.trim());
-    if (ungendered >= 0) return tf("queue.valMemberGender", { n: ungendered + 1 });
-    if (forApproval && !/^[6-9]\d{9}$/.test(head.mobile)) {
-      return t("queue.valHeadMobile");
+  /**
+   * Returns `memberId.field -> message` (plus bare keys for family-level
+   * fields) so each message can sit under the box it belongs to instead of a
+   * single line at the top of a form that can be a dozen members long.
+   */
+  function validate(forApproval: boolean): Record<string, string> {
+    const e: Record<string, string> = {};
+    if (!head) {
+      e.form = t("queue.valNoMembers");
+      return e;
     }
-    return null;
+    if (!f.addressEn.trim()) e.addressEn = t("queue.valAddress");
+    f.members.forEach((m, i) => {
+      if (!m.fullNameEn.trim()) {
+        e[`${m.id}.fullNameEn`] = m.isHead
+          ? t("queue.valHeadName")
+          : tf("queue.valMemberName", { n: i + 1 });
+      }
+      // Same rule as the member wizard: every non-head member needs a relation.
+      if (!m.isHead && !m.relation.trim()) {
+        e[`${m.id}.relation`] = tf("queue.valMemberRelation", { n: i + 1 });
+      }
+      // Families registered before gender existed are backfilled from relation
+      // where it was implied, so this normally only catches the head.
+      if (!m.gender.trim()) e[`${m.id}.gender`] = tf("queue.valMemberGender", { n: i + 1 });
+    });
+    if (forApproval && !/^[6-9]\d{9}$/.test(head.mobile)) {
+      e[`${head.id}.mobile`] = t("queue.valHeadMobile");
+    }
+    return e;
   }
 
   async function persist(forApproval: boolean): Promise<boolean> {
-    const problem = validate(forApproval);
-    if (problem) {
-      setError(problem);
+    const problems = validate(forApproval);
+    setFieldErrors(problems);
+    if (Object.keys(problems).length > 0) {
       setNotice(null);
-      toast.error(problem);
+      // No toast: the message now sits on the field, and the form scrolls to it.
+      setError(problems.form ?? null);
       return false;
     }
     const res = await api.put(`/api/families/${f.id}`, await buildPayload());
     if (!res.ok) {
+      // A server error is not about one field, so it stays in the banner.
       setError(res.error);
-      toast.error(res.error);
       return false;
     }
     return true;
@@ -370,10 +386,11 @@ export function ReviewClient({
 
   async function reject() {
     if (!rejectReason.trim()) {
-      setError(t("queue.errReasonRequired"));
-      toast.error(t("queue.errReasonRequired"));
+      // Inline, next to the box it is about — the reject dialog is on screen.
+      setRejectError(t("queue.errReasonRequired"));
       return;
     }
+    setRejectError(null);
     setBusy("reject");
     setError(null);
     const res = await api.patch(`/api/families`, {
@@ -464,6 +481,7 @@ export function ReviewClient({
             communityType={communityType}
             lockedSurname={lockedSurname}
             surnameGroups={surnameGroups}
+            errors={fieldErrors}
             t={(gu, en) => (lang === "en" ? en : gu)}
           />
           <AdminField
@@ -521,6 +539,11 @@ export function ReviewClient({
                 </div>
                 <MemberFields
                   values={m}
+                  errors={Object.fromEntries(
+                    Object.entries(fieldErrors)
+                      .filter(([k]) => k.startsWith(`${m.id}.`))
+                      .map(([k, v]) => [k.slice(m.id.length + 1), v]),
+                  )}
                   onChange={(patch) => patchMember(m.id, patch)}
                   relations={relations}
                   occupationTree={occupationTree}
@@ -539,6 +562,13 @@ export function ReviewClient({
       {error && (
         <p className="mt-4 text-[13px] font-semibold text-[var(--danger)]">
           {error}
+        </p>
+      )}
+      {/* The individual messages are on their fields; this only says how many,
+          so a problem further up the page is not silent after pressing Save. */}
+      {!error && Object.keys(fieldErrors).length > 0 && (
+        <p className="mt-4 text-[13px] font-semibold text-[var(--danger)]">
+          {tf("queue.valFieldCount", { n: Object.keys(fieldErrors).length })}
         </p>
       )}
       {notice && (
@@ -612,13 +642,16 @@ export function ReviewClient({
             </div>
             <Textarea
               value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
+              onChange={(e) => {
+                setRejectReason(e.target.value);
+                setRejectError(null);
+              }}
               placeholder="Add a note…"
               className="mb-2 min-h-[70px] resize-none border-[var(--line-field)] bg-[var(--field)] text-[13px]"
             />
-            {error && (
+            {(rejectError || error) && (
               <p className="mb-2 text-[12.5px] font-semibold text-[var(--danger)]">
-                {error}
+                {rejectError || error}
               </p>
             )}
             <div className="flex gap-2.5">

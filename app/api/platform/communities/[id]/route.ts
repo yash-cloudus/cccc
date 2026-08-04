@@ -4,6 +4,8 @@ import { fail, fromZod, ok } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { assertPlatform } from "@/lib/tenant";
 import { MAX_LOGO_LETTERS, groupingLabel, logoTextTooLong } from "@/lib/platform";
+import { encryptSecret } from "@/lib/security/crypto";
+import { backfillFamilyLogins } from "@/lib/auth/family-login";
 
 function normalizeLogoUrl(raw: string | null | undefined): string | null | undefined {
   if (raw === undefined) return undefined;
@@ -36,6 +38,11 @@ const patchSchema = z.object({
     .optional(),
   adminUsername: z.string().min(3).max(64).optional(),
   adminPassword: z.string().min(4).max(128).optional(),
+  authMode: z.enum(["MOBILE_PASSWORD", "WHATSAPP_API", "SMS"]).optional(),
+  /** Same rule as adminPassword: absent means "keep what is stored". */
+  waApiKey: z.string().max(500).optional(),
+  waFirmId: z.string().max(200).optional(),
+  waSenderMobile: z.string().max(20).optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -53,6 +60,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       adminUsername,
       adminPassword,
       logoUrl,
+      waApiKey,
+      waFirmId,
+      waSenderMobile,
       ...communityFields
     } = body;
 
@@ -65,6 +75,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           ...(body.type ? { groupingLabel: groupingLabel(body.type) } : {}),
         },
       });
+
+      // Credentials are upserted field by field: an omitted key keeps the
+      // stored one, so the admin can change the sender number without having to
+      // retype an API key the form never showed them.
+      const integrationPatch = {
+        ...(waApiKey?.trim() ? { waApiKeyEnc: encryptSecret(waApiKey.trim()) } : {}),
+        ...(waFirmId?.trim() ? { waFirmIdEnc: encryptSecret(waFirmId.trim()) } : {}),
+        ...(waSenderMobile !== undefined ? { waSenderMobile: waSenderMobile.trim() || null } : {}),
+      };
+      if (Object.keys(integrationPatch).length > 0) {
+        await tx.communityIntegration.upsert({
+          where: { communityId: id },
+          update: integrationPatch,
+          create: { communityId: id, ...integrationPatch },
+        });
+      }
 
       const hasOwnerPatch =
         adminName !== undefined ||
@@ -124,13 +150,31 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return updated;
     });
 
-    return ok({ community });
+    // Switching an existing community onto password login locks out every
+    // family that has no password — which, the moment before this ran, is all
+    // of them. Give each one the head's number and their date of birth so the
+    // directory keeps working, instead of handing the admin 200 manual resets.
+    //
+    // Outside the transaction on purpose: it is one bcrypt hash per family, and
+    // holding a write lock for that long would be worse than a partial run —
+    // which is safe anyway, since the backfill is idempotent.
+    const backfill =
+      body.authMode === "MOBILE_PASSWORD" && existing.authMode !== "MOBILE_PASSWORD"
+        ? await backfillFamilyLogins(id)
+        : null;
+
+    return ok({ community, backfill });
   } catch (e) {
     if (e instanceof z.ZodError) return fromZod(e);
     if (e instanceof Error && e.message === "FORBIDDEN") return fail("Forbidden", 403);
     if (e instanceof Error && e.message === "NO_OWNER") return fail("No owner admin found for this app", 404);
     if (e instanceof Error && e.message === "USERNAME_TAKEN") return fail("Username already taken", 409);
     if (e instanceof Error && e.message === "PHONE_TAKEN") return fail("Mobile already used in this community", 409);
+    // Fail-closed from lib/security/crypto.ts — surfaced by name so the operator
+    // is told to set the key rather than reading "Failed to update community".
+    if (e instanceof Error && e.message.includes("ENCRYPTION_KEY")) {
+      return fail("Server is missing ENCRYPTION_KEY — cannot store integration credentials", 500);
+    }
     console.error(e);
     return fail("Failed to update community", 500);
   }

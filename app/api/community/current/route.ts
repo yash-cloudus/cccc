@@ -13,6 +13,7 @@ export async function GET() {
       logoText: c.logoText,
       logoUrl: c.logoUrl,
       type: c.type,
+      authMode: c.authMode,
       status: c.status,
       primaryColor: c.primaryColor,
       secondaryColor: c.secondaryColor,

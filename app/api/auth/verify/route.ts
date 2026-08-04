@@ -1,13 +1,11 @@
 import { z } from "zod";
-import bcrypt from "bcryptjs";
-import { verifyOtp } from "@/lib/auth/otp";
-import { signAccessToken, signRefreshToken } from "@/lib/auth/jwt";
-import { setAuthCookies } from "@/lib/auth/cookies";
+import { canDeliverOtp, verifyOtp } from "@/lib/auth/otp";
 import { fail, fromZod, getClientIp, ok } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { rateLimit } from "@/lib/security/rate-limit";
 import { getActiveCommunity } from "@/lib/tenant";
 import { ACCESS_DENIAL, checkMemberAccess } from "@/lib/auth/member-access";
+import { issueMemberSession } from "@/lib/auth/issue-session";
 
 const schema = z.object({
   mobile: z.string().regex(/^[6-9]\d{9}$/),
@@ -22,7 +20,22 @@ export async function POST(req: Request) {
     if (!limited.allowed) return fail("Too many attempts", 429);
 
     const body = schema.parse(await req.json());
-    const result = await verifyOtp(body.mobile, body.code);
+
+    // Resolved before verifyOtp so a MOBILE_PASSWORD community is turned away
+    // without consuming an OTP row or burning an attempt. /api/auth/otp checks
+    // this too, but a caller can post straight here with a code it holds — and
+    // in dev mode the fixed code needs no row at all, so this route is the one
+    // that actually has to hold the line.
+    const community = await getActiveCommunity();
+    if (!community) return fail("Community not found", 404);
+    if (community.authMode === "MOBILE_PASSWORD") {
+      return fail("This community signs in with a password", 400, { usePassword: true });
+    }
+
+    // A community with working credentials issues real codes, so it must not
+    // also accept the fixed dev one.
+    const allowDevCode = !(await canDeliverOtp(community.id));
+    const result = await verifyOtp(body.mobile, body.code, allowDevCode);
     if (!result.ok) {
       await prisma.loginLog.create({
         data: { mobile: body.mobile, success: false, ip, userAgent: req.headers.get("user-agent") || undefined },
@@ -37,9 +50,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const community = await getActiveCommunity();
-    if (!community) return fail("Community not found", 404);
-
     const user = await prisma.user.findFirst({
       where: { mobile: body.mobile, communityId: community.id },
       include: {
@@ -49,74 +59,14 @@ export async function POST(req: Request) {
     });
     if (!user) return fail("User not found", 404);
 
-    // The real gate. /api/auth/otp checks this too, but a caller can post
-    // straight to /verify with a code it already holds, so the decision has to
-    // be made here as well — and from the family, not the cached User flag.
+    // The real gate — and from the family, not the cached User flag.
     const gate = await checkMemberAccess(community.id, body.mobile);
     if (!gate.ok) {
       const denial = ACCESS_DENIAL[gate.reason];
       return fail(denial.message, denial.status);
     }
 
-    const roles = user.roles.map((r: { role: { name: string } }) => r.role.name);
-    const permissions = Array.from(
-      new Set(
-        user.roles.flatMap((r: { role: { permissions: { permission: { key: string } }[] } }) =>
-          r.role.permissions.map((p: { permission: { key: string } }) => p.permission.key),
-        ),
-      ),
-    ) as string[];
-
-    const tokenData = {
-      sub: user.id,
-      mobile: user.mobile,
-      username: user.username,
-      roles,
-      permissions,
-      communityId: user.communityId,
-      communitySlug: community.slug,
-      isPlatform: false,
-    };
-    const access = await signAccessToken(tokenData);
-    const refresh = await signRefreshToken(tokenData);
-
-    const refreshHash = await bcrypt.hash(refresh, 10);
-    await prisma.session.create({
-      data: {
-        userId: user.id,
-        refreshTokenHash: refreshHash,
-        expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        ip,
-        userAgent: req.headers.get("user-agent") || undefined,
-      },
-    });
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
-
-    await prisma.loginLog.create({
-      data: {
-        userId: user.id,
-        mobile: user.mobile,
-        success: true,
-        ip,
-        userAgent: req.headers.get("user-agent") || undefined,
-      },
-    });
-
-    await setAuthCookies(access, refresh);
-
-    return ok({
-      user: {
-        id: user.id,
-        mobile: user.mobile,
-        status: user.status,
-        roles,
-        profile: user.profile,
-      },
-    });
+    return ok(await issueMemberSession(user, community, req, ip));
   } catch (e) {
     if (e instanceof z.ZodError) return fromZod(e);
     console.error(e);

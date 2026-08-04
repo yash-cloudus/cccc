@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, MapPin } from "lucide-react";
+import { Eye, EyeOff, Loader2, MapPin } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { BackHeader } from "@/components/layout/back-header";
 import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { CascadingOccupationFields } from "@/components/forms/cascading-occupation-fields";
 import { useLang } from "@/providers/lang-provider";
+import { useCommunity } from "@/providers/community-provider";
 import { api } from "@/lib/http";
 import { bloodToEnum, pickText } from "@/lib/format";
 import { GENDERS, genderFromRelation } from "@/lib/constants";
@@ -108,11 +109,23 @@ export function RegisterClient({
   const router = useRouter();
   const { fromEn, guInput } = useTranslitSync();
   const T = (g: string, e: string) => (lang === "gu" ? g : e);
+  // No prop plumbing: `app/layout.tsx` already puts the community in front of
+  // every client component.
+  const passwordLogin = useCommunity().authMode === "MOBILE_PASSWORD";
 
   const [step, setStep] = useState(1);
+  /** Errors stay hidden until the step is actually attempted — a form that is
+   *  red before it is touched reads as broken, not as helpful. */
+  const [tried, setTried] = useState<{
+    s1: boolean;
+    s2: boolean;
+    s3: boolean;
+    member: boolean;
+  }>({ s1: false, s2: false, s3: false, member: false });
   const [addOpen, setAddOpen] = useState(false);
   const [editingMemberIndex, setEditingMemberIndex] = useState<number | null>(null);
   const [consent, setConsent] = useState(true);
+  const [consentError, setConsentError] = useState(false);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
@@ -168,6 +181,37 @@ export function RegisterClient({
 
   const [members, setMembers] = useState<Member[]>([]);
   const [newMember, setNewMember] = useState<Member>(blankMember);
+
+  /* ── MOBILE_PASSWORD: one number and one password for the whole household ── */
+  const [loginMobile, setLoginMobile] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginPassword2, setLoginPassword2] = useState("");
+  const [showPwd, setShowPwd] = useState(false);
+  const [showPwd2, setShowPwd2] = useState(false);
+
+  /** Every member who entered a usable mobile. The head comes first, so it is
+   *  the default pick without any extra state. */
+  const loginCandidates = useMemo(() => {
+    const out: { label: string; mobile: string }[] = [];
+    const push = (label: string, raw: string) => {
+      const d = raw.replace(/\D/g, "");
+      if (/^[6-9]\d{9}$/.test(d) && !out.some((o) => o.mobile === d)) out.push({ label, mobile: d });
+    };
+    push(form.m1name.trim() || T("વડા", "Head"), form.m1mobile);
+    members.forEach((m, i) => push(m.name.trim() || T(`સભ્ય ${i + 2}`, `Member ${i + 2}`), m.mobile));
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.m1name, form.m1mobile, members, lang]);
+
+  // Required, not polish: editing or removing the member who held the login
+  // would otherwise submit a number that belongs to nobody, and the server
+  // rejects that.
+  useEffect(() => {
+    if (!passwordLogin) return;
+    if (!loginCandidates.some((c) => c.mobile === loginMobile)) {
+      setLoginMobile(loginCandidates[0]?.mobile ?? "");
+    }
+  }, [passwordLogin, loginCandidates, loginMobile]);
 
   /** Household place of record — the head's. Drives Family.city / villageAreaId. */
   const { city, villageAreaId, livesOutsideVillage } = useMemo(
@@ -232,11 +276,19 @@ export function RegisterClient({
   const contactPhoneHref = contactMobile ? `tel:${contactMobile}` : "#";
   const contactWhatsappHref = contactMobile ? `https://wa.me/91${contactMobile}` : "#";
 
-  const steps = [1, 2, 3].map((n) => ({
-    n,
-    done: step > n,
-    active: step === n,
-  }));
+  /**
+   * Password communities get a step of their own for the login number and
+   * password. It is the one screen that decides how the household gets back in,
+   * so it should not be a footnote under the member list.
+   */
+  const LOGIN_STEP = 3;
+  const reviewStep = passwordLogin ? 4 : 3;
+  const steps = [
+    { n: 1, label: T("માહિતી", "Details") },
+    { n: 2, label: T("સભ્યો", "Members") },
+    ...(passwordLogin ? [{ n: LOGIN_STEP, label: T("લોગિન", "Login") }] : []),
+    { n: reviewStep, label: T("ચકાસો", "Review") },
+  ].map((s) => ({ ...s, done: step > s.n, active: step === s.n }));
 
   const placeLabel = labelForPlace(form.m1place, allPlaces, T("પસંદ કરો", "Select"));
 
@@ -276,29 +328,42 @@ export function RegisterClient({
     }));
   }
 
-  function validateStep1() {
-    if (communityType === "PARIVAR") {
-      if (!lockedSurname && !surnameGroupId) {
-        return T("અટક જૂથ પસંદ કરો", "Pick a surname group");
-      }
-    } else if (!surnameGroupId && !selectedGroup) {
-      return T("અટક જૂથ પસંદ કરો", "Pick a surname group");
-    }
-    if (form.addr.trim().length < 3) return T("સરનામું જરૂરી છે", "Address is required");
+  /**
+   * Both validators return a `field -> message` map instead of one string, so
+   * the message can sit under the box it is about. Cheap and pure, so they run
+   * on every render once the step has been attempted — which means an error
+   * disappears the moment it is fixed, with no per-field wiring.
+   */
+  type Errs = Record<string, string>;
+
+  function validateStep1(): Errs {
+    const e: Errs = {};
     if (!selectedGroup && !surnameGroupId) {
-      return T("અટક જૂથ પસંદ કરો", "Pick a surname group");
+      e.surnameGroup = T("અટક જૂથ પસંદ કરો", "Pick a surname group");
     }
-    return null;
+    // Keyed to match FamilyDetailsFields' own field names, so the message lands
+    // under the box rather than in a banner at the bottom of the step.
+    if (form.addr.trim().length < 3) {
+      e.addressEn = T("સરનામું જરૂરી છે", "Address is required");
+    }
+    return e;
   }
 
   /** The head's place lives on their member card, so it is validated with step 2. */
-  function validateStep2() {
-    if (form.m1name.trim().length < 2) return T("વડાનું નામ જરૂરી છે", "Head name is required");
-    if (!form.m1gender) return T("વડાની જાતિ પસંદ કરો", "Pick the head's gender");
+  function validateStep2(): Errs {
+    const e: Errs = {};
+    if (form.m1name.trim().length < 2) e.m1name = T("વડાનું નામ જરૂરી છે", "Head name is required");
+    if (!form.m1gender) e.m1gender = T("વડાની જાતિ પસંદ કરો", "Pick the head's gender");
+    if (!form.m1dob) e.m1dob = T("જન્મતારીખ જરૂરી છે", "Date of birth is required");
+
+    // The head's mobile is always asked for, whatever their gender — it is the
+    // household's way in, and a family headed by a woman must still be able to
+    // register and log in.
     const mob = form.m1mobile.replace(/\D/g, "");
     if (!/^[6-9]\d{9}$/.test(mob)) {
-      return T("લોગિન મોબાઈલ 10 અંકનો હોવો જોઈએ", "Login mobile must be 10 digits (6–9…)");
+      e.m1mobile = T("મોબાઈલ 10 અંકનો હોવો જોઈએ", "Mobile must be 10 digits (6–9…)");
     }
+
     const typeErr = validateFamilyByType(communityType, {
       headNameEn: form.m1name,
       addressEn: form.addr,
@@ -309,20 +374,68 @@ export function RegisterClient({
       surnameEn: selectedGroup?.nameEn,
     });
     if (typeErr) {
-      return communityType === "GAM"
-        ? T("વડાનું ગામ / શહેર પસંદ કરો", "Pick the head's village / city")
-        : T("વડાનું શહેર પસંદ કરો", "Pick the head's city");
+      e.m1place =
+        communityType === "GAM"
+          ? T("ગામ / શહેર પસંદ કરો", "Pick the village / city")
+          : T("શહેર પસંદ કરો", "Pick the city");
     }
-    return null;
+    return e;
   }
 
+  /** MOBILE_PASSWORD only: the login step. */
+  function validateStep3(): Errs {
+    const e: Errs = {};
+    if (!loginMobile) e.loginMobile = T("લોગિન નંબર પસંદ કરો", "Pick the login number");
+    if (!/^\d{6}$/.test(loginPassword)) {
+      e.loginPassword = T("6 અંકનો પાસવર્ડ નાખો", "Enter a 6-digit password");
+    } else if (loginPassword !== loginPassword2) {
+      e.loginPassword2 = T("પાસવર્ડ મેળ ખાતો નથી", "Passwords do not match");
+    }
+    return e;
+  }
+
+  /** Add-member sub-form. Mobile is deliberately absent — see the form itself. */
+  function validateNewMember(): Errs {
+    const e: Errs = {};
+    if (newMember.name.trim().length < 2) e.name = T("સભ્યનું નામ જરૂરી છે", "Member name is required");
+    if (!newMember.relation) e.relation = T("સબંધ પસંદ કરો", "Pick a relation");
+    if (!newMember.gender) e.gender = T("જાતિ પસંદ કરો", "Pick a gender");
+    if (!newMember.dob) e.dob = T("જન્મતારીખ જરૂરી છે", "Date of birth is required");
+    return e;
+  }
+
+  const errs1 = tried.s1 ? validateStep1() : {};
+  const errs2 = tried.s2 ? validateStep2() : {};
+  const errs3 = tried.s3 ? validateStep3() : {};
+  const errsM = tried.member ? validateNewMember() : {};
+
+  /**
+   * Women are not asked for a phone number, so the field is hidden for them —
+   * except on the head's card, where the number is the household's login and is
+   * asked for regardless.
+   */
+  const memberWantsMobile = newMember.gender !== "FEMALE";
+
+  /** Switching a member to female drops any number typed for them, so a hidden
+   *  field can never quietly submit one. Existing records are untouched: this
+   *  only fires when someone actively changes the answer. */
+  const setMemberGender = (gender: string) =>
+    setNewMember((prev) => ({
+      ...prev,
+      gender,
+      ...(gender === "FEMALE" ? { mobile: "", whatsapp: "", hasWa: true } : {}),
+    }));
+
   async function submit() {
-    const e1 = validateStep1();
-    if (e1) return toast.error(e1);
-    const e2 = validateStep2();
-    if (e2) return toast.error(e2);
-    if (!consent) return toast.error(T("સંમતિ જરૂરી છે", "Consent is required"));
-    if (!selectedGroup) return toast.error(T("અટક જૂથ પસંદ કરો", "Pick a surname group"));
+    // Review can only be reached through the earlier steps, but a stale value
+    // can still be sitting there — send the user back to the step that owns it
+    // rather than firing a toast about a field two screens away.
+    setTried((p) => ({ ...p, s1: true, s2: true, s3: true }));
+    if (Object.keys(validateStep1()).length > 0) return setStep(1);
+    if (Object.keys(validateStep2()).length > 0) return setStep(2);
+    if (passwordLogin && Object.keys(validateStep3()).length > 0) return setStep(LOGIN_STEP);
+    setConsentError(!consent);
+    if (!consent || !selectedGroup) return;
 
     setBusy(true);
 
@@ -350,13 +463,17 @@ export function RegisterClient({
       latitude: coords.lat ?? undefined,
       longitude: coords.lng ?? undefined,
       consentAccepted: true,
+      ...(passwordLogin ? { loginMobile, loginPassword } : {}),
       members: [
         {
           fullNameEn: form.m1name.trim(),
           fullNameGu: form.m1nameGu.trim() || undefined,
           relation: "Head",
           gender: form.m1gender || undefined,
-          mobile: form.m1mobile.replace(/\D/g, ""),
+          // `|| undefined` so an unfilled head mobile stores NULL, not "" —
+          // an empty string still matches `some: { mobile }` lookups and
+          // pollutes the FamilyMember.mobile index.
+          mobile: form.m1mobile.replace(/\D/g, "") || undefined,
           bloodGroup: bloodToEnum(form.m1blood),
           currentlyAt: form.m1place || undefined,
           dateOfBirth: form.m1dob || undefined,
@@ -478,7 +595,13 @@ export function RegisterClient({
             onClick={() => {
               setSubmitted(false);
               setStep(1);
+              setTried({ s1: false, s2: false, s3: false, member: false });
               setMembers([]);
+              setLoginMobile("");
+              setLoginPassword("");
+              setLoginPassword2("");
+              setShowPwd(false);
+              setShowPwd2(false);
               setForm({
                 addr: "",
                 addrGu: "",
@@ -565,20 +688,26 @@ export function RegisterClient({
               )}
             </div>
           </Field>
-          <Field label={`${T("સબંધ", "Relation")} *`}>
+          <Field label={`${T("સબંધ", "Relation")} *`} error={errsM.relation}>
             <div className="flex flex-wrap gap-2">
               {relationChoices.map((r) => (
                 <button
                   key={r.nameEn}
                   type="button"
                   onClick={() =>
-                    setNewMember((prev) => ({
-                      ...prev,
-                      relation: r.nameEn,
+                    setNewMember((prev) => {
                       // Most relations state the gender; fill it in, but never
                       // overwrite an answer already given.
-                      ...(prev.gender ? {} : { gender: genderFromRelation(r.nameEn) ?? "" }),
-                    }))
+                      const gender = prev.gender || genderFromRelation(r.nameEn) || "";
+                      return {
+                        ...prev,
+                        relation: r.nameEn,
+                        gender,
+                        // "Daughter" sets FEMALE without anyone touching the
+                        // gender buttons, so the number has to go here too.
+                        ...(gender === "FEMALE" ? { mobile: "", whatsapp: "", hasWa: true } : {}),
+                      };
+                    })
                   }
                   className={cn(
                     "rounded-full px-4 py-2.5 text-[13px] font-bold",
@@ -592,13 +721,13 @@ export function RegisterClient({
               ))}
             </div>
           </Field>
-          <Field label={`${T("જાતિ", "Gender")} *`}>
+          <Field label={`${T("જાતિ", "Gender")} *`} error={errsM.gender}>
             <div className="flex flex-wrap gap-2">
               {GENDERS.map((g) => (
                 <button
                   key={g.value}
                   type="button"
-                  onClick={() => setNewMember((prev) => ({ ...prev, gender: g.value }))}
+                  onClick={() => setMemberGender(g.value)}
                   className={cn(
                     "rounded-full px-4 py-2.5 text-[13px] font-bold",
                     newMember.gender === g.value
@@ -623,7 +752,7 @@ export function RegisterClient({
             />
           </Field>
           <div className="mb-3.5 grid grid-cols-2 gap-2.5">
-            <Field label={T("જન્મ", "DOB")}>
+            <Field label={`${T("જન્મ", "DOB")} *`} error={errsM.dob}>
               <DateField
                 dob
                 value={newMember.dob}
@@ -641,7 +770,14 @@ export function RegisterClient({
               />
             </Field>
           </div>
-          <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
+          {/* Not asked of women. The head's card asks regardless of gender —
+              that number is the household's login. */}
+          <div
+            className={cn(
+              "mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]",
+              !memberWantsMobile && "hidden",
+            )}
+          >
             <Field label={T("મોબાઈલ (વૈકલ્પિક)", "Mobile (optional)")}>
               <input
                 className="samaj-fld"
@@ -730,16 +866,10 @@ export function RegisterClient({
           <button
             type="button"
             onClick={() => {
-              // These used to fail silently — the button just did nothing.
-              if (newMember.name.trim().length < 2) {
-                return toast.error(T("સભ્યનું નામ જરૂરી છે", "Member name is required"));
-              }
-              if (!newMember.relation) {
-                return toast.error(T("સબંધ પસંદ કરો", "Pick a relation"));
-              }
-              if (!newMember.gender) {
-                return toast.error(T("જાતિ પસંદ કરો", "Pick a gender"));
-              }
+              // These used to fail silently — the button just did nothing —
+              // then loudly, as a toast. Now the message sits under the field.
+              setTried((p) => ({ ...p, member: true }));
+              if (Object.keys(validateNewMember()).length > 0) return;
               if (editingMemberIndex === null) {
                 setMembers([...members, newMember]);
               } else {
@@ -778,23 +908,46 @@ export function RegisterClient({
           </div>
           <HeaderLangToggle />
         </div>
-        <div className="relative z-2 mx-auto mt-4 flex w-full max-w-[680px] items-center gap-2">
+        {/* Connector count follows the step count — it used to be hard-coded to
+            two, so a fourth step lost its line and drifted to the right edge.
+            Each step is a fixed-width column so the labels stay centred under
+            their circle; only the connectors stretch. */}
+        <div className="relative z-2 mx-auto mt-4 flex w-full max-w-[680px] items-start gap-1.5">
           {steps.map((s, idx) => (
-            <div key={s.n} className="flex flex-1 items-center gap-2">
-              <div
-                className={cn(
-                  "flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full text-[13px] font-extrabold",
-                  s.active
-                    ? "bg-white text-[var(--brand)]"
-                    : s.done
-                      ? "bg-[var(--gold)] text-white"
-                      : "bg-white/18 text-white/70",
-                )}
-              >
-                {s.done ? "✓" : s.n}
+            <Fragment key={s.n}>
+              <div className="flex w-[56px] flex-none flex-col items-center gap-1">
+                <div
+                  className={cn(
+                    "flex h-[30px] w-[30px] items-center justify-center rounded-full text-[13px] font-extrabold transition-colors",
+                    s.active
+                      ? "bg-white text-[var(--brand)]"
+                      : s.done
+                        ? "bg-[var(--gold)] text-white"
+                        : "bg-white/18 text-white/70",
+                  )}
+                >
+                  {s.done ? "✓" : s.n}
+                </div>
+                <span
+                  className={cn(
+                    "text-center text-[9.5px] leading-tight font-bold",
+                    s.active ? "text-white" : "text-white/60",
+                  )}
+                >
+                  {s.label}
+                </span>
               </div>
-              {idx < 2 && <div className="h-[3px] flex-1 rounded-sm bg-white/25" />}
-            </div>
+              {idx < steps.length - 1 && (
+                // 13.5px = half the 30px circle minus half the 3px bar, so the
+                // line meets the circles at their centre.
+                <div
+                  className={cn(
+                    "mt-[13.5px] h-[3px] flex-1 rounded-sm transition-colors",
+                    s.done ? "bg-[var(--gold)]" : "bg-white/25",
+                  )}
+                />
+              )}
+            </Fragment>
           ))}
         </div>
       </header>
@@ -823,13 +976,14 @@ export function RegisterClient({
                 communityType={communityType}
                 lockedSurname={lockedSurname}
                 surnameGroups={surnameGroups}
+                errors={errs1}
                 t={T}
               />
 
               <PrimaryBtn
                 onClick={() => {
-                  const err = validateStep1();
-                  if (err) return toast.error(err);
+                  setTried((p) => ({ ...p, s1: true }));
+                  if (Object.keys(validateStep1()).length > 0) return;
                   setStep(2);
                 }}
               >
@@ -865,7 +1019,7 @@ export function RegisterClient({
                     {T("પરિવારના વડા", "Family head")}
                   </span>
                 </div>
-                <Field label={`${T("પૂરું નામ", "Full name")} *`}>
+                <Field label={`${T("પૂરું નામ", "Full name")} *`} error={errs2.m1name}>
                   <div className="relative">
                     <SpeechInput
                       inputClassName="samaj-fld pr-[150px]"
@@ -901,6 +1055,7 @@ export function RegisterClient({
                 </Field>
                 <Field
                   label={`${communityType === "GAM" ? T("ગામ / શહેર", "Village / city") : T("શહેર", "City")} *`}
+                  error={errs2.m1place}
                 >
                   <MemberPlacePicker
                     value={form.m1place}
@@ -910,7 +1065,7 @@ export function RegisterClient({
                     t={T}
                   />
                 </Field>
-                <Field label={`${T("જાતિ", "Gender")} *`}>
+                <Field label={`${T("જાતિ", "Gender")} *`} error={errs2.m1gender}>
                   <div className="flex flex-wrap gap-2">
                     {GENDERS.map((g) => (
                       <button
@@ -930,7 +1085,7 @@ export function RegisterClient({
                   </div>
                 </Field>
                 <div className="grid grid-cols-2 gap-2">
-                  <Field label={T("જન્મ", "DOB")}>
+                  <Field label={`${T("જન્મ", "DOB")} *`} error={errs2.m1dob}>
                     <DateField
                       dob
                       value={form.m1dob}
@@ -949,7 +1104,13 @@ export function RegisterClient({
                   </Field>
                 </div>
                 <div className="mb-3 grid grid-cols-1 gap-2.5 sm:grid-cols-[minmax(0,1fr)_280px]">
-                  <Field label={`${T("મોબાઈલ (લોગિન)", "Mobile (login)")} *`}>
+                  {/* Always asked, whatever the head's gender — this is the
+                      household's way in. Under MOBILE_PASSWORD they may still
+                      hand the login to another member further down. */}
+                  <Field
+                    label={`${T("મોબાઈલ", "Mobile")}${passwordLogin ? "" : ` ${T("(લોગિન)", "(login)")}`} *`}
+                    error={errs2.m1mobile}
+                  >
                     <input
                       className="samaj-fld"
                       value={form.m1mobile}
@@ -1087,11 +1248,110 @@ export function RegisterClient({
               >
                 ＋ {T("બીજા સભ્ય ઉમેરો", "Add another member")}
               </button>
+
               <PrimaryBtn
                 onClick={() => {
-                  const err = validateStep2();
-                  if (err) return toast.error(err);
+                  setTried((p) => ({ ...p, s2: true }));
+                  if (Object.keys(validateStep2()).length > 0) return;
                   setStep(3);
+                }}
+              >
+                {passwordLogin ? T("આગળ: લોગિન", "Next: login") : T("આગળ", "Next")}
+              </PrimaryBtn>
+            </motion.div>
+          )}
+
+          {/* Step 3 under MOBILE_PASSWORD — how this household gets back in.
+              Its own screen rather than a card under the member list, because
+              it is the one answer they will need again months from now. */}
+          {passwordLogin && step === LOGIN_STEP && (
+            <motion.div key="sLogin" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
+              <h2 className="mb-1 text-[15px] font-extrabold">
+                {T("લોગિન નંબર અને પાસવર્ડ", "Login number & password")}
+              </h2>
+              <p className="mb-3 text-[12.5px] leading-snug text-[var(--faint)]">
+                {T(
+                  "આખો પરિવાર આ એક જ નંબર અને પાસવર્ડથી લોગિન કરશે",
+                  "The whole family logs in with this one number and password",
+                )}
+              </p>
+
+              <div className="samaj-card mb-3 p-[15px]">
+                <b className="text-[13.5px]">{T("કયો નંબર?", "Which number?")}</b>
+                <p className="mb-2.5 mt-0.5 text-[11.5px] leading-snug text-[var(--faint)]">
+                  {T(
+                    "જે સભ્યોના મોબાઈલ ભર્યા છે એમાંથી પસંદ કરો",
+                    "Pick from the members who gave a mobile number",
+                  )}
+                </p>
+
+                {loginCandidates.length === 0 ? (
+                  <p className="samaj-fld text-[12.5px] font-semibold text-[var(--danger)]">
+                    {T("પહેલાં વડાનો મોબાઈલ ભરો", "Fill in the head's mobile first")}
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {loginCandidates.map((c) => (
+                      <button
+                        key={c.mobile}
+                        type="button"
+                        onClick={() => setLoginMobile(c.mobile)}
+                        className={cn(
+                          "flex items-center justify-between rounded-[12px] border-[1.5px] px-3 py-2.5 text-left",
+                          loginMobile === c.mobile
+                            ? "border-[var(--brand)] bg-[var(--brand-tint)]"
+                            : "border-[var(--line-input)] bg-white",
+                        )}
+                      >
+                        <span className="min-w-0 break-words text-[13px] font-bold text-[var(--ink)]">
+                          {c.label}
+                        </span>
+                        <span className="shrink-0 text-[12.5px] font-semibold text-[var(--faint)]">
+                          {c.mobile}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {errs3.loginMobile && (
+                  <p className="mt-2 text-[11.5px] font-bold text-[var(--danger)]">
+                    {errs3.loginMobile}
+                  </p>
+                )}
+              </div>
+
+              <div className="samaj-card mb-3 p-[15px]">
+                <b className="text-[13.5px]">{T("પાસવર્ડ", "Password")}</b>
+                <p className="mb-2.5 mt-0.5 text-[11.5px] leading-snug text-[var(--faint)]">
+                  {T("બરાબર 6 અંક", "Exactly 6 digits")}
+                </p>
+                <div className="grid grid-cols-2 gap-2.5 max-sm:grid-cols-1">
+                  <PinField
+                    label={`${T("પાસવર્ડ (6 અંક)", "Password (6 digits)")} *`}
+                    value={loginPassword}
+                    onChange={setLoginPassword}
+                    error={errs3.loginPassword}
+                    show={showPwd}
+                    onToggle={() => setShowPwd((v) => !v)}
+                    t={T}
+                  />
+                  <PinField
+                    label={`${T("પાસવર્ડ ફરી લખો", "Re-enter password")} *`}
+                    value={loginPassword2}
+                    onChange={setLoginPassword2}
+                    error={errs3.loginPassword2}
+                    show={showPwd2}
+                    onToggle={() => setShowPwd2((v) => !v)}
+                    t={T}
+                  />
+                </div>
+              </div>
+
+              <PrimaryBtn
+                onClick={() => {
+                  setTried((p) => ({ ...p, s3: true }));
+                  if (Object.keys(validateStep3()).length > 0) return;
+                  setStep(reviewStep);
                 }}
               >
                 {T("આગળ", "Next")}
@@ -1099,8 +1359,8 @@ export function RegisterClient({
             </motion.div>
           )}
 
-          {step === 3 && (
-            <motion.div key="s3" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
+          {step === reviewStep && (
+            <motion.div key="sReview" initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}>
               <h2 className="mb-3 text-[15px] font-extrabold">{T("ચકાસો અને મોકલો", "Review & send")}</h2>
               <div className="samaj-card mb-3 p-4">
                 <div className="mb-2 text-[11.5px] font-extrabold tracking-wide text-[var(--brand)]">
@@ -1112,6 +1372,19 @@ export function RegisterClient({
                 />
                 <Kv k={T("સરનામું", "Address")} v={form.addr || "—"} />
                 <Kv k={T("હાલ", "Currently at")} v={placeLabel || "—"} />
+                {/* The number, never the password. */}
+                {passwordLogin && (
+                  <>
+                    <Kv k={T("લોગિન નંબર", "Login number")} v={loginMobile || "—"} />
+                    <button
+                      type="button"
+                      onClick={() => setStep(LOGIN_STEP)}
+                      className="mt-1.5 mr-3 text-xs font-bold text-[var(--brand)] underline"
+                    >
+                      {T("લોગિન બદલો?", "Change login?")}
+                    </button>
+                  </>
+                )}
                 {(form.elder || form.elderGu || form.elderPhone) && (
                   <Kv
                     k={T("વડીલ", "Elder")}
@@ -1185,8 +1458,16 @@ export function RegisterClient({
               </div>
               <button
                 type="button"
-                onClick={() => setConsent(!consent)}
-                className="mb-4 flex gap-2.5 rounded-2xl border border-[#EFE3CB] bg-[#FDF9F0] p-3.5 text-left text-[12.5px] leading-relaxed text-[#6B5E42]"
+                onClick={() => {
+                  setConsent(!consent);
+                  setConsentError(false);
+                }}
+                className={cn(
+                  "mb-1.5 flex gap-2.5 rounded-2xl border p-3.5 text-left text-[12.5px] leading-relaxed",
+                  consentError
+                    ? "border-[var(--danger)] bg-[var(--danger-tint)] text-[var(--danger)]"
+                    : "border-[#EFE3CB] bg-[#FDF9F0] text-[#6B5E42]",
+                )}
               >
                 <span>{consent ? "☑" : "☐"}</span>
                 <span>
@@ -1196,6 +1477,12 @@ export function RegisterClient({
                   )}
                 </span>
               </button>
+              {consentError && (
+                <p className="mb-3 text-[11.5px] font-bold text-[var(--danger)]">
+                  {T("સંમતિ જરૂરી છે", "Consent is required")}
+                </p>
+              )}
+              <div className="mb-4" />
               <PrimaryBtn onClick={submit} busy={busy}>
                 {T("નોંધણી મોકલો", "Submit registration")}
               </PrimaryBtn>
@@ -1207,12 +1494,77 @@ export function RegisterClient({
   );
 }
 
-function Field({ label, children }: { label: React.ReactNode; children: React.ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: React.ReactNode;
+  /** Shown under the field. Replaces the toast that used to fire on Next —
+   *  a toast names the problem but not the box it belongs to. */
+  error?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mb-3.5">
       <div className="mb-1 text-xs font-bold text-[var(--muted)]">{label}</div>
       {children}
+      {error && (
+        <p className="mt-1 text-[11.5px] font-bold text-[var(--danger)]">{error}</p>
+      )}
     </div>
+  );
+}
+
+/**
+ * A 6-digit PIN with a show/hide eye.
+ *
+ * The eye matters more here than on a normal password box: the family is
+ * choosing a number they must remember, and a row of dots gives them no way to
+ * check what they typed before committing to it.
+ */
+function PinField({
+  label,
+  value,
+  onChange,
+  error,
+  show,
+  onToggle,
+  t,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: string;
+  show: boolean;
+  onToggle: () => void;
+  t: (gu: string, en: string) => string;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[11.5px] font-bold text-[var(--ink-mid)]">{label}</span>
+      <div className="relative">
+        <input
+          type={show ? "text" : "password"}
+          inputMode="numeric"
+          autoComplete="new-password"
+          maxLength={6}
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="••••••"
+          className="samaj-fld w-full pr-11 tracking-[0.3em]"
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label={show ? t("છુપાવો", "Hide") : t("બતાવો", "Show")}
+          className="absolute right-1 top-1/2 -translate-y-1/2 p-2.5 text-[var(--faint)]"
+        >
+          {show ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}
+        </button>
+      </div>
+      {error && <p className="mt-1 text-[11.5px] font-bold text-[var(--danger)]">{error}</p>}
+    </label>
   );
 }
 

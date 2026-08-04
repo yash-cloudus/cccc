@@ -11,30 +11,38 @@ import { useLang } from "@/providers/lang-provider";
 import { formatMobile } from "@/lib/format";
 import { toast } from "sonner";
 
-const OTP_LEN = Math.max(4, Math.min(8, Number(process.env.NEXT_PUBLIC_OTP_LENGTH || 4)));
-const DEV_HINT =
-  process.env.NEXT_PUBLIC_OTP_DEV_MODE === "true"
-    ? process.env.NEXT_PUBLIC_OTP_DEV_CODE || "1234"
-    : null;
+const DEFAULT_OTP_LEN = Math.max(4, Math.min(8, Number(process.env.NEXT_PUBLIC_OTP_LENGTH || 4)));
 
 function OtpForm() {
   const { t, lang } = useLang();
   const router = useRouter();
   const params = useSearchParams();
   const mobile = params.get("mobile") || "9876543210";
-  const empty = useMemo(() => Array.from({ length: OTP_LEN }, () => ""), []);
+  /**
+   * Code length comes from the send response, not the environment: a community
+   * with WhatsApp credentials gets a real 6-digit code while the rest stay on
+   * the 4-digit fixed one, and `NEXT_PUBLIC_*` is baked in at build time so it
+   * cannot tell them apart. Drawing four boxes for a six-digit code makes the
+   * code impossible to enter.
+   */
+  const otpLen = useMemo(() => {
+    const n = Number(params.get("len"));
+    return Number.isFinite(n) && n >= 4 && n <= 8 ? n : DEFAULT_OTP_LEN;
+  }, [params]);
+  const empty = useMemo(() => Array.from({ length: otpLen }, () => ""), [otpLen]);
   const [otp, setOtp] = useState(empty);
   const [left, setLeft] = useState(42);
   const [loading, setLoading] = useState(false);
+  // Only ever set from a send response, so it cannot claim a dev code exists
+  // for a community that issues real ones.
+  const [devHint, setDevHint] = useState<string | null>(null);
   const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  useEffect(() => setOtp(empty), [empty]);
 
   useEffect(() => {
     const id = setInterval(() => setLeft((s) => (s > 0 ? s - 1 : 0)), 1000);
     return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    if (DEV_HINT) toast.message(`Dev OTP: ${DEV_HINT}`, { duration: 8000 });
   }, []);
 
   const onOtp = useCallback(
@@ -45,9 +53,9 @@ function OtpForm() {
         next[i] = digit;
         return next;
       });
-      if (digit && i < OTP_LEN - 1) refs.current[i + 1]?.focus();
+      if (digit && i < otpLen - 1) refs.current[i + 1]?.focus();
     },
-    [],
+    [otpLen],
   );
 
   async function resendSms() {
@@ -55,15 +63,17 @@ function OtpForm() {
       const res = await axios.post("/api/auth/otp", { mobile, channel: "sms", purpose: "login" });
       setLeft(42);
       const code = res.data?.data?.devCode;
+      if (code) setDevHint(code);
       toast.success(code ? `OTP sent (dev: ${code})` : "OTP sent via SMS");
-    } catch {
-      toast.error("Failed to resend OTP");
+    } catch (err: unknown) {
+      const ax = err as { response?: { data?: { error?: string } } };
+      toast.error(ax.response?.data?.error || "Failed to resend OTP");
     }
   }
 
   async function login() {
     const code = otp.join("");
-    if (code.length !== OTP_LEN) {
+    if (code.length !== otpLen) {
       toast.error(t("enterOtp"));
       return;
     }
@@ -83,7 +93,7 @@ function OtpForm() {
   const title = lang === "gu" ? "OTP ચકાસણી" : "OTP Verification";
   const sentTo = lang === "gu" ? "આ નંબર પર મોકલેલ" : "Sent to this number";
   const enterCode =
-    lang === "gu" ? `${OTP_LEN} અંક નો કોડ નાખો` : `Enter the ${OTP_LEN}-digit code`;
+    lang === "gu" ? `${otpLen} અંક નો કોડ નાખો` : `Enter the ${otpLen}-digit code`;
   const resendLabel = lang === "gu" ? "ફરી મોકલો" : "Resend in";
   const viaSms = lang === "gu" ? "SMS થી મોકલો" : "Send via SMS";
   const seePending =
@@ -109,11 +119,11 @@ function OtpForm() {
           <b className="text-base text-[var(--ink)]">{formatMobile(mobile)}</b>
           <br />
           {enterCode}
-          {DEV_HINT && (
+          {devHint && (
             <>
               <br />
               <span className="mt-1 inline-block text-[12px] font-bold text-[var(--wa-dark)]">
-                Dev mode OTP: {DEV_HINT}
+                Dev mode OTP: {devHint}
               </span>
             </>
           )}

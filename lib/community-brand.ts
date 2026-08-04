@@ -11,6 +11,11 @@ export type CommunityBrand = {
   bannerUrl: string | null;
   shortLogo: string;
   type: string;
+  /// Which login screen and which automations this community gets. Carried on
+  /// the brand object because it is read all over the client — login, register,
+  /// admin — and `app/layout.tsx` already puts this object in front of every
+  /// component, so no page needs its own query.
+  authMode: string;
   groupingLabel: string | null;
   primaryColor: string;
   secondaryColor: string;
@@ -39,6 +44,7 @@ export const DEFAULT_BRAND: CommunityBrand = {
   bannerUrl: null,
   shortLogo: "C",
   type: "PARIVAR",
+  authMode: "WHATSAPP_API",
   groupingLabel: null,
   primaryColor: "#a62a38",
   secondaryColor: "#e0a64b",
@@ -123,6 +129,7 @@ export function toCommunityBrand(c: Community | null | undefined): CommunityBran
     bannerUrl: c.bannerUrl,
     shortLogo: shortLogoOf(c),
     type: c.type,
+    authMode: c.authMode,
     groupingLabel: c.groupingLabel,
     primaryColor: c.primaryColor,
     secondaryColor: c.secondaryColor,

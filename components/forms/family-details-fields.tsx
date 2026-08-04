@@ -41,6 +41,7 @@ export function FamilyDetailsFields({
   surnameGroups,
   /** Admin-only: a surname matching no group creates a new one on save. */
   allowNewSurname = false,
+  errors,
   t,
 }: {
   variant: "member" | "admin";
@@ -50,6 +51,9 @@ export function FamilyDetailsFields({
   lockedSurname?: NamedOption | null;
   surnameGroups: NamedOption[];
   allowNewSurname?: boolean;
+  /** `field -> message`, rendered under the field it names rather than in a
+   *  banner the reader has to map back onto a long form. */
+  errors?: Record<string, string>;
   /** Label translator — the member side passes its Gujarati-first `T`. */
   t: (gu: string, en: string) => string;
 }) {
@@ -167,7 +171,11 @@ export function FamilyDetailsFields({
       </>
     ) : (
       <div className="mb-3 grid grid-cols-2 gap-2.5">
-        <Wrap variant={variant} label={`${t("અટક જૂથ", "Surname group")} *`}>
+        <Wrap
+          variant={variant}
+          label={`${t("અટક જૂથ", "Surname group")} *`}
+          error={errors?.surnameGroup}
+        >
           <PopoverPicker
             label={
               selectedGroup
@@ -205,6 +213,7 @@ export function FamilyDetailsFields({
         variant={variant}
         label={`${t("હાલનું સરનામું", "Current address")} (English)`}
         required
+        error={errors?.addressEn}
       >
         {isAdmin ? (
           <AdminInput
@@ -333,16 +342,18 @@ function Wrap({
   variant,
   label,
   required,
+  error,
   children,
 }: {
   variant: "member" | "admin";
   label: string;
   required?: boolean;
+  error?: string;
   children: React.ReactNode;
 }) {
   if (variant === "admin") {
     return (
-      <AdminField label={label} required={required}>
+      <AdminField label={label} required={required} error={error}>
         {children}
       </AdminField>
     );
@@ -354,6 +365,7 @@ function Wrap({
         {required ? " *" : ""}
       </div>
       {children}
+      {error && <p className="mt-1 text-[11.5px] font-bold text-[var(--danger)]">{error}</p>}
     </div>
   );
 }
