@@ -109,7 +109,9 @@ export function ColorPickerPanel({
           pickFromSv(e.clientX, e.clientY);
         }}
         onKeyDown={(e) => {
-          let { h, s, v } = hsv;
+          // Only s and v move with the arrow keys; hue has its own slider.
+          const { h } = hsv;
+          let { s, v } = hsv;
           const step = e.shiftKey ? 10 : 2;
           if (e.key === "ArrowLeft") s = clamp(s - step, 0, 100);
           else if (e.key === "ArrowRight") s = clamp(s + step, 0, 100);
