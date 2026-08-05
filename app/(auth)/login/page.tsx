@@ -13,7 +13,7 @@ import { useLang } from "@/providers/lang-provider";
 import { useCommunity } from "@/providers/community-provider";
 import { mainAdminUrl, communityAdminUrl } from "@/lib/host";
 import { HostLabel } from "@/components/host-label";
-import { LangToggle, HeaderLangToggle } from "@/components/ui/lang-toggle";
+import { HeaderLangToggle } from "@/components/ui/lang-toggle";
 import { toast } from "sonner";
 
 export default function LoginPage() {
@@ -124,17 +124,15 @@ export default function LoginPage() {
 
   return (
     <AppShell>
-      <div className="pointer-events-none fixed right-4 top-4 z-50 sm:right-6 sm:top-6">
-        <div className="pointer-events-auto">
-          <HeaderLangToggle tone="light" />
-        </div>
-      </div>
       <div
-        className="flex flex-1 flex-col items-center justify-center gap-3.5 px-[30px] py-[34px] text-center"
+        className="relative flex flex-1 flex-col items-center justify-center gap-3.5 px-[30px] py-[34px] text-center"
         style={{
           background: "radial-gradient(120% 70% at 50% 0%,var(--brand-tint) 0%,var(--surface) 52%)",
         }}
       >
+        <div className="absolute right-6 top-6">
+          <HeaderLangToggle tone="light" />
+        </div>
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -262,7 +260,6 @@ export default function LoginPage() {
               {lang === "gu" ? "મુખ્ય એડમિન" : "Main Admin"}
             </a>
           </div>
-          <LangToggle className="mx-auto mt-5 w-fit" />
         </div>
       </div>
     </AppShell>

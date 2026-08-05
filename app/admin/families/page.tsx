@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ensureParivarLockedSurname } from "@/lib/community-defaults";
-import { getActiveCommunity } from "@/lib/tenant";
+import { getActiveCommunity, getSessionPayload, isCommunityAdmin } from "@/lib/tenant";
 import {
   getFamilies,
   getDropdownOptions,
@@ -23,7 +23,7 @@ export default async function FamiliesPage() {
       ? await ensureParivarLockedSurname(prisma, community.id)
       : null;
 
-  const [families, surnameGroups, relationOptions, nriCities, occupationTree, villages, cities] =
+  const [families, surnameGroups, relationOptions, nriCities, occupationTree, villages, cities, session] =
     await Promise.all([
       getFamilies(community.id),
       getSurnameGroups(community.id),
@@ -35,6 +35,7 @@ export default async function FamiliesPage() {
         where: { communityId: community.id, type: "city", isActive: true, parentId: null },
         orderBy: [{ sortOrder: "asc" }, { nameEn: "asc" }],
       }),
+      getSessionPayload(),
     ]);
 
   const rows: FamilyRow[] = families.map((f) => ({
@@ -73,6 +74,7 @@ export default async function FamiliesPage() {
         .map((o) => ({ nameEn: o.nameEn, nameGu: o.nameGu }))}
       occupationTree={occupationTree}
       nriCities={nriCities}
+      canDelete={isCommunityAdmin(session)}
     />
   );
 }

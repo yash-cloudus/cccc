@@ -56,6 +56,7 @@ export function AdsClient({
   tiers,
   cities = [],
   categories = [],
+  browseMode = false,
 }: {
   rows: AdRow[];
   myBanners: MyBanner[];
@@ -63,10 +64,16 @@ export function AdsClient({
   tiers: Record<AdDuration, number>;
   cities?: string[];
   categories?: { en: string; gu: string | null }[];
+  /** true when opened from Services tile — shows only the public ad listing */
+  browseMode?: boolean;
 }) {
   const { lang } = useLang();
   const router = useRouter();
   const T = (g: string, e: string) => (lang === "gu" ? g : e);
+
+  const pageTitle = browseMode
+    ? T("ચાલુ જાહેરાત", "Advertisements")
+    : T("જાહેરાત બેનર", "Ad banner");
 
   const [q, setQ] = useState("");
   const [cityFilter, setCityFilter] = useState("all");
@@ -106,7 +113,7 @@ export function AdsClient({
     <AppScreen showNav={false}>
       {/* ─── Header ─── */}
       <BackHeader
-        title={T("જાહેરાત બેનર", "Advertisements")}
+        title={pageTitle}
         right={
           <div className="flex size-[42px] flex-none items-center justify-center rounded-[13px] bg-white/12">
             <Megaphone className="size-[21px]" strokeWidth={1.7} />
@@ -230,8 +237,8 @@ export function AdsClient({
           </div>
         )}
 
-        {/* ─── Price / limits info card ─── */}
-        <dl className="mb-4 rounded-[16px] border border-[var(--line-soft)] bg-white p-3.5 text-[13px]">
+        {/* ─── Price / limits info card — hidden in browse mode ─── */}
+        {!browseMode && <dl className="mb-4 rounded-[16px] border border-[var(--line-soft)] bg-white p-3.5 text-[13px]">
           {(
             [
               [T("ભાવ", "Price"), priceText],
@@ -247,10 +254,10 @@ export function AdsClient({
               <dd className="min-w-0 text-[var(--ink-mid)]">{v}</dd>
             </div>
           ))}
-        </dl>
+        </dl>}
 
-        {/* ─── My Banners ─── */}
-        {signedIn && (
+        {/* ─── My Banners — hidden in browse mode ─── */}
+        {!browseMode && signedIn && (
           <>
             <div className="mb-2 px-1 text-[12px] font-extrabold tracking-wide text-[var(--muted)]">
               {T("તમારા બેનર", "YOUR BANNERS")} ({liveCount}/{MAX_BANNERS_PER_MEMBER})

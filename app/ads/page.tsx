@@ -6,15 +6,23 @@ import { AdsClient, type AdRow, type MyBanner } from "./ads-client";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdsPage() {
+export default async function AdsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ browse?: string }>;
+}) {
   const community = await getActiveCommunity();
   if (!community) notFound();
+
+  const { browse } = await searchParams;
+  /** browse=1 → Services tile (public listing only, no manage-banner UI) */
+  const browseMode = browse === "1";
 
   const session = await getSessionPayload();
 
   const [ads, myAds, { tiers }] = await Promise.all([
     getAds(community.id, true),
-    session?.sub
+    !browseMode && session?.sub
       ? prisma.advertisement.findMany({
           // Premium only — "તમારા બેનર" is the paid banner list. Every business
           // also carries a free general ad, which is not a banner and must not
@@ -80,6 +88,7 @@ export default async function AdsPage() {
       tiers={tiers}
       cities={cities}
       categories={categories}
+      browseMode={browseMode}
     />
   );
 }

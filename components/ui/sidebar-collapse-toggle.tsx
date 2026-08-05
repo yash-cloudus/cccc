@@ -32,7 +32,7 @@ export function SidebarCollapseToggle({
         onClick={onToggle}
         aria-label={label}
         className={cn(
-          "absolute -right-4 top-[34px] z-30 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 shadow-[0_3px_10px_rgba(20,16,10,.2)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-110 active:scale-95",
+          "absolute -right-3 top-[34px] z-30 flex size-8 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border-2 shadow-[0_3px_10px_rgba(20,16,10,.2)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-110 active:scale-95",
           theme === "dark"
             ? "border-white/20 bg-[var(--platform-ink-deep)] text-white hover:border-white/55 hover:bg-[var(--platform)]"
             : "border-[var(--line-admin)] bg-white text-[var(--ink-mid)] hover:border-[var(--brand)] hover:bg-[var(--brand-tint)] hover:text-[var(--brand)]",

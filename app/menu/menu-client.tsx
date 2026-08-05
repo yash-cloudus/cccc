@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { HeaderLangToggle, LangToggle } from "@/components/ui/lang-toggle";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
 import { pickText } from "@/lib/format";
@@ -74,6 +75,17 @@ export function MenuClient({
   }, []);
 
   async function logout() {
+    const ok = await confirmDialog({
+      title: lang === "gu" ? "શું તમે ખરેખર લોગ આઉટ કરવા માંગો છો?" : "Log out now?",
+      description:
+        lang === "gu"
+          ? "આ સત્ર સમાપ્ત થઈ જશે અને તમે ફરીથી લોગિન કરવો પડશે."
+          : "This will end your session and return you to the login screen.",
+      confirmLabel: lang === "gu" ? "લોગ આઉટ" : "Log out",
+      cancelLabel: lang === "gu" ? "રદ કરો" : "Cancel",
+      tone: "primary",
+    });
+    if (!ok) return;
     try {
       await axios.post("/api/auth/logout");
     } catch {

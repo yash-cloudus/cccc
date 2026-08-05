@@ -90,7 +90,9 @@ export function AdminModal({
             heading
           )}
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        {children && (
+          <div className="min-h-0 overflow-y-auto px-5 py-4">{children}</div>
+        )}
         {footer && (
           <div className="shrink-0 flex flex-wrap gap-2.5 border-t border-[var(--line-soft)] bg-[var(--surface-admin)] px-5 py-3.5">
             {footer}
@@ -352,6 +354,7 @@ export function AdminFilePicker({
   label,
   preview = true,
   hint,
+  onError,
 }: {
   value: string;
   onChange: (url: string) => void;
@@ -361,6 +364,12 @@ export function AdminFilePicker({
   preview?: boolean;
   /** Short note (e.g. recommended size) shown beside the button, in the row's empty space. */
   hint?: string;
+  /**
+   * Optional error transformer. Called with the raw server error string when
+   * an upload fails. Return a custom message to display, or undefined/null to
+   * fall back to the original server error.
+   */
+  onError?: (rawError: string, status?: number) => string | null | undefined;
 }) {
   const { t } = useAdminT();
   const ref = useRef<HTMLInputElement>(null);
@@ -376,7 +385,9 @@ export function AdminFilePicker({
     const res = await api.upload<{ url: string }>("/api/upload", body);
     setBusy(false);
     if (!res.ok) {
-      setError(res.error);
+      const raw = res.error ?? "";
+      const mapped = onError?.(raw, res.status);
+      setError(mapped ?? raw);
       return;
     }
     onChange(res.data.url);
@@ -584,8 +595,8 @@ export function AdminSearchSelect<T extends { id: string }>({
   const needle = q.trim().toLowerCase();
   const filtered = needle
     ? items.filter((i) =>
-        `${renderLabel(i)} ${renderMeta?.(i) ?? ""}`.toLowerCase().includes(needle),
-      )
+      `${renderLabel(i)} ${renderMeta?.(i) ?? ""}`.toLowerCase().includes(needle),
+    )
     : items;
 
   return (

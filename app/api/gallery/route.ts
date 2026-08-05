@@ -11,7 +11,11 @@ export async function GET() {
 
     // Lazily deactivate albums whose end date has passed — no cron needed.
     await prisma.galleryAlbum.updateMany({
-      where: { communityId, isVisible: true, endDate: { lt: new Date() } },
+      where: {
+        communityId,
+        isVisible: true,
+        endDate: { lte: new Date(Date.now() - 86_400_000) },
+      },
       data: { isVisible: false },
     });
 

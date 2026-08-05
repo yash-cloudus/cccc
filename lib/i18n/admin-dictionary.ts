@@ -20,6 +20,10 @@ export const adminDict = {
   "common.save": { gu: "સાચવો", en: "Save" },
   "common.cancel": { gu: "રદ કરો", en: "Cancel" },
   "common.delete": { gu: "કાઢી નાખો", en: "Delete" },
+  "common.deleteConfirmDesc": {
+    gu: "શું તમે આ ડેટા ખરેખર કાઢી નાખવા માંગો છો? આ પ્રક્રિયા પાછી ખેંચી શકાશે નહીં.",
+    en: "Are you sure you want to delete this? This action cannot be undone.",
+  },
   "common.edit": { gu: "ફેરફાર", en: "Edit" },
   "common.add": { gu: "ઉમેરો", en: "Add" },
   "common.close": { gu: "બંધ કરો", en: "Close" },
@@ -28,6 +32,14 @@ export const adminDict = {
   "common.viewAll": { gu: "બધા જૂઓ", en: "View all" },
   "common.more": { gu: "વધુ", en: "More" },
   "common.logout": { gu: "લોગ આઉટ", en: "Logout" },
+  "common.logoutConfirmTitle": {
+    gu: "શું તમે ખરેખર લોગ આઉટ કરવા માંગો છો?",
+    en: "Log out now?",
+  },
+  "common.logoutConfirmDescription": {
+    gu: "આ સત્ર સમાપ્ત થઈ જશે અને તમે ફરીથી લોગિન કરવો પડશે.",
+    en: "This will end your session and return you to the login screen.",
+  },
   "common.language": { gu: "ભાષા", en: "Language" },
   "common.openSidebar": { gu: "સાઇડબાર ખોલો", en: "Open sidebar" },
   "common.closeSidebar": { gu: "સાઇડબાર બંધ કરો", en: "Close sidebar" },
@@ -695,7 +707,11 @@ export const adminDict = {
   "news.colPdf": { gu: "PDF", en: "PDF" },
   "news.colTitle": { gu: "શીર્ષક", en: "Title" },
   "news.confirmDeleteTitle": { gu: "આ પોસ્ટ કાઢી નાખવી છે?", en: "Delete this post?" },
-  "news.coverHint": { gu: "1200 × 600 px (2:1) ભલામણ કરેલ", en: "1200 × 600 px (2:1) recommended" },
+ "news.confirmDeleteDesc": {
+  "gu": "શું તમે ખાતરીપૂર્વક આ સમાચાર ડિલીટ કરવા માંગો છો? આ કાર્યવાહી પાછી ફેરવી શકાશે નહીં.",
+  "en": "Are you sure you want to delete this news? This action cannot be undone."
+},
+  "news.coverHint": { gu: "1200 × 600 px (2:1) ભલામણ, મહત્તમ 5 MB", en: "1200 × 600 px (2:1) recommended · max 5 MB" },
   "news.coverImage": { gu: "કવર ઇમેજ", en: "Cover image" },
   "news.defaultAuthor": { gu: "સમાજ એડમિન", en: "Community Admin" },
   "news.descEn": { gu: "વિગત (English)", en: "Description (English)" },
@@ -719,6 +735,7 @@ export const adminDict = {
   "news.notifyHint": { gu: "હમણાં સૂચના મોકલો", en: "Send notification now" },
   "news.notifySentHint": { gu: "સૂચના પહેલેથી મોકલાઈ ગઈ છે", en: "Notification already sent" },
   "news.pdfAttachment": { gu: "PDF જોડાણ", en: "PDF attachment" },
+  "news.pdfHint": { gu: "મહત્તમ 10 MB · PDF ફાઇલ", en: "Max 10 MB · PDF files only" },
   "news.pdfLabel": { gu: "PDF લેબલ", en: "PDF label" },
   "news.pdfLabelHint": { gu: "લિંકને બદલે આ દેખાશે", en: "Shown instead of the raw link" },
   "news.pin": { gu: "પિન કરો", en: "Pin" },
@@ -1006,6 +1023,18 @@ export const adminDict = {
 
   // ── shared admin widgets ──────────────────────────────────────────────
   "ui.chooseImage": { gu: "ફોટો પસંદ કરો", en: "Choose image" },
+  "ui.errFileTooLargeImage": {
+    gu: "ઇમેજ ફાઇલ ખૂબ મોટી છે — મહત્તમ {limit} MB ની મંજૂરી છે.",
+    en: "Image is too large — maximum {limit} MB allowed.",
+  },
+  "ui.errFileTooLargePdf": {
+    gu: "PDF ખૂબ મોટો છે — મહત્તમ {limit} MB ની મંજૂરી છે.",
+    en: "PDF is too large — maximum {limit} MB allowed.",
+  },
+  "ui.errFileType": {
+    gu: "અસમર્થિત ફાઇલ પ્રકાર — PNG, JPG, WEBP, SVG અથવા PDF વાપરો.",
+    en: "Unsupported file type — please use PNG, JPG, WEBP, SVG, or PDF.",
+  },
   "ui.confirm": { gu: "ખાતરી કરો", en: "Confirm" },
   "ui.filters": { gu: "ફિલ્ટર", en: "Filters" },
   "ui.generatePassword": { gu: "મજબૂત પાસવર્ડ બનાવો", en: "Generate strong password" },

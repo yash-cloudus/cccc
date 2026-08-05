@@ -366,7 +366,7 @@ export function SearchInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none"
+        className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] text-[var(--ink)] outline-none placeholder:text-[var(--faint)]"
       />
     </div>
   );

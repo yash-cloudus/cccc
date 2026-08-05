@@ -13,6 +13,7 @@ import {
   GraduationCap,
   Home,
   ImageIcon,
+  Megaphone,
 } from "lucide-react";
 import { AppScreen } from "@/components/layout/app-screen";
 import { AppHeader } from "@/components/layout/app-header";
@@ -51,6 +52,7 @@ const tileDefs = [
   { key: "about", href: "/about", labelKey: "about" as const, bg: "var(--violet-tint)", fg: "var(--violet)", Icon: Home },
   { key: "results", href: "/results", labelKey: "results" as const, bg: "var(--warn-tint)", fg: "#B08A1E", Icon: Award },
   { key: "nri", href: "/nri", labelKey: "nri" as const, bg: "var(--info-tint)", fg: "var(--info)", Icon: Globe },
+  { key: "ads", href: "/ads?browse=1", labelKey: "ads" as const, bg: "var(--brand-tint)", fg: "var(--brand)", Icon: Megaphone },
 ];
 
 /** Deterministic gradient palette — Advertisement carries no gradient of its own. */

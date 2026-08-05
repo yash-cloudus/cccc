@@ -155,18 +155,18 @@ export function FamilyDetailsFields({
         )}
 
         <AdminFormRow>
-          <AdminField label="Surname (English)" required>
-            <AdminInput
-              speech
-              value={values.surnameEn}
-              onChange={bindEn("surnameEn", "surnameGu", "surname")}
-            />
-          </AdminField>
           <AdminField label="Surname (ગુજરાતી)">
             <AdminInput
               gujarati
               value={values.surnameGu}
               onChange={bindGu("surnameGu", "surname:gu")}
+            />
+          </AdminField>
+          <AdminField label="Surname (English) *" required>
+            <AdminInput
+              speech
+              value={values.surnameEn}
+              onChange={bindEn("surnameEn", "surnameGu", "surname")}
             />
           </AdminField>
         </AdminFormRow>

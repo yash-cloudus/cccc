@@ -257,23 +257,23 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
         prev.map((r) =>
           r.id === draft.id
             ? {
-                ...r,
-                titleEn: draft.titleEn,
-                titleGu: draft.titleGu || null,
-                contentEn: draft.contentEn,
-                contentGu: draft.contentGu || null,
-                imageUrl: draft.imageUrl || null,
-                documentUrl: draft.documentUrl || null,
-                documentName: draft.documentUrl ? draft.documentName || null : null,
-                isPinned: draft.isPinned,
-                isPublished: draft.isPublished,
-                publishedAtISO: draft.publishDate
-                  ? new Date(draft.publishDate).toISOString()
-                  : r.publishedAtISO,
-                publishedAt: draft.publishDate
-                  ? formatDateDMY(draft.publishDate)
-                  : r.publishedAt,
-              }
+              ...r,
+              titleEn: draft.titleEn,
+              titleGu: draft.titleGu || null,
+              contentEn: draft.contentEn,
+              contentGu: draft.contentGu || null,
+              imageUrl: draft.imageUrl || null,
+              documentUrl: draft.documentUrl || null,
+              documentName: draft.documentUrl ? draft.documentName || null : null,
+              isPinned: draft.isPinned,
+              isPublished: draft.isPublished,
+              publishedAtISO: draft.publishDate
+                ? new Date(draft.publishDate).toISOString()
+                : r.publishedAtISO,
+              publishedAt: draft.publishDate
+                ? formatDateDMY(draft.publishDate)
+                : r.publishedAt,
+            }
             : r,
         ),
       );
@@ -322,6 +322,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
   async function remove(id: string) {
     const ok = await confirmDialog({
       title: t("news.confirmDeleteTitle"),
+      description: t("news.confirmDeleteDesc"),
       confirmLabel: t("common.delete"),
       cancelLabel: t("common.cancel"),
       tone: "danger",
@@ -580,17 +581,6 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
       >
         {draft && (
           <>
-            <AdminField label={t("news.titleGu")} required>
-              <AdminInput
-                gujarati
-                value={draft.titleGu}
-                onChange={(v) => {
-                  setDraft((d) => (d ? { ...d, titleGu: v } : d));
-                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
-                }}
-              />
-            </AdminField>
-
             <AdminField label={t("news.titleEn")}>
               <AdminInput
                 speech
@@ -598,6 +588,17 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                 onChange={(v) => {
                   setDraft((d) => (d ? { ...d, titleEn: v } : d));
                   fromEn(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title");
+                }}
+              />
+            </AdminField>
+
+            <AdminField label={t("news.titleGu")} required>
+              <AdminInput
+                gujarati
+                value={draft.titleGu}
+                onChange={(v) => {
+                  setDraft((d) => (d ? { ...d, titleGu: v } : d));
+                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
                 }}
               />
             </AdminField>
@@ -619,22 +620,7 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
               </AdminField>
             </AdminFormRow>
 
-            <AdminField label={t("news.descGu")} required>
-              <Textarea
-                value={draft.contentGu}
-                placeholder={t("news.descPlaceholder")}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setDraft((d) => (d ? { ...d, contentGu: v } : d));
-                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, titleGu: gu } : d)), "title:gu");
-                }}
-                className="min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
-              />
-            </AdminField>
-
             <AdminField label={t("news.descEn")}>
-              {/* Same classes as the shadcn <Textarea> base, with `px-2.5` split to
-                  `pl-2.5` so SpeechTextarea's `pr-11` mic gutter survives the merge. */}
               <SpeechTextarea
                 value={draft.contentEn}
                 placeholder={t("news.descPlaceholder")}
@@ -643,6 +629,19 @@ export function NewsClient({ initialRows }: { initialRows: NewsRow[] }) {
                   fromEn(v, (gu) => setDraft((d) => (d ? { ...d, contentGu: gu } : d)), "content");
                 }}
                 textareaClassName="flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent pl-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
+              />
+            </AdminField>
+
+            <AdminField label={t("news.descGu")} required>
+              <Textarea
+                value={draft.contentGu}
+                placeholder={t("news.descPlaceholder")}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setDraft((d) => (d ? { ...d, contentGu: v } : d));
+                  guInput(v, (gu) => setDraft((d) => (d ? { ...d, contentGu: gu } : d)), "content:gu");
+                }}
+                className="min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
               />
             </AdminField>
 
