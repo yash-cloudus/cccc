@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { COUNTRIES } from "@/lib/phone";
+import { useEffect, useMemo, useState } from "react";
+import { COUNTRIES, countryByName } from "@/lib/phone";
 import { SearchPicker } from "@/components/ui/search-picker";
 import { cn } from "@/lib/utils";
 
@@ -50,13 +50,53 @@ export function NriFields({
     () => COUNTRIES.map((c) => ({ value: c.name, label: c.name, iso: c.iso, note: c.dial })),
     [],
   );
-  const cityItems = useMemo(
-    () =>
-      cities
-        .filter((c) => c.country === value.nriCountry)
-        .map((c) => ({ value: c.city, label: c.city })),
-    [cities, value.nriCountry],
-  );
+  // Cities come from two places: the ones this community's admin curated, and
+  // the world list behind /api/public/nri-cities. The admin's come first —
+  // they are the places this samaj actually lives — and the world list fills in
+  // everywhere else without the browser downloading 47,000 names.
+  const [worldCities, setWorldCities] = useState<string[]>([]);
+  const [citySearch, setCitySearch] = useState("");
+  const [cityLoading, setCityLoading] = useState(false);
+  const countryIso = countryByName(value.nriCountry)?.iso ?? "";
+
+  useEffect(() => {
+    if (!value.isNri || !countryIso) {
+      setWorldCities([]);
+      return;
+    }
+    let cancelled = false;
+    setCityLoading(true);
+    // Debounced: one request per pause in typing, not per keystroke.
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/public/nri-cities?iso=${countryIso}&q=${encodeURIComponent(citySearch)}`,
+        );
+        const json = await res.json();
+        if (!cancelled) setWorldCities(json?.data?.cities ?? []);
+      } catch {
+        // Suggestions are a convenience — typing the city still works.
+        if (!cancelled) setWorldCities([]);
+      } finally {
+        if (!cancelled) setCityLoading(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [value.isNri, countryIso, citySearch]);
+
+  const cityItems = useMemo(() => {
+    const local = cities.filter((c) => c.country === value.nriCountry).map((c) => c.city);
+    const seen = new Set(local.map((c) => c.toLowerCase()));
+    return [
+      ...local.map((c) => ({ value: c, label: c })),
+      ...worldCities
+        .filter((c) => !seen.has(c.toLowerCase()))
+        .map((c) => ({ value: c, label: c })),
+    ];
+  }, [cities, value.nriCountry, worldCities]);
 
   const fieldClass = isAdmin
     ? "h-[42px] w-full rounded-[11px] border border-[var(--line-admin)] bg-white px-3 text-[13px] outline-none"
@@ -153,6 +193,8 @@ export function NriFields({
               }
               searchPlaceholder={t("શહેર શોધો કે લખો…", "Search or type a city…")}
               emptyText={t("શહેર લખો", "Type a city name")}
+              onQueryChange={setCitySearch}
+              loading={cityLoading}
               invalid={Boolean(error?.city)}
             />
             {error?.city && (

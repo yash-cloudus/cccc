@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Loader2, Search } from "lucide-react";
 import { flagUrl } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +39,8 @@ export function SearchPicker({
   variant = "member",
   className,
   invalid,
+  onQueryChange,
+  loading = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -54,6 +56,9 @@ export function SearchPicker({
   variant?: "member" | "admin";
   className?: string;
   invalid?: boolean;
+  /** Told about every keystroke, for lists that are fetched rather than held. */
+  onQueryChange?: (q: string) => void;
+  loading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -74,6 +79,13 @@ export function SearchPicker({
   // the same city appears twice, once as a suggestion and once as an invention.
   const showCustom =
     allowCustom && typed.length > 0 && !items.some((i) => i.label.toLowerCase() === typed.toLowerCase());
+
+  useEffect(() => {
+    onQueryChange?.(query);
+    // The callback is the caller's to keep stable; re-running on identity
+    // changes would fire a fetch on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   useEffect(() => {
     if (!open) return;
@@ -151,6 +163,7 @@ export function SearchPicker({
               placeholder={searchPlaceholder}
               className="min-w-0 flex-1 bg-transparent text-[13px] outline-none"
             />
+            {loading && <Loader2 className="size-3.5 flex-none animate-spin text-[var(--faint)]" />}
           </div>
           <div className="max-h-[240px] overflow-y-auto [scrollbar-width:thin]">
             {showCustom && (
