@@ -66,7 +66,7 @@ export function AdminFilterBar({
             value={search.value}
             onChange={search.onChange}
             placeholder={search.placeholder}
-            className="min-w-0 flex-1 md:w-[240px] md:flex-none"
+            className="min-w-0 flex-1 md:w-[280px] md:flex-none"
           />
         )}
         {filters.length > 0 && (

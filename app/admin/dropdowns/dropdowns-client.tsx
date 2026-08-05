@@ -380,7 +380,7 @@ export function DropdownsClient({
           ? tf("drop.confirmDeleteInUse", { n: row.inUse })
           : catId === "occupation" || cat.occupationChild
             ? t("drop.confirmDeleteNested")
-            : undefined,
+            : t("common.deleteConfirmDesc"),
       confirmLabel: t("common.delete"),
       tone: "danger",
     });

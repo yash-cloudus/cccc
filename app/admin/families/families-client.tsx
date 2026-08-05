@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Pencil, Plus, Trash2, UserPlus, ZapOff, Zap } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2, UserPlus } from "lucide-react";
 import {
   ActionBtn,
   AdminBtn,
@@ -198,6 +198,7 @@ export function FamiliesClient({
   relations = [],
   occupationTree,
   nriCities = [],
+  canDelete = false,
 }: {
   communityType?: "PARIVAR" | "GAM";
   lockedSurname?: SurnameOption | null;
@@ -209,6 +210,7 @@ export function FamiliesClient({
   occupationTree: OccupationTreeNode[];
   /** Admin-managed NRI cities, grouped by country name. */
   nriCities?: NriCityOption[];
+  canDelete?: boolean;
 }) {
   const router = useRouter();
   const { t, tf, lang } = useAdminT();
@@ -216,19 +218,9 @@ export function FamiliesClient({
   const [rows, setRows] = useState<FamilyRow[]>(initialRows);
   const [groups, setGroups] = useState<SurnameOption[]>(initialGroups);
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | FamilyStatus>("all");
   const [cityFilter, setCityFilter] = useState("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const statusFilterOptions = useMemo<{ value: "all" | FamilyStatus; label: string }[]>(
-    () => [
-      { value: "all", label: t("fam.allStatuses") },
-      { value: "APPROVED", label: t("fam.statusApproved") },
-      { value: "PENDING", label: t("fam.statusPending") },
-      { value: "REJECTED", label: t("fam.statusDeactivated") },
-    ],
-    [t],
-  );
 
   const relationOptions = useMemo(() => {
     return relations.map((r) =>
@@ -321,7 +313,6 @@ export function FamiliesClient({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return rows.filter((f) => {
-      if (statusFilter !== "all" && f.status !== statusFilter) return false;
       if (cityFilter !== "all" && f.city !== cityFilter) return false;
       if (
         q &&
@@ -332,7 +323,7 @@ export function FamiliesClient({
         return false;
       return true;
     });
-  }, [rows, query, statusFilter, cityFilter]);
+  }, [rows, query, cityFilter]);
 
   const matchedGroup = matchGroup(groups, form.surnameEn);
   function updateMemberDraft(index: number, patch: Partial<MemberDraft>) {
@@ -572,25 +563,6 @@ export function FamiliesClient({
    * mean "this family's numbers can no longer log in". Reactivating restores
    * APPROVED. Optimistic, rolled back if the API rejects it.
    */
-  async function toggleStatus(row: FamilyRow) {
-    const next: FamilyStatus = row.status === "APPROVED" ? "REJECTED" : "APPROVED";
-    const deactivating = next === "REJECTED";
-    const label = lang === "en" ? row.headEn || row.headGu : row.headGu || row.headEn;
-    const ok = await confirmDialog({
-      title: tf(deactivating ? "fam.deactivateTitle" : "fam.reactivateTitle", { name: label }),
-      confirmLabel: t(deactivating ? "fam.deactivate" : "fam.reactivate"),
-      tone: deactivating ? "danger" : "primary",
-    });
-    if (!ok) return;
-
-    setRows((prev) => prev.map((f) => (f.id === row.id ? { ...f, status: next } : f)));
-    const res = await api.patch(`/api/families/${row.id}`, { status: next });
-    if (!res.ok) {
-      setRows((prev) => prev.map((f) => (f.id === row.id ? { ...f, status: row.status } : f)));
-      setError(res.error);
-    }
-  }
-
   return (
     <>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
@@ -602,21 +574,14 @@ export function FamiliesClient({
             value={query}
             onChange={setQuery}
             placeholder={t("fam.searchPlaceholder")}
-            className="min-w-0 flex-1 md:w-[200px] md:flex-none"
+            className="min-w-0 flex-1 md:w-[260px] md:flex-none"
           />
           <FilterButton
             className="md:hidden"
-            active={Boolean(statusFilter !== "all" || cityFilter !== "all")}
+            active={Boolean(cityFilter !== "all")}
             onClick={() => setFiltersOpen(true)}
           />
           <div className="hidden items-center gap-2.5 md:flex">
-            <AdminSelect
-              value={statusFilter}
-              onChange={(v) => setStatusFilter(v as "all" | FamilyStatus)}
-              ariaLabel={t("fam.filterStatus")}
-              className="w-[150px] shrink-0"
-              options={statusFilterOptions}
-            />
             {cityFilterOptions.length > 0 && (
               <AdminSelect
                 value={cityFilter}
@@ -659,13 +624,6 @@ export function FamiliesClient({
             <SheetTitle>{t("fam.filters")}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col gap-3 px-4 pb-4">
-            <AdminSelect
-              value={statusFilter}
-              onChange={(v) => setStatusFilter(v as "all" | FamilyStatus)}
-              ariaLabel={t("fam.filterStatus")}
-              className="w-full"
-              options={statusFilterOptions}
-            />
             {cityFilterOptions.length > 0 && (
               <AdminSelect
                 value={cityFilter}
@@ -736,12 +694,6 @@ export function FamiliesClient({
           { key: "city", header: t("fam.city"), cell: (f) => f.city },
           { key: "members", header: t("fam.members"), cell: (f) => f.members },
           {
-            key: "status",
-            header: t("fam.status"),
-            badge: true,
-            cell: (f) => <FamilyStatusPill status={f.status} />,
-          },
-          {
             key: "actions",
             header: t("fam.actions"),
             actions: true,
@@ -763,18 +715,15 @@ export function FamiliesClient({
                   label={t("fam.addMember")}
                   onClick={() => router.push(`/admin/queue/${f.id}?from=families&add=1`)}
                 />
-                <ActionBtn
-                  icon={f.status === "APPROVED" ? ZapOff : Zap}
-                  label={f.status === "APPROVED" ? t("fam.deactivate") : t("fam.activate")}
-                  tone={f.status === "APPROVED" ? "warn" : "success"}
-                  onClick={() => toggleStatus(f)}
-                />
-                <ActionBtn
-                  icon={Trash2}
-                  label={t("common.delete")}
-                  tone="danger"
-                  onClick={() => deleteFamily(f)}
-                />
+                
+                {canDelete ? (
+                  <ActionBtn
+                    icon={Trash2}
+                    label={t("common.delete")}
+                    tone="danger"
+                    onClick={() => deleteFamily(f)}
+                  />
+                ) : null}
               </div>
             ),
           },
@@ -831,16 +780,6 @@ export function FamiliesClient({
           </div>
 
           <AdminFormRow>
-            <AdminField label={t("fam.nameGu")}>
-              <AdminInput
-                gujarati
-                value={form.headNameGu}
-                onChange={(v) => {
-                  setForm((prev) => ({ ...prev, headNameGu: v }));
-                  guInput(v, (gu) => setForm((prev) => ({ ...prev, headNameGu: gu })), "head:gu");
-                }}
-              />
-            </AdminField>
             <AdminField label={t("fam.nameEn")} required error={errsCreate.headNameEn}>
               <AdminInput
                 speech
@@ -848,6 +787,16 @@ export function FamiliesClient({
                 onChange={(v) => {
                   setForm((prev) => ({ ...prev, headNameEn: v }));
                   fromEn(v, (gu) => setForm((prev) => ({ ...prev, headNameGu: gu })), "head");
+                }}
+              />
+            </AdminField>
+            <AdminField label={t("fam.nameGu")}>
+              <AdminInput
+                gujarati
+                value={form.headNameGu}
+                onChange={(v) => {
+                  setForm((prev) => ({ ...prev, headNameGu: v }));
+                  guInput(v, (gu) => setForm((prev) => ({ ...prev, headNameGu: gu })), "head:gu");
                 }}
               />
             </AdminField>
@@ -989,16 +938,6 @@ export function FamiliesClient({
             </div>
 
             <AdminFormRow>
-              <AdminField label={t("fam.nameGu")}>
-                <AdminInput
-                  gujarati
-                  value={m.fullNameGu}
-                  onChange={(v) => {
-                    updateMemberDraft(i, { fullNameGu: v });
-                    guInput(v, (gu) => updateMemberDraft(i, { fullNameGu: gu }), `member-${i}:gu`);
-                  }}
-                />
-              </AdminField>
               <AdminField label={t("fam.nameEn")}>
                 <AdminInput
                   speech
@@ -1006,6 +945,16 @@ export function FamiliesClient({
                   onChange={(v) => {
                     updateMemberDraft(i, { fullNameEn: v });
                     fromEn(v, (gu) => updateMemberDraft(i, { fullNameGu: gu }), `member-${i}`);
+                  }}
+                />
+              </AdminField>
+              <AdminField label={t("fam.nameGu")}>
+                <AdminInput
+                  gujarati
+                  value={m.fullNameGu}
+                  onChange={(v) => {
+                    updateMemberDraft(i, { fullNameGu: v });
+                    guInput(v, (gu) => updateMemberDraft(i, { fullNameGu: gu }), `member-${i}:gu`);
                   }}
                 />
               </AdminField>

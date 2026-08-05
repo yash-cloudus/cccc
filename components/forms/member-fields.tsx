@@ -136,7 +136,7 @@ export function MemberFields({
         </AdminField>
       )}
       <AdminFormRow>
-        <AdminField label="Name (English)" required error={err("fullNameEn")}>
+        <AdminField label="Name (English) *" required error={err("fullNameEn")}>
           <AdminInput
             speech
             value={values.fullNameEn}

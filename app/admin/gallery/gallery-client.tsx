@@ -93,7 +93,7 @@ const emptyDraft: Draft = {
 /** Past-end-date albums are lazily flipped to `isVisible: false` server-side
  * on next read; this just lets the card show *why* it's hidden. */
 const isExpired = (endDateISO: string | null) =>
-  !!endDateISO && new Date(endDateISO).getTime() < Date.now();
+  !!endDateISO && new Date(new Date(endDateISO).getTime() + 86_400_000).getTime() <= Date.now();
 
 /** Colour the end date like the status badge as it approaches/passes: red once
  * expired, amber inside the last 10 days, otherwise the card's normal text colour. */

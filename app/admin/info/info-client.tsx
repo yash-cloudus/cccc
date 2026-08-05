@@ -627,6 +627,11 @@ export function InfoClient({
               label={t("info.uploadBanner")}
               preview={false}
               onChange={setBannerUrl}
+              onError={(raw, status) =>
+                raw.toLowerCase().includes("too large") || status === 413
+                  ? t("ui.errFileTooLargeImage").replace("{limit}", "5")
+                  : undefined
+              }
             />
           </span>
         </div>
@@ -647,6 +652,11 @@ export function InfoClient({
             label={t("info.uploadLogo")}
             preview={false}
             onChange={setLogoUrl}
+            onError={(raw, status) =>
+              raw.toLowerCase().includes("too large") || status === 413
+                ? t("ui.errFileTooLargeImage").replace("{limit}", "5")
+                : undefined
+            }
           />
           <AdminBtn onClick={saveBranding} disabled={brandBusy}>
             {brandBusy ? <Loader2 className="size-4 animate-spin" /> : t("info.saveBranding")}
@@ -702,6 +712,17 @@ export function InfoClient({
         </div>
 
         <div className="mt-4">
+          <AdminLabel>{t("info.descEn")}</AdminLabel>
+          <SpeechTextarea
+            value={basic.descEn}
+            onChange={(v) => {
+              setField("descEn", v);
+              fromEn(v, (gu) => setField("descGu", gu), "desc");
+            }}
+            textareaClassName="flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent pl-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm min-h-[90px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
+          />
+        </div>
+        <div className="mt-3">
           <AdminLabel>{t("info.descGu")}</AdminLabel>
           <GujaratiInput
             multiline
@@ -712,17 +733,6 @@ export function InfoClient({
               guInput(v, (gu) => setField("descGu", gu), "desc:gu");
             }}
             inputClassName="flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent pl-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm min-h-[90px] border-[var(--line-field)] bg-[var(--field)] text-[13px] font-[family-name:var(--font-manrope),var(--font-noto-sans-gujarati),sans-serif]"
-          />
-        </div>
-        <div className="mt-3">
-          <AdminLabel>{t("info.descEn")}</AdminLabel>
-          <SpeechTextarea
-            value={basic.descEn}
-            onChange={(v) => {
-              setField("descEn", v);
-              fromEn(v, (gu) => setField("descGu", gu), "desc");
-            }}
-            textareaClassName="flex field-sizing-content min-h-16 w-full rounded-lg border border-input bg-transparent pl-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm min-h-[90px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
           />
         </div>
 
@@ -1221,55 +1231,66 @@ export function InfoClient({
             </DialogTitle>
           </DialogHeader>
           {infoEdit && (
-            <div>
-              <AdminLabel>{t("info.titleEnLabel")}</AdminLabel>
-              <AdminInput
-                speech
-                value={infoEdit.titleEn}
-                onChange={(v) => {
-                  setInfoEdit((prev) => (prev ? { ...prev, titleEn: v } : prev));
-                  fromEn(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, titleGu: gu } : prev)), "title");
-                }}
-              />
-              <AdminLabel>{t("info.titleGuLabel")}</AdminLabel>
-              <AdminInput
-                gujarati
-                value={infoEdit.titleGu}
-                onChange={(v) => {
-                  setInfoEdit((prev) => (prev ? { ...prev, titleGu: v } : prev));
-                  guInput(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, titleGu: gu } : prev)), "title:gu");
-                }}
-              />
-              <AdminLabel>{t("info.bodyEnLabel")}</AdminLabel>
-              <Textarea
-                value={infoEdit.bodyEn}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setInfoEdit((prev) => (prev ? { ...prev, bodyEn: v } : prev));
-                  fromEn(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, bodyGu: gu } : prev)), "body");
-                }}
-                className="mb-2 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
-              />
-              <AdminLabel>{t("info.bodyGuLabel")}</AdminLabel>
-              <Textarea
-                value={infoEdit.bodyGu}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  setInfoEdit((prev) => (prev ? { ...prev, bodyGu: v } : prev));
-                  guInput(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, bodyGu: gu } : prev)), "body:gu");
-                }}
-                className="mb-2 min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
-              />
-              <AdminLabel>{t("info.visibility")}</AdminLabel>
-              <AdminSegmented
-                value={infoEdit.isActive ? "active" : "hidden"}
-                onChange={(v) => setInfoEdit((prev) => (prev ? { ...prev, isActive: v === "active" } : prev))}
-                options={[
-                  { value: "active", label: t("info.active") },
-                  { value: "hidden", label: t("info.hidden") },
-                ]}
-              />
-              {error && <p className="mt-2 text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
+            <div className="mt-1 flex flex-col gap-4">
+              <div>
+                <AdminLabel>{t("info.titleEnLabel")}</AdminLabel>
+                <AdminInput
+                  speech
+                  value={infoEdit.titleEn}
+                  onChange={(v) => {
+                    setInfoEdit((prev) => (prev ? { ...prev, titleEn: v } : prev));
+                    fromEn(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, titleGu: gu } : prev)), "title");
+                  }}
+                />
+              </div>
+              <div>
+                <AdminLabel>{t("info.titleGuLabel")}</AdminLabel>
+                <AdminInput
+                  gujarati
+                  value={infoEdit.titleGu}
+                  onChange={(v) => {
+                    setInfoEdit((prev) => (prev ? { ...prev, titleGu: v } : prev));
+                    guInput(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, titleGu: gu } : prev)), "title:gu");
+                  }}
+                />
+              </div>
+              <div>
+                <AdminLabel>{t("info.bodyEnLabel")}</AdminLabel>
+                <Textarea
+                  value={infoEdit.bodyEn}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setInfoEdit((prev) => (prev ? { ...prev, bodyEn: v } : prev));
+                    fromEn(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, bodyGu: gu } : prev)), "body");
+                  }}
+                  className="min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
+                />
+              </div>
+              <div>
+                <AdminLabel>{t("info.bodyGuLabel")}</AdminLabel>
+                <Textarea
+                  value={infoEdit.bodyGu}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setInfoEdit((prev) => (prev ? { ...prev, bodyGu: v } : prev));
+                    guInput(v, (gu) => setInfoEdit((prev) => (prev ? { ...prev, bodyGu: gu } : prev)), "body:gu");
+                  }}
+                  className="min-h-[80px] border-[var(--line-field)] bg-[var(--field)] text-[13px]"
+                />
+              </div>
+              <div>
+                <AdminLabel>{t("info.visibility")}</AdminLabel>
+                <AdminSegmented
+                  value={infoEdit.isActive ? "active" : "hidden"}
+                  onChange={(v) => setInfoEdit((prev) => (prev ? { ...prev, isActive: v === "active" } : prev))}
+                  options={[
+                    { value: "active", label: t("info.active") },
+                    { value: "hidden", label: t("info.hidden") },
+                  ]}
+                />
+              </div>
+              {error && <p className="text-[12.5px] font-semibold text-[var(--danger)]">{error}</p>}
+
               <div className="mt-3 flex gap-2.5">
                 <AdminBtn className="flex-1 justify-center" onClick={saveInfo}>
                   {busy ? <Loader2 className="size-4 animate-spin" /> : t("common.save")}
@@ -1370,6 +1391,16 @@ export function InfoClient({
             <p className="-mt-2 mb-3 text-[11px] text-[var(--faint)]">{t("info.orManual")}</p>
 
             <AdminFormRow>
+              <AdminField label={t("info.roleEn")}> 
+                <AdminInput
+                  value={memberDraft.roleEn}
+                  placeholder={t("info.rolePlaceholder")}
+                  onChange={(v) => {
+                    setMemberDraft((d) => (d ? { ...d, roleEn: v } : d));
+                    fromEn(v, (gu) => setMemberDraft((d) => (d ? { ...d, roleGu: gu } : d)), "member-role");
+                  }}
+                />
+              </AdminField>
               <AdminField label={t("info.roleGu")} required>
                 <AdminInput
                   gujarati
@@ -1381,19 +1412,19 @@ export function InfoClient({
                   }}
                 />
               </AdminField>
-              <AdminField label={t("info.roleEn")}>
-                <AdminInput
-                  value={memberDraft.roleEn}
-                  placeholder={t("info.rolePlaceholder")}
-                  onChange={(v) => {
-                    setMemberDraft((d) => (d ? { ...d, roleEn: v } : d));
-                    fromEn(v, (gu) => setMemberDraft((d) => (d ? { ...d, roleGu: gu } : d)), "member-role");
-                  }}
-                />
-              </AdminField>
             </AdminFormRow>
 
             <AdminFormRow>
+              <AdminField label={t("info.nameEn")}> 
+                <AdminInput
+                  speech
+                  value={memberDraft.nameOverride}
+                  onChange={(v) => {
+                    setMemberDraft((d) => (d ? { ...d, nameOverride: v } : d));
+                    fromEn(v, (gu) => setMemberDraft((d) => (d ? { ...d, nameGu: gu } : d)), "member-name");
+                  }}
+                />
+              </AdminField>
               <AdminField label={t("info.nameGu")} required>
                 <AdminInput
                   gujarati
@@ -1401,16 +1432,6 @@ export function InfoClient({
                   onChange={(v) => {
                     setMemberDraft((d) => (d ? { ...d, nameGu: v } : d));
                     guInput(v, (gu) => setMemberDraft((d) => (d ? { ...d, nameGu: gu } : d)), "member-name:gu");
-                  }}
-                />
-              </AdminField>
-              <AdminField label={t("info.nameEn")}>
-                <AdminInput
-                  speech
-                  value={memberDraft.nameOverride}
-                  onChange={(v) => {
-                    setMemberDraft((d) => (d ? { ...d, nameOverride: v } : d));
-                    fromEn(v, (gu) => setMemberDraft((d) => (d ? { ...d, nameGu: gu } : d)), "member-name");
                   }}
                 />
               </AdminField>

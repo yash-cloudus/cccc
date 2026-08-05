@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState, useEffect } from "react";
 import {
   Users,
   User,
@@ -16,48 +17,66 @@ import {
   UserPlus,
   ClipboardList,
   UserPen,
+  ChevronRight,
+  ArrowUpRight,
+  TrendingUp,
+  CheckCircle,
+  AlertCircle,
+  Eye,
+  Edit,
+  Activity,
 } from "lucide-react";
 import type { getAdminDashboard } from "@/lib/tenant-data";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 
 type Dashboard = Awaited<ReturnType<typeof getAdminDashboard>>;
 
-// ─── sub-components (inline, no extra file) ──────────────────────────────────
+// ─── Stats Card ──────────────────────────────────────────────────────────────
 
-function StatChip({
+function StatCard({
   value,
   label,
   color,
   icon,
+  trend,
+  trendLabel,
 }: {
   value: number;
   label: string;
   color: string;
   icon: React.ReactNode;
+  trend?: number;
+  trendLabel?: string;
 }) {
   return (
-    <div
-      className="flex flex-1 min-w-[140px] items-center gap-3 rounded-2xl bg-white px-4 py-3 shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-[#EAE4D8]/60 transition-transform hover:-translate-y-[2px]"
-    >
-      <div
-        className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white"
-        style={{ color: color, border: `1.5px solid ${color}` }}
-      >
-        {icon}
-      </div>
-      <div className="flex flex-col items-start">
-        <span className="text-[24px] font-extrabold leading-none text-[var(--ink)]">
-          {value}
-        </span>
-        <span className="text-[12px] font-bold text-[#5A6A60] mt-1">
-          {label}
-        </span>
+    <div className="bg-white rounded-2xl border border-[#EAE4D8]/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-3 sm:p-4 transition-all hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)] hover:-translate-y-0.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[11px] sm:text-xs font-medium text-[#5A6A60]">{label}</p>
+          <p className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-[var(--ink)]">{value}</p>
+          {trend !== undefined && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className={`text-[10px] font-semibold ${trend >= 0 ? 'text-[#2E7D32]' : 'text-red-500'}`}>
+                {trend >= 0 ? '↑' : '↓'} {Math.abs(trend)}%
+              </span>
+              <span className="text-[10px] text-[#9A9288]">{trendLabel || 'vs last month'}</span>
+            </div>
+          )}
+        </div>
+        <div
+          className="flex h-10 w-10 items-center justify-center rounded-xl"
+          style={{ backgroundColor: `${color}15`, color: color }}
+        >
+          {icon}
+        </div>
       </div>
     </div>
   );
 }
 
-function QuickCard({
+// ─── Quick Action ────────────────────────────────────────────────────────────
+
+function QuickAction({
   href,
   icon,
   label,
@@ -75,26 +94,30 @@ function QuickCard({
   return (
     <Link
       href={href}
-      className="group flex flex-1 min-w-[130px] items-center gap-3 rounded-2xl border border-[#EAE4D8] bg-white px-4 py-3.5 transition-all hover:shadow-md hover:border-[#D4C9B8] hover:-translate-y-[1px]"
+      className="group bg-white rounded-2xl border border-[#EAE4D8]/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-3 sm:p-4 transition-all hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 hover:border-[#D4C9B8]"
     >
-      <span
-        className="flex size-10 shrink-0 items-center justify-center rounded-xl text-lg"
-        style={{ background: bg, color: iconColor }}
-      >
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <div className="text-[13px] font-extrabold text-[var(--ink)] leading-snug">{label}</div>
-        <div className="text-[11px] text-[#9A9288] leading-snug mt-0.5">{sublabel}</div>
+      <div className="flex items-start gap-3">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all group-hover:scale-105"
+          style={{ background: bg, color: iconColor }}
+        >
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-bold text-[var(--ink)] group-hover:text-[var(--brand)] transition-colors">
+            {label}
+          </h3>
+          <p className="text-[10px] text-[#9A9288] mt-0.5">{sublabel}</p>
+        </div>
+        <ChevronRight className="h-4 w-4 text-[#C0B8AD] group-hover:text-[var(--brand)] group-hover:translate-x-0.5 transition-all" />
       </div>
-      <span className="ml-auto shrink-0 text-[#C0B8AD] transition-transform group-hover:translate-x-0.5">
-        ›
-      </span>
     </Link>
   );
 }
 
-function SummaryCard({
+// ─── Summary Widget ──────────────────────────────────────────────────────────
+
+function SummaryWidget({
   value,
   label,
   icon,
@@ -112,39 +135,86 @@ function SummaryCard({
   viewLabel: string;
 }) {
   return (
-    <div
-      className="flex flex-col gap-2 rounded-2xl p-4 items-start text-left"
-      style={{ background: iconBg }}
+    <Link
+      href={href}
+      className="group rounded-2xl border border-transparent p-3 sm:p-4 transition-all hover:shadow-[0_8px_25px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 hover:border-[#D4C9B8]"
+      style={{ background: iconBg, border: '1px solid transparent' }}
     >
-      <span
-        className="flex size-8 items-center justify-center rounded-full bg-white shadow-sm"
-        style={{ color: iconColor }}
-      >
-        <span className="[&>svg]:size-4">{icon}</span>
-      </span>
-      <div className="mt-1">
-        <div className="text-[28px] font-extrabold leading-none" style={{ color: iconColor }}>{value}</div>
-        <div className="mt-1 text-[12px] font-bold text-[var(--ink-mid)]">{label}</div>
+      <div className="flex items-center gap-3">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm transition-all group-hover:scale-105"
+          style={{ color: iconColor }}
+        >
+          {icon}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-2xl font-bold leading-none" style={{ color: iconColor }}>
+            {value}
+          </p>
+          <p className="text-[11px] font-medium text-[var(--ink-mid)] mt-1 truncate">{label}</p>
+        </div>
+        <div className="ml-auto inline-flex items-center gap-0.5 text-[11px] font-bold text-[var(--brand)] whitespace-nowrap">
+          {viewLabel} <ArrowUpRight className="h-3 w-3" />
+        </div>
       </div>
-      <Link
-        href={href}
-        className="mt-2 flex items-center gap-1 text-[11.5px] font-bold hover:underline"
-        style={{ color: iconColor }}
-      >
-        {viewLabel} <span>→</span>
-      </Link>
-    </div>
+    </Link>
   );
 }
 
-function PendingRow({
+// ─── Recent Registration Item ──────────────────────────────────────────────
+
+function RecentRegistrationItem({
+  family,
+  lang,
+  fmtDate,
+  t,
+}: {
+  family: any;
+  lang: string;
+  fmtDate: (iso: string) => string;
+  t: (key: AdminKey) => string;
+}) {
+  const headName = lang === "en" ? family.headNameEn : family.headNameGu;
+  
+  return (
+    <Link
+      href={`/admin/families/${family.id}`}
+      className="flex items-center gap-3 py-2.5 border-b border-[#F0EAE0] last:border-0 hover:bg-[#FAFAF8] rounded-lg px-2 -mx-2 transition-all group"
+    >
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E8F5E9] text-[#2E7D32]">
+        <Users className="h-3.5 w-3.5" strokeWidth={2.5} />
+      </div>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <p className="text-sm font-bold text-[var(--ink)] truncate">
+          {headName} {family.surname || ""}
+        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[10px] text-[#9A9288] whitespace-nowrap">{fmtDate(family.submittedAt)}</span>
+          <span className="w-0.5 h-0.5 rounded-full bg-[#EAE4D8] shrink-0"></span>
+          <span className="text-[10px] text-[#9A9288] whitespace-nowrap">{family.memberCount} members</span>
+        </div>
+      </div>
+      <div className="flex items-center gap-0.5 shrink-0">
+        <button className="rounded-lg p-1 hover:bg-[#EAE4D8] transition-colors">
+          <Eye className="h-3 w-3 text-[#5A6A60]" />
+        </button>
+        <button className="p-1 rounded-lg hover:bg-[#EAE4D8] transition-colors">
+          <Edit className="h-3 w-3 text-[#5A6A60]" />
+        </button>
+      </div>
+    </Link>
+  );
+}
+
+// ─── Pending Task Item ──────────────────────────────────────────────────────
+
+function PendingTaskItem({
   icon,
   label,
   count,
   href,
   iconBg,
   iconColor,
-  viewLabel,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -152,102 +222,72 @@ function PendingRow({
   href: string;
   iconBg: string;
   iconColor: string;
-  viewLabel: string;
 }) {
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-[#F0EAE0] last:border-0">
-      <span
-        className="flex size-8 shrink-0 items-center justify-center rounded-lg"
+    <Link
+      href={href}
+      className="flex items-center gap-3 py-2.5 border-b border-[#F0EAE0] last:border-0 hover:bg-[#FAFAF8] rounded-lg px-2 -mx-2 transition-all group"
+    >
+      <div
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all group-hover:scale-105"
         style={{ background: iconBg, color: iconColor }}
       >
         {icon}
-      </span>
-      <span className="flex-1 text-[13px] font-semibold text-[var(--ink)]">{label}</span>
-      <span className="text-[13px] font-bold" style={{ color: iconColor }}>{count}</span>
-      <Link
-        href={href}
-        className="rounded-full border border-[#EAE4D8] bg-[#F7F4EF] px-3 py-1 text-[10.5px] font-bold text-[#6A6460] transition-colors hover:bg-[#EAE4D8]"
+      </div>
+      <span className="flex-1 text-sm font-semibold text-[var(--ink)] truncate">{label}</span>
+      <span className="shrink-0 text-sm font-bold" style={{ color: iconColor }}>{count}</span>
+      <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#C0B8AD]" />
+    </Link>
+  );
+}
+
+// ─── Activity Item ──────────────────────────────────────────────────────────
+
+function ActivityItem({
+  type,
+  labelKey,
+  name,
+  familySuffix,
+  relativeTime,
+  t,
+}: {
+  type: string;
+  labelKey: AdminKey;
+  name: string;
+  familySuffix?: boolean;
+  relativeTime: string;
+  t: (key: AdminKey) => string;
+}) {
+  const map: Record<string, { bg: string; color: string; icon: React.ReactNode }> = {
+    family: { bg: "#E8F5E9", color: "#2E7D32", icon: <UserPlus className="h-3.5 w-3.5" strokeWidth={2.5} /> },
+    news: { bg: "#E3F2FD", color: "#1565C0", icon: <Newspaper className="h-3.5 w-3.5" strokeWidth={2.5} /> },
+    ad: { bg: "#FFF3E0", color: "#E65100", icon: <Megaphone className="h-3.5 w-3.5" strokeWidth={2.5} /> },
+    result: { bg: "#F3E5F5", color: "#6A1B9A", icon: <Trophy className="h-3.5 w-3.5" strokeWidth={2.5} /> },
+  };
+  const style = map[type] ?? { bg: "#F5F5F5", color: "#616161", icon: <ShieldCheck className="h-3.5 w-3.5" strokeWidth={2.5} /> };
+
+  return (
+    <div className="flex items-start gap-3 py-2.5 border-b border-[#F0EAE0] last:border-0 hover:bg-[#FAFAF8] rounded-lg px-2 -mx-2 transition-all group">
+      <div
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all group-hover:scale-105"
+        style={{ background: style.bg, color: style.color }}
       >
-        {viewLabel}
-      </Link>
+        {style.icon}
+      </div>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <p className="text-sm font-bold text-[var(--ink)] truncate">{t(labelKey)}</p>
+        <p className="text-[10px] font-medium text-[#9A9288] mt-0.5 truncate">
+          {name}{familySuffix ? ` ${t("dash.familySuffix")}` : ""}
+        </p>
+      </div>
+      <span className="text-[10px] font-semibold text-[#B0A898] bg-[#F7F4EF] px-2 py-0.5 rounded-full whitespace-nowrap shrink-0">
+        {relativeTime}
+      </span>
     </div>
   );
 }
 
-// ─── Village SVG illustration ─────────────────────────────────────────────────
-
-function VillageIllustration() {
-  return (
-    <svg
-      viewBox="0 0 200 160"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      className="h-[140px] w-auto drop-shadow-sm"
-      aria-hidden
-    >
-      {/* Sky */}
-      <rect width="200" height="160" rx="16" fill="transparent" />
-      {/* Sun */}
-      <circle cx="160" cy="35" r="18" fill="#FDD768" opacity="0.9" />
-      <circle cx="160" cy="35" r="13" fill="#FEC94A" />
-      {/* Birds */}
-      <path d="M130 22 Q133 19 136 22" stroke="#6AAF80" strokeWidth="1.2" strokeLinecap="round" fill="none" />
-      <path d="M140 17 Q143 14 146 17" stroke="#6AAF80" strokeWidth="1.2" strokeLinecap="round" fill="none" />
-      {/* Big Tree left */}
-      <rect x="16" y="90" width="8" height="30" rx="3" fill="#8B6914" />
-      <ellipse cx="20" cy="80" rx="20" ry="22" fill="#4CAF72" />
-      <ellipse cx="20" cy="74" rx="14" ry="16" fill="#5DC882" />
-      {/* Ground */}
-      <rect x="0" y="120" width="200" height="40" rx="8" fill="#C8E6D0" />
-      {/* Main house */}
-      <rect x="65" y="72" width="70" height="52" rx="4" fill="#FFF8F0" />
-      {/* Roof */}
-      <polygon points="58,75 100,40 142,75" fill="#E07030" />
-      <polygon points="62,75 100,44 138,75" fill="#F08040" />
-      {/* Door */}
-      <rect x="87" y="99" width="26" height="25" rx="4" fill="#C87830" />
-      <circle cx="111" cy="112" r="2" fill="#FFF8F0" />
-      {/* Windows */}
-      <rect x="72" y="83" width="18" height="16" rx="3" fill="#A8D8F0" />
-      <line x1="81" y1="83" x2="81" y2="99" stroke="#8AB8D0" strokeWidth="1" />
-      <line x1="72" y1="91" x2="90" y2="91" stroke="#8AB8D0" strokeWidth="1" />
-      <rect x="110" y="83" width="18" height="16" rx="3" fill="#A8D8F0" />
-      <line x1="119" y1="83" x2="119" y2="99" stroke="#8AB8D0" strokeWidth="1" />
-      <line x1="110" y1="91" x2="128" y2="91" stroke="#8AB8D0" strokeWidth="1" />
-      {/* Small house right */}
-      <rect x="148" y="90" width="40" height="34" rx="3" fill="#FFF0E0" />
-      <polygon points="144,92 168,70 192,92" fill="#D06828" />
-      <rect x="158" y="108" width="14" height="16" rx="2" fill="#B06020" />
-      {/* Small tree right */}
-      <rect x="184" y="100" width="5" height="22" rx="2" fill="#8B6914" />
-      <ellipse cx="187" cy="94" rx="11" ry="13" fill="#4CAF72" />
-      {/* Path */}
-      <ellipse cx="100" cy="128" rx="22" ry="6" fill="#D4C090" opacity="0.6" />
-    </svg>
-  );
-}
-
-// ─── Activity type icon ───────────────────────────────────────────────────────
-
-function ActivityIcon({ type }: { type: string }) {
-  const map: Record<string, { bg: string; color: string; icon: React.ReactNode }> = {
-    family: { bg: "#E8F5E9", color: "#2E7D32", icon: <UserPlus className="size-4" strokeWidth={2.5} /> },
-    news:   { bg: "#E3F2FD", color: "#1565C0", icon: <Newspaper className="size-4" strokeWidth={2.5} /> },
-    ad:     { bg: "#FFF3E0", color: "#E65100", icon: <Megaphone className="size-4" strokeWidth={2.5} /> },
-    result: { bg: "#F3E5F5", color: "#6A1B9A", icon: <Trophy className="size-4" strokeWidth={2.5} /> },
-  };
-  const style = map[type] ?? { bg: "#F5F5F5", color: "#616161", icon: <ShieldCheck className="size-4" strokeWidth={2.5} /> };
-  return (
-    <span
-      className="flex size-8 shrink-0 items-center justify-center rounded-lg"
-      style={{ background: style.bg, color: style.color }}
-    >
-      {style.icon}
-    </span>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Main Dashboard ──────────────────────────────────────────────────────────
 
 export function AdminDashboardClient({
   stats,
@@ -263,15 +303,14 @@ export function AdminDashboardClient({
   communityNameEn: string;
 }) {
   const { t, tf, lang, locale } = useAdminT();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const communityName =
     (lang === "en" ? communityNameEn : communityNameGu) || communityNameGu || communityNameEn;
-
-  const today = new Date().toLocaleDateString(locale, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
 
   const fmtDate = (iso: string) =>
     new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" });
@@ -288,300 +327,257 @@ export function AdminDashboardClient({
     return new Date(iso).toLocaleDateString(locale, { day: "numeric", month: "short" });
   };
 
+  if (!mounted) return null;
+
   return (
-    <div className="space-y-6 pb-6">
+    <div className="min-h-screen w-full overflow-hidden">
+      <div className="w-full max-w-full space-y-3 px-2.5 py-2.5 sm:px-4 sm:py-3 lg:px-6">
 
-      {/* ── Welcome hero ──────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#E8F5EE] via-[#F4F9F6] to-[#EAF4FF] border border-[#D5EAE0] p-6 lg:p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-
-          <div className="flex flex-1 flex-col md:flex-row md:items-center md:gap-8 lg:gap-12">
-            {/* Left: greeting + meta */}
-            <div className="flex-1">
-              <h1 className="mb-2 text-[28px] font-extrabold text-[var(--ink)]">
-                {t("dash.greeting")}
-              </h1>
-              <p className="text-[14px] text-[#5A6A60] font-medium mb-6">
-                {t("dash.subtitle")}
-              </p>
-              <div className="flex flex-wrap items-center gap-3 text-[13px] font-semibold text-[#5A6A60]">
-                <span className="flex items-center gap-2 rounded-full bg-white border border-[#EAE4D8] px-4 py-2 shadow-sm">
-                  <Calendar className="size-4" /> {today}
-                </span>
-                <span className="flex items-center gap-2 rounded-full bg-white border border-[#EAE4D8] px-4 py-2 shadow-sm">
-                  <Users className="size-4" /> {communityName}
-                </span>
-              </div>
-            </div>
-
-            {/* Center: illustration */}
-            <div className="flex justify-center md:justify-end">
-              <VillageIllustration />
-            </div>
-          </div>
-
-          {/* Right: top stats - now in a grid/flex row! */}
-          <div className="flex flex-wrap justify-center gap-4 md:flex-nowrap md:justify-start lg:justify-end">
-            <StatChip
-              value={stats.families}
-              label={t("dash.statFamilies")}
-              color="#2E7D32"
-              icon={<Users className="size-5" strokeWidth={2.5} />}
-            />
-            <StatChip
-              value={stats.members}
-              label={t("dash.statMembers")}
-              color="#1565C0"
-              icon={<User className="size-5" strokeWidth={2.5} />}
-            />
-            <StatChip
-              value={stats.pending}
-              label={t("dash.statPending")}
-              color="#E65100"
-              icon={<ClipboardList className="size-5" strokeWidth={2.5} />}
-            />
-            <StatChip
-              value={stats.pendingUpdates}
-              label={t("dash.statPendingUpdates")}
-              color="#6A1B9A"
-              icon={<UserPen className="size-5" strokeWidth={2.5} />}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Quick actions ─────────────────────────────────────────────────── */}
-      <div>
-        <h2 className="mb-4 text-[16px] font-extrabold text-[var(--ink)]">{t("dash.quickActions")}</h2>
-        <div className="flex flex-wrap gap-4">
-          <QuickCard
-            href="/admin/families"
-            icon={<Users className="size-5" strokeWidth={2.5} />}
-            label={t("dash.qaFamily")}
-            sublabel={t("dash.qaFamilySub")}
-            bg="#E8F5E9"
-            iconColor="#2E7D32"
+        {/* ─── Stats Grid ──────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
+          <StatCard
+            value={stats.families}
+            label={t("dash.statFamilies")}
+            color="#2E7D32"
+            icon={<Users className="h-4 w-4" strokeWidth={2.5} />}
+            trend={5}
           />
-          <QuickCard
-            href="/admin/news"
-            icon={<Newspaper className="size-5" strokeWidth={2.5} />}
-            label={t("dash.qaNews")}
-            sublabel={t("dash.qaNewsSub")}
-            bg="#E3F2FD"
-            iconColor="#1565C0"
+          <StatCard
+            value={stats.members}
+            label={t("dash.statMembers")}
+            color="#1565C0"
+            icon={<User className="h-4 w-4" strokeWidth={2.5} />}
+            trend={8}
           />
-          <QuickCard
-            href="/admin/ads"
-            icon={<Megaphone className="size-5" strokeWidth={2.5} />}
-            label={t("dash.qaAd")}
-            sublabel={t("dash.qaAdSub")}
-            bg="#FFF3E0"
-            iconColor="#E65100"
-          />
-          <QuickCard
-            href="/admin/results"
-            icon={<Trophy className="size-5" strokeWidth={2.5} />}
-            label={t("dash.qaResults")}
-            sublabel={t("dash.qaResultsSub")}
-            bg="#F3E5F5"
-            iconColor="#6A1B9A"
-          />
-          <QuickCard
-            href="/admin/gallery"
-            icon={<ImageIcon className="size-5" strokeWidth={2.5} />}
-            label={t("dash.qaGallery")}
-            sublabel={t("dash.qaGallerySub")}
-            bg="#E0F7FA"
-            iconColor="#00695C"
-          />
-        </div>
-      </div>
-
-      {/* ── Summary stats ─────────────────────────────────────────────────── */}
-      <div>
-        <h2 className="mb-4 text-[16px] font-extrabold text-[var(--ink)]">{t("dash.summary")}</h2>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          <SummaryCard
-            value={stats.activeAds}
-            label={t("dash.sumActiveAds")}
-            icon={<Megaphone className="size-5" strokeWidth={2.5} />}
-            iconBg="#E8F5E9"
-            iconColor="#2E7D32"
-            href="/admin/ads"
-            viewLabel={t("common.view")}
-          />
-          <SummaryCard
-            value={stats.pendingAds}
-            label={t("dash.sumPendingAds")}
-            icon={<Clock className="size-5" strokeWidth={2.5} />}
-            iconBg="#FFF3E0"
-            iconColor="#E65100"
-            href="/admin/ads"
-            viewLabel={t("common.view")}
-          />
-          <SummaryCard
-            value={stats.rejectedAds}
-            label={t("dash.sumExpiredAds")}
-            icon={<Ban className="size-5" strokeWidth={2.5} />}
-            iconBg="#FFEBEE"
-            iconColor="#C62828"
-            href="/admin/ads"
-            viewLabel={t("common.view")}
-          />
-          <SummaryCard
-            value={0}
-            label={t("dash.sumEvents")}
-            icon={<Calendar className="size-5" strokeWidth={2.5} />}
-            iconBg="#F3E5F5"
-            iconColor="#6A1B9A"
-            href="/admin/gallery"
-            viewLabel={t("common.view")}
-          />
-          <SummaryCard
-            value={stats.newsPosts}
-            label={t("dash.sumNews")}
-            icon={<Newspaper className="size-5" strokeWidth={2.5} />}
-            iconBg="#E3F2FD"
-            iconColor="#1565C0"
-            href="/admin/news"
-            viewLabel={t("common.view")}
-          />
-          <SummaryCard
-            value={stats.albums}
-            label={t("dash.sumAlbums")}
-            icon={<ImageIcon className="size-5" strokeWidth={2.5} />}
-            iconBg="#E0F7FA"
-            iconColor="#00695C"
-            href="/admin/gallery"
-            viewLabel={t("common.view")}
-          />
-        </div>
-      </div>
-
-      {/* ── Bottom 3-col ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-
-        {/* Recent registrations */}
-        <div className="rounded-2xl border border-[#EAE4D8] bg-white p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-[14.5px] font-extrabold text-[var(--ink)]">
-              {t("dash.recentReg")}
-            </h3>
-            <Link
-              href="/admin/families"
-              className="text-[12px] font-bold text-[var(--brand)] hover:underline"
-            >
-              {t("common.viewAll")}
-            </Link>
-          </div>
-
-          {recentFamilies.length === 0 ? (
-            <p className="py-6 text-center text-[12.5px] font-medium text-[#9A9288]">
-              {t("dash.noReg")}
-            </p>
-          ) : (
-            <div className="space-y-0">
-              {recentFamilies.map((f) => {
-                const headName = lang === "en" ? f.headNameEn : f.headNameGu;
-                return (
-                  <Link
-                    key={f.id}
-                    href={`/admin/families`}
-                    className="group flex items-center gap-3 py-3 border-b border-[#F0EAE0] last:border-0 hover:bg-[#FAFAF8] rounded-xl px-2 -mx-2 transition-colors"
-                  >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#E8F5E9] text-[#2E7D32]">
-                      <Users className="size-4" strokeWidth={2.5} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-bold text-[var(--ink)] group-hover:text-[var(--brand)] transition-colors">
-                        {headName} {f.surname ? `${f.surname} ` : ""}{t("dash.familySuffix")}
-                      </div>
-                      <div className="text-[11.5px] font-medium text-[#9A9288] mt-0.5">{fmtDate(f.submittedAt)}</div>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-[#FAFAF8] border border-[#EAE4D8] px-2.5 py-0.5 text-[11px] font-bold text-[var(--ink-mid)] group-hover:bg-white">
-                      {f.memberCount} {t("dash.memberCount")}
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Pending work */}
-        <div className="rounded-2xl border border-[#EAE4D8] bg-white p-5">
-          <h3 className="mb-4 text-[14.5px] font-extrabold text-[var(--ink)]">{t("dash.pendingWork")}</h3>
-          <PendingRow
-            icon={<Clock className="size-4" strokeWidth={2.5} />}
+          <StatCard
+            value={stats.pending}
             label={t("dash.statPending")}
-            count={stats.pending}
-            href="/admin/queue"
-            iconBg="#FFF3E0"
-            iconColor="#E65100"
-            viewLabel={t("common.view")}
+            color="#E65100"
+            icon={<ClipboardList className="h-4 w-4" strokeWidth={2.5} />}
           />
-          <PendingRow
-            icon={<FileText className="size-4" strokeWidth={2.5} />}
+          <StatCard
+            value={stats.pendingUpdates}
             label={t("dash.statPendingUpdates")}
-            count={stats.pendingUpdates}
-            href="/admin/queue"
-            iconBg="#F3E5F5"
-            iconColor="#6A1B9A"
-            viewLabel={t("common.view")}
-          />
-          <PendingRow
-            icon={<Megaphone className="size-4" strokeWidth={2.5} />}
-            label={t("dash.draftAds")}
-            count={stats.draftAds}
-            href="/admin/ads"
-            iconBg="#FFF3E0"
-            iconColor="#E65100"
-            viewLabel={t("common.view")}
-          />
-          <PendingRow
-            icon={<Ban className="size-4" strokeWidth={2.5} />}
-            label={t("dash.sumExpiredAds")}
-            count={stats.rejectedAds}
-            href="/admin/ads"
-            iconBg="#FFEBEE"
-            iconColor="#C62828"
-            viewLabel={t("common.view")}
+            color="#6A1B9A"
+            icon={<UserPen className="h-4 w-4" strokeWidth={2.5} />}
           />
         </div>
 
-        {/* Recent activity */}
-        <div className="rounded-2xl border border-[#EAE4D8] bg-white p-5">
-          <h3 className="mb-4 text-[14.5px] font-extrabold text-[var(--ink)]">
-            {t("dash.recentActivity")}
-          </h3>
-          {recentActivity.length === 0 ? (
-            <p className="py-6 text-center text-[12.5px] font-medium text-[#9A9288]">
-              {t("dash.noActivity")}
-            </p>
-          ) : (
-            <div className="space-y-0">
-              {recentActivity.map((a, i) => {
-                const name = (lang === "en" ? a.sublabelEn : a.sublabelGu) || t("dash.actNewsFallback");
-                return (
-                  <div
-                    key={i}
-                    className="flex items-start gap-3 py-3 border-b border-[#F0EAE0] last:border-0"
-                  >
-                    <ActivityIcon type={a.type} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-bold text-[var(--ink)]">{t(a.labelKey as AdminKey)}</div>
-                      <div className="truncate text-[11.5px] font-medium text-[#9A9288] mt-0.5">
-                        {name}{a.familySuffix ? ` ${t("dash.familySuffix")}` : ""}
-                      </div>
-                    </div>
-                    <span className="shrink-0 text-[11px] font-semibold text-[#B0A898] whitespace-nowrap mt-0.5">
-                      {relativeTime(a.at)}
-                    </span>
-                  </div>
-                );
-              })}
+        {/* ─── Quick Actions ────────────────────────────────────────────── */}
+        <div>
+          <h2 className="text-base font-bold text-[var(--ink)] mb-2.5">
+            {t("dash.quickActions")}
+          </h2>
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            <QuickAction
+              href="/admin/families"
+              icon={<Users className="h-4 w-4" strokeWidth={2.5} />}
+              label={t("dash.qaFamily")}
+              sublabel={t("dash.qaFamilySub")}
+              bg="#E8F5E9"
+              iconColor="#2E7D32"
+            />
+            <QuickAction
+              href="/admin/news"
+              icon={<Newspaper className="h-4 w-4" strokeWidth={2.5} />}
+              label={t("dash.qaNews")}
+              sublabel={t("dash.qaNewsSub")}
+              bg="#E3F2FD"
+              iconColor="#1565C0"
+            />
+            <QuickAction
+              href="/admin/ads"
+              icon={<Megaphone className="h-4 w-4" strokeWidth={2.5} />}
+              label={t("dash.qaAd")}
+              sublabel={t("dash.qaAdSub")}
+              bg="#FFF3E0"
+              iconColor="#E65100"
+            />
+            <QuickAction
+              href="/admin/results"
+              icon={<Trophy className="h-4 w-4" strokeWidth={2.5} />}
+              label={t("dash.qaResults")}
+              sublabel={t("dash.qaResultsSub")}
+              bg="#F3E5F5"
+              iconColor="#6A1B9A"
+            />
+            <QuickAction
+              href="/admin/gallery"
+              icon={<ImageIcon className="h-4 w-4" strokeWidth={2.5} />}
+              label={t("dash.qaGallery")}
+              sublabel={t("dash.qaGallerySub")}
+              bg="#E0F7FA"
+              iconColor="#00695C"
+            />
+          </div>
+        </div>
+
+        {/* ─── Summary Widgets ──────────────────────────────────────────── */}
+        <div>
+          <h2 className="text-base font-bold text-[var(--ink)] mb-2.5">{t("dash.summary")}</h2>
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            <SummaryWidget
+              value={stats.activeAds}
+              label={t("dash.sumActiveAds")}
+              icon={<Megaphone className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              iconBg="#E8F5E9"
+              iconColor="#2E7D32"
+              href="/admin/ads"
+              viewLabel={t("common.view")}
+            />
+            <SummaryWidget
+              value={stats.pendingAds}
+              label={t("dash.sumPendingAds")}
+              icon={<Clock className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              iconBg="#FFF3E0"
+              iconColor="#E65100"
+              href="/admin/ads"
+              viewLabel={t("common.view")}
+            />
+            <SummaryWidget
+              value={stats.rejectedAds}
+              label={t("dash.sumExpiredAds")}
+              icon={<Ban className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              iconBg="#FFEBEE"
+              iconColor="#C62828"
+              href="/admin/ads"
+              viewLabel={t("common.view")}
+            />
+            <SummaryWidget
+              value={0}
+              label={t("dash.sumEvents")}
+              icon={<Calendar className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              iconBg="#F3E5F5"
+              iconColor="#6A1B9A"
+              href="/admin/gallery"
+              viewLabel={t("common.view")}
+            />
+            <SummaryWidget
+              value={stats.newsPosts}
+              label={t("dash.sumNews")}
+              icon={<Newspaper className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              iconBg="#E3F2FD"
+              iconColor="#1565C0"
+              href="/admin/news"
+              viewLabel={t("common.view")}
+            />
+            <SummaryWidget
+              value={stats.albums}
+              label={t("dash.sumAlbums")}
+              icon={<ImageIcon className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              iconBg="#E0F7FA"
+              iconColor="#00695C"
+              href="/admin/gallery"
+              viewLabel={t("common.view")}
+            />
+          </div>
+        </div>
+
+        {/* ─── Bottom 3-col Grid ────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+
+          {/* Recent Registrations */}
+          <div className="bg-white rounded-2xl border border-[#EAE4D8]/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 min-h-[300px] overflow-hidden">
+            <div className="flex items-center justify-between mb-2.5">
+              <h3 className="text-sm font-bold text-[var(--ink)] flex items-center gap-1.5">
+                <CheckCircle className="h-4 w-4 text-[#2E7D32]" />
+                {t("dash.recentReg")}
+              </h3>
+              <Link
+                href="/admin/families"
+                className="text-[10px] font-bold text-[var(--brand)] flex items-center gap-0.5 hover:underline shrink-0"
+              >
+                {t("common.viewAll")} <ArrowUpRight className="h-3 w-3" />
+              </Link>
             </div>
-          )}
+            {recentFamilies.length === 0 ? (
+              <p className="py-4 text-center text-sm font-medium text-[#9A9288]">
+                {t("dash.noReg")}
+              </p>
+            ) : (
+              <div className="max-h-[280px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#EAE4D8] scrollbar-track-transparent overflow-x-hidden">
+                {recentFamilies.slice(0, 5).map((f) => (
+                  <RecentRegistrationItem
+                    key={f.id}
+                    family={f}
+                    lang={lang}
+                    fmtDate={fmtDate}
+                    t={t}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pending Tasks */}
+          <div className="bg-white rounded-2xl border border-[#EAE4D8]/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 min-h-[300px] overflow-hidden">
+            <h3 className="text-sm font-bold text-[var(--ink)] flex items-center gap-1.5 mb-2.5">
+              <AlertCircle className="h-4 w-4 text-[#E65100]" />
+              {t("dash.pendingWork")}
+            </h3>
+            <PendingTaskItem
+              icon={<Clock className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              label={t("dash.statPending")}
+              count={stats.pending}
+              href="/admin/queue"
+              iconBg="#FFF3E0"
+              iconColor="#E65100"
+            />
+            <PendingTaskItem
+              icon={<FileText className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              label={t("dash.statPendingUpdates")}
+              count={stats.pendingUpdates}
+              href="/admin/queue"
+              iconBg="#F3E5F5"
+              iconColor="#6A1B9A"
+            />
+            <PendingTaskItem
+              icon={<Megaphone className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              label={t("dash.draftAds")}
+              count={stats.draftAds}
+              href="/admin/ads"
+              iconBg="#FFF3E0"
+              iconColor="#E65100"
+            />
+            <PendingTaskItem
+              icon={<Ban className="h-3.5 w-3.5" strokeWidth={2.5} />}
+              label={t("dash.sumExpiredAds")}
+              count={stats.rejectedAds}
+              href="/admin/ads"
+              iconBg="#FFEBEE"
+              iconColor="#C62828"
+            />
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-2xl border border-[#EAE4D8]/60 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 min-h-[300px] overflow-hidden">
+            <h3 className="text-sm font-bold text-[var(--ink)] flex items-center gap-1.5 mb-2.5">
+              <Activity className="h-4 w-4 text-[#1565C0]" />
+              {t("dash.recentActivity")}
+            </h3>
+            {recentActivity.length === 0 ? (
+              <p className="py-4 text-center text-sm font-medium text-[#9A9288]">
+                {t("dash.noActivity")}
+              </p>
+            ) : (
+              <div className="max-h-[280px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-[#EAE4D8] scrollbar-track-transparent overflow-x-hidden">
+                {recentActivity.slice(0, 5).map((a, i) => {
+                  const name = (lang === "en" ? a.sublabelEn : a.sublabelGu) || t("dash.actNewsFallback");
+                  return (
+                    <ActivityItem
+                      key={i}
+                      type={a.type}
+                      labelKey={a.labelKey as AdminKey}
+                      name={name}
+                      familySuffix={a.familySuffix}
+                      relativeTime={relativeTime(a.at)}
+                      t={t}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

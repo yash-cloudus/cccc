@@ -74,7 +74,10 @@ export function ConfirmDialogHost() {
       open={pending !== null}
       onClose={() => settle(false)}
       title={pending?.title ?? ""}
-      subtitle={pending?.description}
+      subtitle={
+        pending?.description ??
+        (pending?.tone === "danger" ? t("common.deleteConfirmDesc") : undefined)
+      }
       width="sm"
       footer={
         <AdminModalActions

@@ -24,6 +24,7 @@ import { ADMIN_NAV } from "@/lib/constants";
 import { TooltipProvider, WithTooltip } from "@/components/ui/tooltip";
 import { SidebarCollapseToggle } from "@/components/ui/sidebar-collapse-toggle";
 import { SidebarLangToggle } from "@/components/ui/lang-toggle";
+import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +116,14 @@ export function AdminShell({
 
   async function logout() {
     setMoreOpen(false);
+    const ok = await confirmDialog({
+      title: t("common.logoutConfirmTitle"),
+      description: t("common.logoutConfirmDescription"),
+      confirmLabel: t("common.logout"),
+      cancelLabel: t("common.cancel"),
+      tone: "primary",
+    });
+    if (!ok) return;
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {
@@ -134,19 +143,19 @@ export function AdminShell({
           <aside
             className={cn(
               "relative hidden shrink-0 overflow-visible transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:block print:hidden",
-              collapsed ? "w-[72px]" : "w-[230px]",
+              collapsed ? "w-[64px]" : "w-[220px]",
             )}
           >
             <nav
               className={cn(
-                "admin-scroll flex h-full w-full flex-col overflow-y-auto overflow-x-hidden border-r border-[var(--line-admin)] bg-[var(--surface-admin)] py-3.5",
+                "admin-scroll flex h-full w-full flex-col overflow-y-auto overflow-x-hidden border-r border-[var(--line-admin)] bg-[var(--surface-admin)] py-3",
                 collapsed ? "items-center" : "",
               )}
             >
               <div
                 className={cn(
-                  "mb-2 flex w-full items-center gap-2.5 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                  collapsed ? "justify-center px-0" : "px-3",
+                  "mb-2 flex w-full items-center gap-2 transition-[padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  collapsed ? "justify-center px-0" : "px-2",
                 )}
               >
                 <WithTooltip
@@ -187,7 +196,7 @@ export function AdminShell({
               <div
                 className={cn(
                   "flex w-full flex-1 flex-col gap-1 transition-[padding] duration-300",
-                  collapsed ? "items-center px-0" : "px-2",
+                  collapsed ? "items-center px-0" : "px-1.5",
                 )}
               >
                 {ADMIN_NAV.map((item) => {
@@ -237,7 +246,7 @@ export function AdminShell({
               <div
                 className={cn(
                   "mt-auto flex w-full flex-col gap-1 border-t border-[var(--line-admin)] pt-2 transition-[padding] duration-300",
-                  collapsed ? "items-center px-0" : "px-2",
+                  collapsed ? "items-center px-0" : "px-1.5",
                 )}
               >
                 {/* ponytail: native title= is the tooltip here — WithTooltip's
@@ -276,7 +285,7 @@ export function AdminShell({
             />
           </aside>
 
-          <div className="admin-scroll min-w-0 flex-1 overflow-y-auto bg-white px-8 py-7 max-md:px-[15px] max-md:pb-24 max-md:pt-[18px] print:overflow-visible print:p-0">
+          <div className="admin-scroll min-w-0 flex-1 overflow-y-auto bg-white px-6 py-7 max-md:px-[15px] max-md:pb-24 max-md:pt-[18px] print:overflow-visible print:p-0">
             {children}
           </div>
         </div>
