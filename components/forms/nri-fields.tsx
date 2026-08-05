@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { COUNTRIES, flagUrl } from "@/lib/phone";
+import { COUNTRIES } from "@/lib/phone";
+import { SearchPicker } from "@/components/ui/search-picker";
 import { cn } from "@/lib/utils";
 
 export type NriValue = {
@@ -45,8 +46,15 @@ export function NriFields({
   t: (gu: string, en: string) => string;
 }) {
   const isAdmin = variant === "admin";
-  const cityOptions = useMemo(
-    () => cities.filter((c) => c.country === value.nriCountry).map((c) => c.city),
+  const countryItems = useMemo(
+    () => COUNTRIES.map((c) => ({ value: c.name, label: c.name, iso: c.iso, note: c.dial })),
+    [],
+  );
+  const cityItems = useMemo(
+    () =>
+      cities
+        .filter((c) => c.country === value.nriCountry)
+        .map((c) => ({ value: c.city, label: c.city })),
     [cities, value.nriCountry],
   );
 
@@ -102,73 +110,55 @@ export function NriFields({
 
       {value.isNri && (
         <div className="mt-2.5 grid grid-cols-2 gap-2.5 max-sm:grid-cols-1">
-          <label className="block">
+          <div className="block">
             <span className={labelClass}>{t("દેશ", "Country")} *</span>
-            <div className="relative">
-              {value.nriCountry && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={flagUrl(
-                    COUNTRIES.find((c) => c.name === value.nriCountry)?.iso || "in",
-                  )}
-                  alt=""
-                  width={22}
-                  height={16}
-                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-[22px] -translate-y-1/2 rounded-[3px] object-cover"
-                />
-              )}
-              <select
-                value={value.nriCountry}
-                onChange={(e) =>
-                  // City belongs to the old country — dropping it prevents
-                  // "Toronto, Australia".
-                  onChange({ nriCountry: e.target.value, nriCity: "" })
-                }
-                className={fieldClass}
-                // Inline, not a utility class: `samaj-fld` sets its own
-                // padding-left and wins the cascade, so the flag sat on top of
-                // the country name.
-                style={value.nriCountry ? { paddingLeft: 42 } : undefined}
-              >
-                <option value="">{t("દેશ પસંદ કરો", "Select country")}</option>
-                {COUNTRIES.map((c) => (
-                  <option key={c.iso} value={c.name}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Searchable, not a native <select>: 193 entries in a phone's
+                scroll wheel is a spin from Afghanistan to Zimbabwe. */}
+            <SearchPicker
+              variant={variant}
+              value={value.nriCountry}
+              onChange={(name) =>
+                // City belongs to the old country — dropping it prevents
+                // "Toronto, Australia".
+                onChange({ nriCountry: name, nriCity: "" })
+              }
+              items={countryItems}
+              placeholder={t("દેશ પસંદ કરો", "Select country")}
+              searchPlaceholder={t("દેશ શોધો…", "Search country…")}
+              emptyText={t("કોઈ દેશ મળ્યો નથી", "No country found")}
+              invalid={Boolean(error?.country)}
+            />
             {error?.country && (
               <p className="mt-1 text-[11.5px] font-bold text-[var(--danger)]">{error.country}</p>
             )}
-          </label>
+          </div>
 
-          <label className="block">
+          <div className="block">
             <span className={labelClass}>{t("શહેર", "City")} *</span>
-            {/* A datalist, not a plain select: the admin's list covers the cities
-                they know about, and anyone living somewhere else can still say so
-                instead of being stuck. */}
-            <input
-              list="nri-city-options"
+            {/* The admin's list covers the cities they know about; anyone living
+                somewhere else types their own rather than being stuck with the
+                closest wrong answer. */}
+            <SearchPicker
+              variant={variant}
               value={value.nriCity}
-              onChange={(e) => onChange({ nriCity: e.target.value })}
+              onChange={(city) => onChange({ nriCity: city })}
+              items={cityItems}
               disabled={!value.nriCountry}
+              allowCustom
+              addLabel={(typed) => t(`“${typed}” ઉમેરો`, `Add “${typed}”`)}
               placeholder={
                 value.nriCountry
                   ? t("શહેર લખો કે પસંદ કરો", "Type or pick a city")
                   : t("પહેલાં દેશ પસંદ કરો", "Pick a country first")
               }
-              className={cn(fieldClass, "disabled:opacity-60")}
+              searchPlaceholder={t("શહેર શોધો કે લખો…", "Search or type a city…")}
+              emptyText={t("શહેર લખો", "Type a city name")}
+              invalid={Boolean(error?.city)}
             />
-            <datalist id="nri-city-options">
-              {cityOptions.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
             {error?.city && (
               <p className="mt-1 text-[11.5px] font-bold text-[var(--danger)]">{error.city}</p>
             )}
-          </label>
+          </div>
         </div>
       )}
     </div>

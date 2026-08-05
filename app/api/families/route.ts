@@ -2,6 +2,7 @@ import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { uploadDataUrl } from "@/lib/cloudinary";
+import { syncNriOptions } from "@/lib/nri";
 import { created, fail, fromZod, getClientIp, ok } from "@/lib/api";
 import { requireSession, hasRole } from "@/lib/auth/session";
 import { rateLimit } from "@/lib/security/rate-limit";
@@ -317,6 +318,10 @@ export async function POST(req: Request) {
       },
       include: { familyMembers: true, surnameGroup: true },
     });
+
+    // The country and city this household just used become masters, so the
+    // admin's NRI list describes the community instead of waiting to be typed.
+    await syncNriOptions(prisma, communityId, family.familyMembers);
 
     if (passwordLogin) {
       // Exactly one account for the whole household — the number they picked.

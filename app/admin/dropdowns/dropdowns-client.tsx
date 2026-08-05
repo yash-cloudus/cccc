@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, ListTree, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Globe, ListTree, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   ActionBtn,
@@ -28,6 +28,7 @@ import { confirmDialog } from "@/components/admin/confirm-dialog";
 import { isStudentOccupation, isVeparOccupation } from "@/lib/occupation-defaults";
 import { useAdminT, type AdminKey } from "@/lib/i18n/admin-dictionary";
 import { NriCitiesPanel } from "@/components/admin/nri-cities-panel";
+import { NriCoverage } from "@/components/admin/nri-coverage";
 import { NRI_COUNTRY_TYPE, countriesNotYetAdded } from "@/lib/nri";
 import { COUNTRIES, flagUrl } from "@/lib/phone";
 import { cn } from "@/lib/utils";
@@ -181,6 +182,8 @@ export function DropdownsClient({
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "enabled" | "disabled">("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /** NRI coverage view: every country in the fixed list, not just the added ones. */
+  const [showAllCountries, setShowAllCountries] = useState(false);
   const [edit, setEdit] = useState<EditState>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -455,6 +458,18 @@ export function DropdownsClient({
             placeholder={t("drop.searchPh")}
             className="min-w-0 flex-1 sm:w-[220px] sm:flex-none"
           />
+          {catId === "nri" && (
+            // A coverage view, for checking what the fixed list actually holds:
+            // every country with its flag, and the cities this community has
+            // under each. Read-only — adding still goes through the button.
+            <AdminBtn
+              variant={showAllCountries ? "primary" : "ghost"}
+              onClick={() => setShowAllCountries((v) => !v)}
+            >
+              <Globe className="size-4" />
+              {t(showAllCountries ? "drop.nriHideAll" : "drop.nriShowAll")}
+            </AdminBtn>
+          )}
           {cat.api && (
             <AdminBtn onClick={() => openEdit()}>
               <Plus className="size-4" />
@@ -536,6 +551,8 @@ export function DropdownsClient({
           </SheetContent>
         </Sheet>
       )}
+
+      {catId === "nri" && showAllCountries && <NriCoverage />}
 
       {cat.readOnlyNoteKey && (
         <p className="mb-4 rounded-xl border border-[var(--info)]/25 bg-[var(--info-tint)] px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--info)]">

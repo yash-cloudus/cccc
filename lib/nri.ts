@@ -59,3 +59,77 @@ export function countriesNotYetAdded(existing: string[]): typeof COUNTRIES {
   const taken = new Set(existing.map((n) => n.toLowerCase()));
   return COUNTRIES.filter((c) => !taken.has(c.name.toLowerCase()));
 }
+
+/**
+ * Records the countries and cities families actually used, so the masters
+ * describe the community instead of waiting for someone to type them in.
+ *
+ * The alternative was asking every admin to pre-enter Toronto, Brampton,
+ * Leicester… before anyone abroad could register — the list would always lag
+ * behind reality, and the NRI screen would show cities that exist nowhere in
+ * the masters. A member typing a city they live in IS the authoritative answer.
+ *
+ * Idempotent and case-insensitive; never throws. This is bookkeeping, and a
+ * family's registration must not fail because a master row could not be
+ * written.
+ */
+export async function syncNriOptions(
+  prisma: PrismaClient,
+  communityId: string,
+  entries: { isNri?: boolean; nriCountry?: string | null; nriCity?: string | null }[],
+): Promise<void> {
+  try {
+    // Only known countries: a typo must never create a second spelling that the
+    // directory then groups separately.
+    const used = new Map<string, Set<string>>();
+    for (const e of entries) {
+      if (!e.isNri) continue;
+      const country = countryByName(e.nriCountry ?? "")?.name;
+      if (!country) continue;
+      const city = (e.nriCity ?? "").trim();
+      if (!used.has(country)) used.set(country, new Set());
+      if (city) used.get(country)!.add(city);
+    }
+    if (used.size === 0) return;
+
+    for (const [country, cities] of used) {
+      let parent = await prisma.dropdownOption.findFirst({
+        where: { communityId, type: NRI_COUNTRY_TYPE, parentId: null, nameEn: country },
+        select: { id: true },
+      });
+      if (!parent) {
+        parent = await prisma.dropdownOption.create({
+          data: {
+            communityId,
+            type: NRI_COUNTRY_TYPE,
+            parentId: null,
+            nameEn: country,
+            // No Gujarati name to derive from — the admin can rename it later.
+            nameGu: country,
+          },
+          select: { id: true },
+        });
+      }
+
+      if (cities.size === 0) continue;
+      const existing = await prisma.dropdownOption.findMany({
+        where: { communityId, type: NRI_COUNTRY_TYPE, parentId: parent.id },
+        select: { nameEn: true },
+      });
+      const have = new Set(existing.map((c) => c.nameEn.trim().toLowerCase()));
+      const missing = [...cities].filter((c) => !have.has(c.toLowerCase()));
+      if (missing.length === 0) continue;
+      await prisma.dropdownOption.createMany({
+        data: missing.map((city) => ({
+          communityId,
+          type: NRI_COUNTRY_TYPE,
+          parentId: parent!.id,
+          nameEn: city,
+          nameGu: city,
+        })),
+      });
+    }
+  } catch (e) {
+    console.error("syncNriOptions failed", e);
+  }
+}

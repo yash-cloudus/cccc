@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { syncNriOptions } from "@/lib/nri";
 import { fail, fromZod, ok } from "@/lib/api";
 import { requireSession, hasRole } from "@/lib/auth/session";
 import { getActiveCommunityId, getWritableCommunityId } from "@/lib/tenant";
@@ -180,6 +181,8 @@ export async function PUT(req: Request, { params }: Params) {
       where: { id },
       include: { surnameGroup: true, villageArea: true, familyMembers: { orderBy: { createdAt: "asc" } } },
     });
+    // An admin edit can introduce a country or city too — same bookkeeping.
+    if (updated) await syncNriOptions(prisma, updated.communityId, updated.familyMembers);
     return ok(updated);
   } catch (e) {
     if ((e as Error).message === "UNAUTHORIZED") return fail("Unauthorized", 401);
