@@ -125,14 +125,31 @@ const createSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    // Unauthenticated by design (middleware allowlists it) — and now it hashes a
-    // password, which is ~60ms of CPU per call. The real gate is still that every
-    // family lands PENDING for a human to approve.
+    // Unauthenticated by design (middleware allowlists it) — and it hashes a
+    // password (~60ms of CPU) and may store a photo. The real gate is still that
+    // every family lands PENDING for a human to approve.
+    //
+    // Two buckets, and the short one is the one that matters. A whole village
+    // shares a single public IP behind NAT, and one coordinator filling the form
+    // for neighbour after neighbour is normal here — so an hourly cap tight
+    // enough to stop a script also locks out a registration camp. What a script
+    // cannot fake is pace: a person working through four steps needs minutes per
+    // family, a bot submits a hundred a second.
     // ponytail: in-memory limiter, so per-instance. Redis if this ever runs multi-node.
     const ip = getClientIp(req);
-    if (!rateLimit(`famreg:${ip}`, 5, 3_600_000).allowed) {
-      return fail("Too many registrations from this network, try again later", 429);
-    }
+    const tooMany = (retryAfterMs = 0) =>
+      fail(
+        `Too many registrations from this network — try again in ${Math.max(
+          1,
+          Math.ceil(retryAfterMs / 60_000),
+        )} min`,
+        429,
+      );
+    const burst = rateLimit(`famreg:burst:${ip}`, 5, 60_000);
+    if (!burst.allowed) return tooMany(burst.retryAfterMs);
+    // Checked second so a blocked burst does not also spend an hourly slot.
+    const hourly = rateLimit(`famreg:${ip}`, 60, 3_600_000);
+    if (!hourly.allowed) return tooMany(hourly.retryAfterMs);
 
     const body = createSchema.parse(await req.json());
     if (!body.consentAccepted) return fail("Consent is required");
