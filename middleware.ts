@@ -3,6 +3,7 @@ import { jwtVerify } from "jose";
 import { COOKIE_ACCESS, COOKIE_ACTIVE_COMMUNITY, COMMUNITY_ADMIN_ROLES } from "@/lib/constants";
 import { withSecurityHeaders } from "@/lib/security/headers";
 import {
+  MEMBER_PATH_PREFIXES,
   communityAdminUrl,
   communitySiteUrl,
   effectiveHost,
@@ -46,27 +47,6 @@ function isPublic(pathname: string, kind: HostKind) {
     pathname.startsWith("/about")
   );
 }
-
-const MEMBER_PATHS = [
-  "/otp",
-  "/register",
-  "/pending",
-  "/dashboard",
-  "/directory",
-  "/news",
-  "/gallery",
-  "/business",
-  "/menu",
-  "/profile",
-  "/about",
-  "/ads",
-  "/results",
-  "/education",
-  "/blood-group",
-  "/nri",
-  "/donation",
-  "/notifications",
-];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
@@ -156,19 +136,29 @@ export async function middleware(req: NextRequest) {
   // ── Main Admin host: community.in / localhost:3000 ────────────────
   if (parsed.kind === "main") {
     // /login = Main Admin login (no /platform/login in the address bar)
+    //
+    // Uses effectiveSlug (?c= OR the active_community cookie), not the bare
+    // `c` query param: a returning visitor on a single-host origin (dev
+    // tunnel / LAN IP) who already has a tenant cookie from an earlier visit
+    // but opens a fresh /login with no ?c= on the URL used to fail this check
+    // — with only `c` as the source, `c` is empty here, so this fell straight
+    // through to `rewrite("/platform/login")` and silently showed the Main
+    // Admin platform-owner sign-in screen instead of that member's own
+    // community login, even though the tenant was sitting right there in the
+    // cookie one line above.
     if (pathname === "/login" || pathname === "/platform/login") {
-      if (c) return toSite(c, "/login");
+      if (effectiveSlug) return toSite(effectiveSlug, "/login");
       return rewrite("/platform/login");
     }
 
     // Member routes on apex → community host (with ?c=) or Main Admin login
-    if (MEMBER_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
-      if (c) return toSite(c, pathname);
+    if (MEMBER_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+      if (effectiveSlug) return toSite(effectiveSlug, pathname);
       return redirectPath("/login");
     }
 
     if (pathname.startsWith("/admin")) {
-      if (c) return toAdmin(c, pathname);
+      if (effectiveSlug) return toAdmin(effectiveSlug, pathname);
       return redirectPath("/login");
     }
 
@@ -185,15 +175,8 @@ export async function middleware(req: NextRequest) {
       // auth checked below; rewrite when allowed
     }
     if (
-      pathname.startsWith("/dashboard") ||
-      pathname.startsWith("/directory") ||
       pathname === "/login" ||
-      pathname.startsWith("/register") ||
-      pathname.startsWith("/news") ||
-      pathname.startsWith("/gallery") ||
-      pathname.startsWith("/business") ||
-      pathname.startsWith("/menu") ||
-      pathname.startsWith("/profile")
+      MEMBER_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
     ) {
       return toSite(parsed.slug, pathname);
     }

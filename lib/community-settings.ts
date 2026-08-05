@@ -26,6 +26,25 @@ export type ResultModuleSettings = {
   waReject: boolean;
 };
 
+export type OrganModuleSettings = {
+  enable: boolean;
+  /** Members may submit and edit their own household's donor records. */
+  memberAdd: boolean;
+  /** The in-app Request → Approve flow. Off leaves the list call-only. */
+  requests: boolean;
+  /** Donor phone number on the public list — the direct-call path. */
+  showContact: boolean;
+};
+
+export function getOrganModuleSettings(stored: Record<string, string>): OrganModuleSettings {
+  return {
+    enable: communitySettingOn(stored, "organ", "enable"),
+    memberAdd: communitySettingOn(stored, "organ", "memberAdd"),
+    requests: communitySettingOn(stored, "organ", "requests"),
+    showContact: communitySettingOn(stored, "organ", "showContact"),
+  };
+}
+
 export function getResultModuleSettings(stored: Record<string, string>): ResultModuleSettings {
   return {
     enable: communitySettingOn(stored, "result", "enable"),

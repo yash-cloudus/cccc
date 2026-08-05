@@ -13,6 +13,7 @@ import {
   Megaphone,
   Info,
   Trophy,
+  HeartHandshake,
   Settings,
   Shield,
   LogOut,
@@ -38,6 +39,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   ads: Megaphone,
   info: Info,
   results: Trophy,
+  organ: HeartHandshake,
   settings: Settings,
   admins: Shield,
 };

@@ -1,6 +1,10 @@
 import { notFound } from "next/navigation";
 import { getActiveCommunity } from "@/lib/tenant";
-import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/community-settings";
+import {
+  getCommunitySettingsMap,
+  getOrganModuleSettings,
+  getResultModuleSettings,
+} from "@/lib/community-settings";
 import { getAdPriceTiersForCommunity } from "@/lib/tenant-data";
 import { MenuClient } from "./menu-client";
 
@@ -10,10 +14,16 @@ export default async function MenuPage() {
   const community = await getActiveCommunity();
   if (!community) notFound();
 
-  const [resultEnabled, { tiers }] = await Promise.all([
-    getCommunitySettingsMap(community.id).then((s) => getResultModuleSettings(s).enable),
+  const [settingsMap, { tiers }] = await Promise.all([
+    getCommunitySettingsMap(community.id),
     getAdPriceTiersForCommunity(community.id),
   ]);
 
-  return <MenuClient resultEnabled={resultEnabled} adTiers={tiers} />;
+  return (
+    <MenuClient
+      resultEnabled={getResultModuleSettings(settingsMap).enable}
+      organEnabled={getOrganModuleSettings(settingsMap).enable}
+      adTiers={tiers}
+    />
+  );
 }

@@ -12,6 +12,8 @@ export type PickerOption = {
   label: string;
   /** Short secondary text pinned to the right edge of the row — a status/standard tag. */
   right?: string;
+  /** Attention-grabbing status badge (e.g. "already registered"), rendered before `right`. */
+  tag?: string;
 };
 
 export type NewEntry = { nameEn: string; nameGu: string };
@@ -130,6 +132,11 @@ export function PickerWithAdd({
       >
         <span className={cn("flex min-w-0 flex-1 items-center gap-2 text-left", !selected && "text-[var(--faint-soft)]")}>
           <span className="min-w-0 truncate">{label}</span>
+          {selected?.tag && (
+            <span className="flex-none rounded-full bg-[var(--warn-tint)] px-2 py-0.5 text-[11px] font-bold whitespace-nowrap text-[var(--warn)]">
+              {selected.tag}
+            </span>
+          )}
           {selected?.right && (
             <span className="flex-none rounded-full bg-[var(--brand-tint)] px-2 py-0.5 text-[11px] font-bold whitespace-nowrap text-[var(--brand)]">
               {selected.right}
@@ -176,19 +183,33 @@ export function PickerWithAdd({
                   value === o.value && "bg-[var(--brand-tint)] font-bold text-[var(--brand)]",
                 )}
               >
-                <span className="min-w-0 truncate">{o.label}</span>
-                {o.right && (
-                  <span
-                    className={cn(
-                      "flex-none rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap",
-                      value === o.value
-                        ? "bg-white/70 text-[var(--brand)]"
-                        : "bg-[var(--brand-tint)] text-[var(--brand)]",
-                    )}
-                  >
-                    {o.right}
-                  </span>
-                )}
+                <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                <span className="flex flex-none items-center gap-1.5">
+                  {o.tag && (
+                    <span
+                      className={cn(
+                        "flex-none rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap",
+                        value === o.value
+                          ? "bg-white/70 text-[var(--warn)]"
+                          : "bg-[var(--warn-tint)] text-[var(--warn)]",
+                      )}
+                    >
+                      {o.tag}
+                    </span>
+                  )}
+                  {o.right && (
+                    <span
+                      className={cn(
+                        "flex-none rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap",
+                        value === o.value
+                          ? "bg-white/70 text-[var(--brand)]"
+                          : "bg-[var(--brand-tint)] text-[var(--brand)]",
+                      )}
+                    >
+                      {o.right}
+                    </span>
+                  )}
+                </span>
               </button>
             ))}
           </div>

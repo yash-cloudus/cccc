@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, Copy, Download, Eye, EyeOff, ImagePlus, KeyRound, LayoutGrid, Loader2, LogOut, MessageCircle, MessageSquareText, Plus, RefreshCw, Search, Settings, Trash2, X } from "lucide-react";
 import { ROOT_DOMAIN } from "@/lib/constants";
+import { isSingleHostBrowser } from "@/lib/host";
 import { PhoneField } from "@/components/ui/phone-field";
 import { DEFAULT_ISO, isValidNumber } from "@/lib/phone";
 import { BrandColorsPicker } from "@/components/shared/brand-colors-picker";
@@ -627,7 +628,12 @@ export default function PlatformPage() {
     } catch {
       /* fall through */
     }
-    const fallback = communityUrl(slug, "/dashboard");
+    // Same fallback rule as the primary path (which delegates this decision to
+    // the server-side launch route): a {slug}.ROOT_DOMAIN URL only resolves on
+    // a canonical host — on a dev tunnel / LAN IP it has to stay same-origin.
+    const fallback = isSingleHostBrowser()
+      ? `${window.location.origin}/dashboard?c=${encodeURIComponent(slug)}`
+      : communityUrl(slug, "/dashboard");
     if (win) win.location.href = fallback;
     else window.open(fallback, "_blank", "noopener,noreferrer");
   }
@@ -650,7 +656,9 @@ export default function PlatformPage() {
     } catch {
       /* fall through */
     }
-    const fallback = communityAdminUrl(slug, "/admin");
+    const fallback = isSingleHostBrowser()
+      ? `${window.location.origin}/admin?c=${encodeURIComponent(slug)}`
+      : communityAdminUrl(slug, "/admin");
     if (win) win.location.href = fallback;
     else window.open(fallback, "_blank", "noopener,noreferrer");
   }
@@ -1682,8 +1690,19 @@ function CredentialsModal({
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const siteUrl = communityUrl(creds.slug, "/");
-  const adminUrl = communityAdminUrl(creds.slug, "/admin");
+  // This modal only ever mounts after "Create community" succeeds — a client
+  // action, never part of the server-rendered shell — so reading window here
+  // carries no hydration-mismatch risk the way it would in an always-rendered
+  // component. Same singleHost rule as openApp/openAdmin above: the handed-off
+  // credentials must contain a URL that actually works from wherever the
+  // platform admin is currently operating, tunnel included.
+  const singleHost = isSingleHostBrowser();
+  const siteUrl = singleHost
+    ? `${window.location.origin}/?c=${encodeURIComponent(creds.slug)}`
+    : communityUrl(creds.slug, "/");
+  const adminUrl = singleHost
+    ? `${window.location.origin}/admin?c=${encodeURIComponent(creds.slug)}`
+    : communityAdminUrl(creds.slug, "/admin");
   const text = [
     `Community: ${creds.name}`,
     `Website: ${siteUrl}`,

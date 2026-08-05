@@ -52,6 +52,7 @@ export const ADMIN_MENUS = [
   { key: "ads", label: "Advertisements" },
   { key: "info", label: "Community Information" },
   { key: "results", label: "Result Drive" },
+  { key: "organ", label: "Organ Donation" },
   { key: "admins", label: "Admins & Roles" },
 ] as const;
 

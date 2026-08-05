@@ -8,6 +8,13 @@ import {
   canonicalStandard,
   canonicalStream,
 } from "@/lib/result-drive";
+import {
+  OPEN_STATUSES,
+  type OrganDonorRow,
+  type OrganRequestRow,
+  type OrganRequestStatus,
+  type OrganStatus,
+} from "@/lib/organ-donation";
 
 /* ============================ Admin dashboard ============================ */
 
@@ -608,6 +615,235 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
   }
 
   return roster;
+}
+
+/* ============================ Organ donation ============================ */
+
+/** Everything a donor row needs, in one shape both the app and admin can read. */
+const organDonorSelect = {
+  id: true,
+  fullNameEn: true,
+  fullNameGu: true,
+  relation: true,
+  gender: true,
+  dateOfBirth: true,
+  bloodGroup: true,
+  mobile: true,
+  mobileIso: true,
+  city: true,
+  familyId: true,
+  familyMemberId: true,
+  isDeceased: true,
+  deceasedAt: true,
+  emergencyName: true,
+  emergencyRelation: true,
+  emergencyMobile: true,
+  emergencyMobileIso: true,
+  note: true,
+  createdByUserId: true,
+  createdAt: true,
+  family: {
+    select: {
+      headNameEn: true,
+      headNameGu: true,
+      surnameEn: true,
+      surnameGu: true,
+      villageArea: { select: { nameEn: true, nameGu: true } },
+    },
+  },
+  pledges: {
+    select: {
+      id: true,
+      organ: true,
+      donationType: true,
+      status: true,
+      donatedAt: true,
+      _count: { select: { requests: true } },
+      requests: { where: { status: "PENDING" as const }, select: { id: true } },
+    },
+    orderBy: { organ: "asc" as const },
+  },
+} as const;
+
+type OrganDonorPayload = Awaited<
+  ReturnType<typeof prisma.organDonor.findMany<{ select: typeof organDonorSelect }>>
+>[number];
+
+function toDonorRow(d: OrganDonorPayload): OrganDonorRow {
+  return {
+    id: d.id,
+    fullNameEn: d.fullNameEn,
+    fullNameGu: d.fullNameGu,
+    relation: d.relation,
+    gender: d.gender,
+    dateOfBirth: d.dateOfBirth ? d.dateOfBirth.toISOString() : null,
+    bloodGroup: d.bloodGroup,
+    mobile: d.mobile,
+    mobileIso: d.mobileIso,
+    city: d.city,
+    villageEn: d.family.villageArea?.nameEn ?? null,
+    villageGu: d.family.villageArea?.nameGu ?? null,
+    familyId: d.familyId,
+    familyMemberId: d.familyMemberId,
+    familyLabelEn: d.family.headNameEn,
+    familyLabelGu: d.family.headNameGu,
+    surnameEn: d.family.surnameEn,
+    surnameGu: d.family.surnameGu,
+    isDeceased: d.isDeceased,
+    deceasedAt: d.deceasedAt ? d.deceasedAt.toISOString() : null,
+    emergencyName: d.emergencyName,
+    emergencyRelation: d.emergencyRelation,
+    emergencyMobile: d.emergencyMobile,
+    emergencyMobileIso: d.emergencyMobileIso,
+    note: d.note,
+    createdByUserId: d.createdByUserId,
+    createdAt: d.createdAt.toISOString(),
+    pledges: d.pledges.map((p) => ({
+      id: p.id,
+      organ: p.organ,
+      donationType: p.donationType,
+      status: p.status,
+      donatedAt: p.donatedAt ? p.donatedAt.toISOString() : null,
+      pendingRequests: p.requests.length,
+    })),
+  };
+}
+
+/**
+ * Donor rows for one community.
+ *
+ * `onlyListed` drops donors whose every organ has reached a terminal status —
+ * the browse list must not show a kidney that was donated last year, but the
+ * admin history and the reports still need those rows.
+ */
+export async function getOrganDonors(
+  communityId: string,
+  opts: { onlyListed?: boolean; familyId?: string; createdByUserId?: string } = {},
+): Promise<OrganDonorRow[]> {
+  const rows = await prisma.organDonor.findMany({
+    where: {
+      communityId,
+      family: { status: "APPROVED" },
+      ...(opts.familyId ? { familyId: opts.familyId } : {}),
+      ...(opts.createdByUserId ? { createdByUserId: opts.createdByUserId } : {}),
+      ...(opts.onlyListed
+        ? { isDeceased: false, pledges: { some: { status: { in: [...OPEN_STATUSES] } } } }
+        : {}),
+    },
+    select: organDonorSelect,
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+  return rows.map(toDonorRow);
+}
+
+/** One donor, tenant-scoped. Null when it belongs to another community. */
+export async function getOrganDonor(
+  communityId: string,
+  id: string,
+): Promise<OrganDonorRow | null> {
+  const row = await prisma.organDonor.findFirst({
+    where: { id, communityId },
+    select: organDonorSelect,
+  });
+  return row ? toDonorRow(row) : null;
+}
+
+/**
+ * Requests in one community.
+ *
+ * `forDonorAuthor` narrows to the requests a given household is responsible for
+ * answering — the "incoming requests" badge inside My Uploaded List.
+ */
+export async function getOrganRequests(
+  communityId: string,
+  opts: {
+    forDonorAuthor?: string;
+    requesterUserId?: string;
+    status?: OrganRequestStatus[];
+  } = {},
+): Promise<OrganRequestRow[]> {
+  const rows = await prisma.organRequest.findMany({
+    where: {
+      communityId,
+      ...(opts.status ? { status: { in: opts.status } } : {}),
+      ...(opts.requesterUserId ? { requesterUserId: opts.requesterUserId } : {}),
+      ...(opts.forDonorAuthor
+        ? { pledge: { donor: { createdByUserId: opts.forDonorAuthor } } }
+        : {}),
+    },
+    select: {
+      id: true,
+      pledgeId: true,
+      status: true,
+      requesterUserId: true,
+      requesterName: true,
+      requesterMobile: true,
+      requesterMobileIso: true,
+      patientName: true,
+      hospital: true,
+      message: true,
+      createdAt: true,
+      respondedAt: true,
+      pledge: {
+        select: {
+          organ: true,
+          donor: { select: { id: true, fullNameEn: true, fullNameGu: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
+
+  return rows.map((r) => ({
+    id: r.id,
+    pledgeId: r.pledgeId,
+    organ: r.pledge.organ,
+    status: r.status,
+    requesterUserId: r.requesterUserId,
+    requesterName: r.requesterName,
+    requesterMobile: r.requesterMobile,
+    requesterMobileIso: r.requesterMobileIso,
+    patientName: r.patientName,
+    hospital: r.hospital,
+    message: r.message,
+    createdAt: r.createdAt.toISOString(),
+    respondedAt: r.respondedAt ? r.respondedAt.toISOString() : null,
+    donorId: r.pledge.donor.id,
+    donorName: r.pledge.donor.fullNameEn,
+    donorNameGu: r.pledge.donor.fullNameGu,
+  }));
+}
+
+/** Counters for the admin Organ Donation dashboard strip. */
+export async function getOrganStats(communityId: string) {
+  const [donors, deceased, byStatus, pendingRequests] = await Promise.all([
+    prisma.organDonor.count({ where: { communityId } }),
+    prisma.organDonor.count({ where: { communityId, isDeceased: true } }),
+    prisma.organPledge.groupBy({
+      by: ["status"],
+      where: { donor: { communityId } },
+      _count: true,
+    }),
+    prisma.organRequest.count({ where: { communityId, status: "PENDING" } }),
+  ]);
+
+  const counts = Object.fromEntries(byStatus.map((r) => [r.status, r._count])) as Partial<
+    Record<OrganStatus, number>
+  >;
+  const organs = byStatus.reduce((sum, r) => sum + r._count, 0);
+
+  return {
+    donors,
+    deceased,
+    organs,
+    available: counts.AVAILABLE ?? 0,
+    requested: counts.REQUESTED ?? 0,
+    approved: counts.APPROVED ?? 0,
+    donated: counts.DONATED ?? 0,
+    pendingRequests,
+  };
 }
 
 /* ============================ Admins & roles ============================ */

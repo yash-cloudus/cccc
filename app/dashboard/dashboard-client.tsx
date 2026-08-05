@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import {
   Award,
   Globe,
+  HeartHandshake,
   Building2,
   ChevronRight,
   Droplet,
@@ -47,12 +48,13 @@ export type LiveResultDrive = {
 const tileDefs = [
   { key: "blood", href: "/blood-group", labelKey: "bloodGroup" as const, bg: "var(--danger-tint)", fg: "var(--danger)", Icon: Droplet },
   { key: "edu", href: "/education", labelKey: "education" as const, bg: "var(--info-tint)", fg: "var(--info)", Icon: GraduationCap },
-  { key: "biz", href: "/business", labelKey: "business" as const, bg: "var(--ochre-tint)", fg: "var(--ochre)", Icon: Building2 },
+  { key: "biz", href: "/business", labelKey: "business" as const, bg: "var(--violet-tint)", fg: "var(--violet)", Icon: Building2 },
   { key: "gallery", href: "/gallery", labelKey: "gallery" as const, bg: "var(--leaf-tint)", fg: "var(--leaf)", Icon: ImageIcon },
-  { key: "about", href: "/about", labelKey: "about" as const, bg: "var(--violet-tint)", fg: "var(--violet)", Icon: Home },
-  { key: "results", href: "/results", labelKey: "results" as const, bg: "var(--warn-tint)", fg: "#B08A1E", Icon: Award },
-  { key: "nri", href: "/nri", labelKey: "nri" as const, bg: "var(--info-tint)", fg: "var(--info)", Icon: Globe },
-  { key: "ads", href: "/ads?browse=1", labelKey: "ads" as const, bg: "var(--brand-tint)", fg: "var(--brand)", Icon: Megaphone },
+  { key: "about", href: "/about", labelKey: "about" as const, bg: "var(--ochre-tint)", fg: "var(--ochre)", Icon: Home },
+  { key: "results", href: "/results", labelKey: "results" as const, bg: "var(--pink-tint)", fg: "var(--pink)", Icon: Award },
+  { key: "nri", href: "/nri", labelKey: "nri" as const, bg: "var(--teal-tint)", fg: "var(--teal)", Icon: Globe },
+  { key: "ads", href: "/ads?browse=1", labelKey: "ads" as const, bg: "var(--warn-tint)", fg: "var(--warn)", Icon: Megaphone },
+  { key: "organ", href: "/organ-donation", labelKey: "organDonation" as const, bg: "var(--olive-tint)", fg: "var(--olive)", Icon: HeartHandshake },
 ];
 
 /** Deterministic gradient palette — Advertisement carries no gradient of its own. */
@@ -68,16 +70,20 @@ export function DashboardClient({
   ads,
   featured,
   resultEnabled = true,
+  organEnabled = true,
   resultDrive = null,
 }: {
   ads: AdRow[];
   featured: FeaturedNews | null;
   resultEnabled?: boolean;
+  organEnabled?: boolean;
   /** Present only when a drive is actually open — the banner below is a "come upload now" call to action, not a status readout. */
   resultDrive?: LiveResultDrive | null;
 }) {
   const { t, lang } = useLang();
-  const visibleTiles = resultEnabled ? tileDefs : tileDefs.filter((t) => t.key !== "results");
+  const visibleTiles = tileDefs.filter(
+    (x) => (resultEnabled || x.key !== "results") && (organEnabled || x.key !== "organ"),
+  );
   const [adIdx, setAdIdx] = useState(0);
 
   useEffect(() => {

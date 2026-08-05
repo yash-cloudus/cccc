@@ -57,6 +57,17 @@ export const SETTINGS_SECTIONS: SettingSection[] = [
     ],
   },
   {
+    id: "organ",
+    titleKey: "set.organ.title",
+    descKey: "set.organ.desc",
+    items: [
+      { key: "enable", labelKey: "set.organ.enable", helpKey: "set.organ.enable.help" },
+      { key: "memberAdd", labelKey: "set.organ.memberAdd", helpKey: "set.organ.memberAdd.help" },
+      { key: "requests", labelKey: "set.organ.requests", helpKey: "set.organ.requests.help" },
+      { key: "showContact", labelKey: "set.organ.showContact", helpKey: "set.organ.showContact.help" },
+    ],
+  },
+  {
     id: "ads",
     titleKey: "set.ads.title",
     descKey: "set.ads.desc",
