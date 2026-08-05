@@ -416,7 +416,12 @@ export function FamiliesClient({
         : form.surnameGu.trim();
 
     // Family place of record = the head's place (members each carry their own).
-    const place = familyPlaceFromHead(form.headPlace, villages);
+    // For an NRI head that is the foreign city — the village picker is hidden
+    // for them, so headPlace is empty and the family would have no city.
+    const place = familyPlaceFromHead(
+      form.headIsNri ? form.headNriCity.trim() : form.headPlace,
+      villages,
+    );
 
     const payload = {
       headNameEn: form.headNameEn.trim(),

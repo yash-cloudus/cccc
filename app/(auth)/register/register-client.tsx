@@ -249,10 +249,14 @@ export function RegisterClient({
     }
   }, [passwordLogin, loginCandidates, loginMobile, loginMobileIso]);
 
-  /** Household place of record — the head's. Drives Family.city / villageAreaId. */
+  /** Household place of record — the head's. Drives Family.city / villageAreaId.
+   *  An NRI head has no village: where they live IS the foreign city, and the
+   *  village picker is hidden for them — so reading m1place would leave the
+   *  family with no city at all and the server would reject the form. */
+  const headPlace = form.m1isNri ? form.m1nriCity.trim() : form.m1place;
   const { city, villageAreaId, livesOutsideVillage } = useMemo(
-    () => familyPlaceFromHead(form.m1place, villages),
-    [form.m1place, villages],
+    () => familyPlaceFromHead(headPlace, villages),
+    [headPlace, villages],
   );
 
   function openAddMember() {
@@ -327,7 +331,10 @@ export function RegisterClient({
     { n: reviewStep, label: T("ચકાસો", "Review") },
   ].map((s) => ({ ...s, done: step > s.n, active: step === s.n }));
 
-  const placeLabel = labelForPlace(form.m1place, allPlaces, T("પસંદ કરો", "Select"));
+  const placeLabel = form.m1isNri
+    ? [form.m1nriCity.trim(), form.m1nriCountry].filter(Boolean).join(", ") ||
+      T("પસંદ કરો", "Select")
+    : labelForPlace(form.m1place, allPlaces, T("પસંદ કરો", "Select"));
 
   /**
    * The shared <FamilyDetailsFields> speaks the API's field names, while this
