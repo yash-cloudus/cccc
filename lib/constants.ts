@@ -139,6 +139,7 @@ export const ADMIN_NAV: {
   { key: "ads", href: "/admin/ads", label: "Advertisements", badge: "ads" },
   { key: "info", href: "/admin/info", label: "Community info" },
   { key: "results", href: "/admin/results", label: "Result drive" },
+  { key: "organ", href: "/admin/organ-donation", label: "Organ donation" },
   { key: "settings", href: "/admin/settings", label: "Settings" },
   { key: "admins", href: "/admin/admins", label: "Admins & roles" },
 ];

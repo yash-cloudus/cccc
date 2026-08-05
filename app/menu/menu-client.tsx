@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import axios from "axios";
 import {
   Award,
+  HeartHandshake,
   Building2,
   ChevronRight,
   Globe,
@@ -38,11 +39,12 @@ function buildServiceLinks(adTiers: Record<AdDuration, number>) {
   const priceEn = adPriceLine(adTiers, "en");
   return [
     { href: "/business/add", labelKey: "addBusiness" as const, subGu: "ડિરેક્ટરીમાં તમારો ધંધો ઉમેરો", subEn: "List your business in the directory", bg: "var(--brand-tint)", fg: "var(--brand)", Icon: Plus },
-    { href: "/business", labelKey: "bizDir" as const, bg: "var(--ochre-tint)", fg: "var(--ochre)", Icon: Building2 },
-    { href: "/ads", labelKey: "postAd" as const, subGu: `${priceGu} · હોમ સ્ક્રીન ટોપ પર`, subEn: `${priceEn} · top of home screen`, paid: true, bg: "var(--danger-tint)", fg: "var(--danger)", Icon: Megaphone },
+    { href: "/business", labelKey: "bizDir" as const, bg: "var(--violet-tint)", fg: "var(--violet)", Icon: Building2 },
+    { href: "/ads", labelKey: "postAd" as const, subGu: `${priceGu} · હોમ સ્ક્રીન ટોપ પર`, subEn: `${priceEn} · top of home screen`, paid: true, bg: "var(--warn-tint)", fg: "var(--warn)", Icon: Megaphone },
     { href: "/gallery", labelKey: "gallery" as const, bg: "var(--leaf-tint)", fg: "var(--leaf)", Icon: ImageIcon },
-    { href: "/results", labelKey: "uploadResults" as const, bg: "var(--warn-tint)", fg: "#B08A1E", Icon: Award },
-    { href: "/about", labelKey: "aboutSamaj" as const, bg: "var(--violet-tint)", fg: "var(--violet)", Icon: Building2 },
+    { href: "/results", labelKey: "uploadResults" as const, bg: "var(--pink-tint)", fg: "var(--pink)", Icon: Award },
+    { href: "/organ-donation", labelKey: "organDonation" as const, subGu: "અંગદાતાની યાદી અને નોંધણી", subEn: "Donor list and registration", bg: "var(--olive-tint)", fg: "var(--olive)", Icon: HeartHandshake },
+    { href: "/about", labelKey: "aboutSamaj" as const, bg: "var(--ochre-tint)", fg: "var(--ochre)", Icon: Building2 },
   ];
 }
 
@@ -50,16 +52,22 @@ type MeProfile = { fullNameEn: string; fullNameGu: string | null } | null;
 
 export function MenuClient({
   resultEnabled = true,
+  organEnabled = true,
   adTiers,
 }: {
   resultEnabled?: boolean;
+  organEnabled?: boolean;
   /** Both premium banner plan prices, from Admin → Settings → Advertisements. */
   adTiers: Record<AdDuration, number>;
 }) {
   const { t, lang } = useLang();
   const router = useRouter();
   const serviceLinks = useMemo(() => buildServiceLinks(adTiers), [adTiers]);
-  const links = resultEnabled ? serviceLinks : serviceLinks.filter((l) => l.href !== "/results");
+  const links = serviceLinks.filter(
+    (l) =>
+      (resultEnabled || l.href !== "/results") &&
+      (organEnabled || l.href !== "/organ-donation"),
+  );
   const [newsNotif, setNewsNotif] = useState(true);
   const [feedNotif, setFeedNotif] = useState(false);
   const [me, setMe] = useState<MeProfile>(null);

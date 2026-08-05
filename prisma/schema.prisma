@@ -53,6 +53,64 @@ enum StudyOutcome {
   DROPPED_OUT
 }
 
+/// Organs a member can pledge. One `OrganPledge` row per organ, never a list on
+/// the donor — each organ is claimed, approved and completed on its own clock,
+/// so a single status on the donor could not describe a household that donated
+/// eyes in 2024 and still has a kidney available.
+enum OrganType {
+  EYES
+  KIDNEY
+  LIVER
+  HEART
+  LUNG
+  SKIN
+  BONE
+  TISSUE
+}
+
+/// When one pledged organ can be acted on.
+///
+/// Set per organ, not per donor: the same person can offer a kidney while
+/// living and their eyes only after death, and a single answer for the whole
+/// household could not describe that. `BOTH` means the organ may be taken
+/// either way, so it follows the LIVING request flow until the donor is
+/// reported deceased.
+enum OrganDonationType {
+  LIVING
+  AFTER_DEATH
+  BOTH
+}
+
+/// Lifecycle of one pledged organ.
+///
+/// AVAILABLE → REQUESTED → APPROVED → DONATED is the living path; a rejected or
+/// cancelled request drops the organ back to AVAILABLE. An after-death pledge
+/// skips the middle two and goes straight to DONATED (or NOT_DONATED) when the
+/// family reports the death.
+enum OrganStatus {
+  AVAILABLE
+  REQUESTED
+  APPROVED
+  DONATED
+  /// Donor has died and this organ was not among the ones retrieved. Terminal —
+  /// it can never become available again.
+  NOT_DONATED
+  /// Family took the pledge back while the donor was alive.
+  WITHDRAWN
+}
+
+/// One member's claim on one pledged organ.
+enum OrganRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  /// Auto-closed because the family approved a different request for the same
+  /// organ. Distinct from REJECTED so the requester sees why.
+  NOT_SELECTED
+  /// Requester withdrew it themselves.
+  CANCELLED
+}
+
 enum PaymentStatus {
   CREATED
   PENDING
@@ -174,6 +232,8 @@ model Community {
   infoSections          InfoSection[]
   institutes            Institute[]
   educations            Education[]
+  organDonors           OrganDonor[]
+  organRequests         OrganRequest[]
 
   @@index([status])
 }
@@ -276,6 +336,8 @@ model User {
   advertisements     Advertisement[]     @relation("AdOwner")
   resultEntries      ResultEntry[]
   familyAsHead       Family?             @relation("FamilyHead")
+  organDonorUploads  OrganDonor[]        @relation("OrganDonorAuthor")
+  organRequests      OrganRequest[]      @relation("OrganRequester")
 
   /// The login identity is the country AND the number, not the digits alone: a
   /// US number and an Indian one can both be ten digits, so `9876543210` names
@@ -375,6 +437,7 @@ model Family {
   familyMembers     FamilyMember[]
   businesses        Business[]
   updateRequests    ProfileUpdateRequest[]
+  organDonors       OrganDonor[]
 
   @@index([communityId, status])
   @@index([city])
@@ -432,6 +495,7 @@ model FamilyMember {
   family          Family          @relation(fields: [familyId], references: [id], onDelete: Cascade)
   updateRequests  ProfileUpdateRequest[]
   resultEntries   ResultEntry[]
+  organDonors     OrganDonor[]
 
   @@index([familyId])
   @@index([mobile])
@@ -885,6 +949,132 @@ model ResultEntry {
 
   @@index([driveId, standard, status])
   @@index([driveId, memberId])
+}
+
+/// A member who has pledged organs, as entered by their own household.
+///
+/// Unlike registrations there is no admin verification gate — the row is live
+/// the moment the family submits it. The admin panel edits the same row rather
+/// than approving it.
+model OrganDonor {
+  id              String            @id @default(cuid())
+  communityId     String
+  familyId        String
+  /// The household member who is donating. Nullable so an admin-typed row, or
+  /// one whose member record is later deleted, still survives with its snapshot.
+  familyMemberId  String?
+  /// Who submitted it. This is the only account allowed to edit, delete, answer
+  /// requests and mark organs donated — "donor family only", enforced server-side.
+  createdByUserId String?
+  fullNameEn      String
+  fullNameGu      String?
+  relation        String?
+  gender          Gender?
+  dateOfBirth     DateTime?
+  bloodGroup      BloodGroupType?
+  /// National number, digits only; country in `mobileIso` (see `User.mobile`).
+  /// Shown on the public list so a recipient can call directly instead of, or
+  /// alongside, raising a request.
+  mobile          String?
+  mobileIso       String            @default("in")
+  /// Snapshot of the family's city at submit time, so the list filter does not
+  /// change retroactively when a household moves.
+  city            String?
+  emergencyName      String?
+  emergencyRelation  String?
+  emergencyMobile    String?
+  emergencyMobileIso String         @default("in")
+  consentAccepted    Boolean        @default(false)
+  /// Typed full name standing in for a signature on the consent step.
+  consentSignature   String?
+  note            String?           @db.Text
+  /// Set by the family's own death report. `FamilyMember.isDeceased` is the
+  /// directory's copy of the same fact; this one is here because a donor row can
+  /// outlive the member record it was built from.
+  isDeceased      Boolean           @default(false)
+  deceasedAt      DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  community       Community         @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  family          Family            @relation(fields: [familyId], references: [id], onDelete: Cascade)
+  familyMember    FamilyMember?     @relation(fields: [familyMemberId], references: [id], onDelete: SetNull)
+  createdBy       User?             @relation("OrganDonorAuthor", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  pledges         OrganPledge[]
+
+  @@index([communityId, isDeceased])
+  @@index([familyId])
+  @@index([createdByUserId])
+}
+
+/// One organ on one donor. The unit everything else hangs off.
+model OrganPledge {
+  id        String      @id @default(cuid())
+  donorId   String
+  organ     OrganType
+  /// When THIS organ may be taken. Lives here rather than on the donor because
+  /// one person commonly answers differently per organ — a kidney while living,
+  /// eyes only after death — and the request flow keys off this single value.
+  donationType OrganDonationType @default(BOTH)
+  status    OrganStatus @default(AVAILABLE)
+  /// Which request the family picked. Kept as a plain column, not a relation,
+  /// to avoid a cycle between pledge and request.
+  approvedRequestId String?
+  /// Recorded by the family when they mark the organ donated — the one extra
+  /// field they are asked for, and what the yearly/monthly reports group on.
+  donatedAt DateTime?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  donor     OrganDonor  @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  requests  OrganRequest[]
+  logs      OrganStatusLog[]
+
+  /// A donor cannot pledge the same organ twice.
+  @@unique([donorId, organ])
+  @@index([status])
+}
+
+/// A member asking for one pledged organ. Approval is the donor family's, not
+/// the admin's — admin sees these read-only.
+model OrganRequest {
+  id                 String             @id @default(cuid())
+  communityId        String
+  pledgeId           String
+  requesterUserId    String?
+  requesterName      String
+  requesterMobile    String?
+  requesterMobileIso String             @default("in")
+  /// Who the organ is for, when the requester is asking on someone's behalf.
+  patientName        String?
+  hospital           String?
+  message            String?            @db.Text
+  status             OrganRequestStatus @default(PENDING)
+  respondedAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  community          Community          @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  pledge             OrganPledge        @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+  requester          User?              @relation("OrganRequester", fields: [requesterUserId], references: [id], onDelete: SetNull)
+
+  @@index([communityId, status])
+  @@index([pledgeId, status])
+  @@index([requesterUserId])
+}
+
+/// Append-only audit trail of every pledge status change, so the admin panel can
+/// answer "who marked this donated, and when" without trusting the current row.
+model OrganStatusLog {
+  id          String       @id @default(cuid())
+  pledgeId    String
+  fromStatus  OrganStatus?
+  toStatus    OrganStatus
+  /// "family" | "admin" | "system" — who acted, when the user row is gone.
+  actorKind   String       @default("family")
+  actorUserId String?
+  note        String?      @db.Text
+  createdAt   DateTime     @default(now())
+  pledge      OrganPledge  @relation(fields: [pledgeId], references: [id], onDelete: Cascade)
+
+  @@index([pledgeId])
 }
 
 model Advertisement {

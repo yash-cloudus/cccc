@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
-import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/community-settings";
+import {
+  getCommunitySettingsMap,
+  getOrganModuleSettings,
+  getResultModuleSettings,
+} from "@/lib/community-settings";
 import { getAds, getNews } from "@/lib/tenant-data";
 import { DashboardClient, type AdRow, type FeaturedNews, type LiveResultDrive } from "./dashboard-client";
 
@@ -22,6 +26,7 @@ export default async function DashboardPage() {
   ]);
 
   const resultEnabled = getResultModuleSettings(settingsMap).enable;
+  const organEnabled = getOrganModuleSettings(settingsMap).enable;
   const resultDrive: LiveResultDrive | null = openDrive;
 
   const adRows: AdRow[] = ads.map((a) => ({
@@ -50,6 +55,7 @@ export default async function DashboardPage() {
       ads={adRows}
       featured={featured}
       resultEnabled={resultEnabled}
+      organEnabled={organEnabled}
       resultDrive={resultDrive}
     />
   );

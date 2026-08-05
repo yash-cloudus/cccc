@@ -86,6 +86,12 @@
   --violet-tint: #f0ecfb;
   --ochre: #b26a1e;
   --ochre-tint: #fef3e0;
+  --pink: #c23573;
+  --pink-tint: #fce8f1;
+  --teal: #1f8a91;
+  --teal-tint: #e6f5f6;
+  --olive: #8a9a23;
+  --olive-tint: #f2f6dc;
 
   /* ── Main Admin (platform) accent — static, never per-community ─ */
   --platform: #3d4ce0;
@@ -241,6 +247,12 @@
   --color-violet-tint: var(--violet-tint);
   --color-ochre: var(--ochre);
   --color-ochre-tint: var(--ochre-tint);
+  --color-pink: var(--pink);
+  --color-pink-tint: var(--pink-tint);
+  --color-teal: var(--teal);
+  --color-teal-tint: var(--teal-tint);
+  --color-olive: var(--olive);
+  --color-olive-tint: var(--olive-tint);
 
   --color-platform: var(--platform);
   --color-platform-bright: var(--platform-bright);
@@ -289,6 +301,17 @@
 * {
   -webkit-tap-highlight-color: transparent;
   box-sizing: border-box;
+}
+
+/* Edge/IE draw their own clear ("x") and reveal-password buttons inside every
+   text/search/password input as unstyled boxes — visible as a blank rectangle
+   next to any input once it has focus or a value. Every field here already
+   has its own clear/reveal control where one is wanted, so suppress Edge's. */
+input::-ms-clear,
+input::-ms-reveal {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 html,

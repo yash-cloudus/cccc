@@ -31,8 +31,21 @@ export type ParsedHost = {
   singleHost: boolean;
 };
 
-/** Member-site paths, used to pick a panel when routing by path. */
-const MEMBER_PATH_PREFIXES = [
+/**
+ * Member-site paths, used to pick a panel when routing by path.
+ *
+ * This is the ONE place this list is allowed to live — middleware.ts imports
+ * it rather than keeping its own copy. It used to have a second, hand-typed
+ * copy in middleware.ts that drifted out of sync (missing "/organ-donation"
+ * and "/nri" cost a signed-in member a silent redirect to /login on any
+ * single-host origin), so a route added here and forgotten there — or vice
+ * versa — is now structurally impossible.
+ *
+ * Deliberately excludes "/login": which panel's login a bare /login belongs to
+ * depends on the resolved tenant, not a static prefix match, so middleware
+ * handles it as its own branch instead of folding it into this list.
+ */
+export const MEMBER_PATH_PREFIXES = [
   "/dashboard",
   "/directory",
   "/news",
@@ -46,6 +59,8 @@ const MEMBER_PATH_PREFIXES = [
   "/education",
   "/blood-group",
   "/donation",
+  "/organ-donation",
+  "/nri",
   "/notifications",
   "/otp",
   "/register",
@@ -86,6 +101,19 @@ export function isCanonicalHost(hostHeader: string | null | undefined): boolean 
     return h === "localhost" || h.endsWith(".localhost");
   }
   return h === root || h.endsWith(`.${root}`);
+}
+
+/**
+ * Browser-side single-host check — same rule as `ParsedHost.singleHost`, for
+ * client components that build a cross-panel link (Main Admin ↔ community
+ * site ↔ community admin) and need to know whether an absolute
+ * `{slug}.ROOT_DOMAIN` URL will actually resolve from the tab it's running in,
+ * or whether it has to stay same-origin with a `?c=` query param instead.
+ * `false` during SSR/build (no `window`) — those renders don't emit hrefs.
+ */
+export function isSingleHostBrowser(): boolean {
+  if (typeof window === "undefined") return false;
+  return !isCanonicalHost(window.location.host);
 }
 
 const RESERVED_TOP = new Set(["www", "platform", "api", "mail", "static", "assets", "app"]);
