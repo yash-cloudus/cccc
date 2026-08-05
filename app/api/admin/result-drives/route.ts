@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { created, fail, ok } from "@/lib/api";
 import { requireAdmin, handleApiError } from "@/lib/admin-guard";
+import { DEFAULT_DRIVE_TITLE } from "@/lib/result-drive";
 
 export async function GET() {
   try {
@@ -18,20 +19,28 @@ export async function GET() {
 }
 
 const createSchema = z.object({
-  titleEn: z.string().min(1),
-  titleGu: z.string().optional(),
-  year: z.number().int().min(2000).max(2100),
+  /** Whether this drive should become the live one, closing whatever else is open. Defaults to true — the admin only gets asked when another drive is already active. */
   isOpen: z.boolean().optional(),
 });
 
 export async function POST(req: Request) {
   try {
     const { communityId } = await requireAdmin(["OWNER", "DATA_MANAGER", "ADMIN"]);
-    const body = createSchema.parse(await req.json());
-    const isOpen = body.isOpen ?? true;
-    // Only one drive may be live at a time — opening a new one closes any other.
+    const { isOpen = true } = createSchema.parse(await req.json().catch(() => ({})));
+    // No more admin-typed title/year — the new drive always continues the
+    // sequence from whichever drive is furthest out already, regardless of
+    // today's calendar date. First drive ever for a (legacy) community with
+    // none yet falls back to the current year.
     const item = await prisma.$transaction(async (tx) => {
+      const latest = await tx.resultDrive.findFirst({
+        where: { communityId },
+        orderBy: { year: "desc" },
+        select: { year: true },
+      });
+      const year = latest ? latest.year + 1 : new Date().getFullYear();
+
       if (isOpen) {
+        // Only one drive may be live at a time — opening this one closes any other.
         await tx.resultDrive.updateMany({
           where: { communityId, isOpen: true },
           data: { isOpen: false },
@@ -40,9 +49,9 @@ export async function POST(req: Request) {
       return tx.resultDrive.create({
         data: {
           communityId,
-          titleEn: body.titleEn.trim(),
-          titleGu: body.titleGu?.trim(),
-          year: body.year,
+          titleEn: DEFAULT_DRIVE_TITLE.en,
+          titleGu: DEFAULT_DRIVE_TITLE.gu,
+          year,
           isOpen,
         },
       });

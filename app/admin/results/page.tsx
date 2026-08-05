@@ -3,8 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { getActiveCommunity } from "@/lib/tenant";
 import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/community-settings";
 import { getResultDrives, getResultDriveWithEntries, getResultDriveRoster } from "@/lib/tenant-data";
-import { isStudentOccupation } from "@/lib/occupation-defaults";
-import { ResultsClient, type DriveInfo } from "./results-client";
+import {
+  buildOccupationTree,
+  isStudentOccupation,
+  stableStudentChildKey,
+} from "@/lib/occupation-defaults";
+import { ResultsClient, type DriveInfo, type SubOption } from "./results-client";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +27,11 @@ export default async function ResultsPage({
     getCommunitySettingsMap(community.id),
     prisma.dropdownOption.findMany({
       where: { communityId: community.id, type: "occupation" },
-      select: { id: true, parentId: true, nameEn: true, nameGu: true, isActive: true },
+      select: { id: true, parentId: true, nameEn: true, nameGu: true, isActive: true, sortOrder: true },
     }),
   ]);
+
+  const occupationTree = buildOccupationTree(occupationOptions);
 
   const resultSettings = getResultModuleSettings(settingsMap);
 
@@ -36,20 +42,37 @@ export default async function ResultsPage({
     (o) => !o.parentId && isStudentOccupation(o.nameEn, o.nameGu),
   );
   const enabledStandards = studentRoot
-    ? occupationOptions.filter((o) => o.parentId === studentRoot.id && o.isActive).map((o) => o.nameEn)
+    ? occupationOptions
+        .filter((o) => o.parentId === studentRoot.id && o.isActive)
+        .map((o) => stableStudentChildKey(o))
     : null;
 
-  // Same idea one level down — Std 11 / Std 12 nest their own Science /
-  // Commerce / Arts options, each independently toggleable. A standard with
-  // no nested rows at all (tree not seeded that deep) is left out of the map
-  // so the client falls back to the full default stream list.
-  const standardStreams: Record<string, string[]> = {};
+  // Same idea one level down — any standard can nest its own sub-departments
+  // (Std 11 / 12's Science / Commerce / Arts, Diploma's IT / Mechanical / …),
+  // each independently toggleable. A standard with no nested rows at all
+  // (tree not seeded that deep) is left out of the map, so the client falls
+  // back to the full default stream list for Std 11 / 12 and shows no filter
+  // for everything else. A sub-department can itself nest one more level
+  // (College → BE → CSE / IT) — carried as `children` so the client can show
+  // a second filter tier once the first one narrows down to it.
+  const standardStreams: Record<string, SubOption[]> = {};
   if (studentRoot) {
     const studentChildren = occupationOptions.filter((o) => o.parentId === studentRoot.id);
     for (const std of studentChildren) {
       const kids = occupationOptions.filter((o) => o.parentId === std.id);
       if (kids.length > 0) {
-        standardStreams[std.nameEn] = kids.filter((o) => o.isActive).map((o) => o.nameEn);
+        standardStreams[stableStudentChildKey(std)] = kids
+          .filter((o) => o.isActive)
+          .map((o) => {
+            const grandkids = occupationOptions.filter((g) => g.parentId === o.id && g.isActive);
+            return {
+              nameEn: o.nameEn,
+              nameGu: o.nameGu,
+              ...(grandkids.length > 0
+                ? { children: grandkids.map((g) => ({ nameEn: g.nameEn, nameGu: g.nameGu })) }
+                : {}),
+            };
+          });
       }
     }
   }
@@ -86,6 +109,7 @@ export default async function ResultsPage({
       adminUploadEnabled={resultSettings.adminUpload}
       enabledStandards={enabledStandards}
       standardStreams={standardStreams}
+      occupationTree={occupationTree}
     />
   );
 }

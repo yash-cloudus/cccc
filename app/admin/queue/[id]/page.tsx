@@ -111,6 +111,7 @@ export default async function ReviewRegistrationPage({
         occupationOther: m.occupationOther,
         education: m.education,
         course: m.course,
+        specialization: m.specialization,
       }),
     })),
   };

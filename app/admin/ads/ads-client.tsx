@@ -65,6 +65,8 @@ export type AdStatus =
 export type AdRow = {
   id: string;
   name: string;
+  nameEn: string;
+  nameGu: string;
   pitch: string | null;
   imageUrl: string | null;
   linkUrl: string | null;
@@ -242,6 +244,10 @@ const emptyDraft = (): Draft => {
   };
 };
 
+function adDisplayName(ad: AdRow, lang: string): string {
+  return lang === "en" ? ad.nameEn || ad.nameGu || ad.name : ad.nameGu || ad.nameEn || ad.name;
+}
+
 function editFormFrom(ad: AdRow): EditForm {
   return {
     name: ad.name,
@@ -271,7 +277,7 @@ function StatusPill({ status }: { status: AdStatus }) {
 }
 
 function AdSummaryCard({ ad }: { ad: AdRow }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   const payOpt = PAY_OPTS.find((p) => p.value === ad.payStatus);
   return (
     <div className="mb-4 rounded-[14px] border border-[var(--line-admin)] bg-[var(--surface-admin)] p-3.5">
@@ -295,7 +301,7 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
         )}
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex flex-wrap items-center gap-2">
-            <b className="text-[15px] text-[var(--ink)]">{ad.name}</b>
+            <b className="text-[15px] text-[var(--ink)]">{adDisplayName(ad, lang)}</b>
             <span className="rounded-full bg-[#EEF1F6] px-2 py-0.5 text-[10.5px] font-bold capitalize text-[#4A5B72]">
               {t(ad.type === "premium" ? "ads.typePremium" : "ads.typeGeneral")}
             </span>
@@ -374,9 +380,9 @@ function AdSummaryCard({ ad }: { ad: AdRow }) {
 
 /** Read-only field grid shown under the summary in the View and Review dialogs. */
 function AdDetailsCard({ ad }: { ad: AdRow }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   const fields: { label: string; value: string; wide?: boolean }[] = [
-    { label: t("ads.fldName"), value: ad.name },
+    { label: t("ads.fldName"), value: adDisplayName(ad, lang) },
     { label: t("ads.fldCategory"), value: ad.category || "—" },
     { label: t("ads.fldOwner"), value: ad.ownerName || "—" },
     { label: t("ads.fldMobile"), value: phoneText(ad.ownerMobile, ad.ownerMobileIso) || "—" },
@@ -491,7 +497,7 @@ export function AdsClient({
       }
 
       if (needle) {
-        const hay = `${r.name} ${r.ownerName ?? ""} ${r.ownerMobile ?? ""}`.toLowerCase();
+        const hay = `${r.nameEn} ${r.nameGu} ${r.ownerName ?? ""} ${r.ownerMobile ?? ""}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       return true;
@@ -632,6 +638,8 @@ export function AdsClient({
       {
         id: res.data.id,
         name: draft.name.trim(),
+        nameEn: draft.name.trim(),
+        nameGu: draft.name.trim(),
         pitch: draft.pitch || null,
         imageUrl: draft.imageUrl || null,
         linkUrl: draft.linkUrl || null,
@@ -705,6 +713,8 @@ export function AdsClient({
           ? {
               ...r,
               name: form.name.trim() || ad.name,
+              nameEn: form.name.trim() || ad.nameEn,
+              nameGu: form.name.trim() || ad.nameGu,
               pitch: form.pitch || null,
               imageUrl: form.imageUrl || null,
               linkUrl: form.linkUrl || null,
@@ -975,7 +985,7 @@ export function AdsClient({
                   </span>
                 )}
               </AdminTd>
-              <AdminTd className="font-semibold whitespace-nowrap text-[var(--ink)]">{a.name}</AdminTd>
+              <AdminTd className="font-semibold whitespace-nowrap text-[var(--ink)]">{adDisplayName(a, lang)}</AdminTd>
               <AdminTd className="whitespace-nowrap">
                 {a.ownerName || "—"}
                 {a.ownerMobile && (

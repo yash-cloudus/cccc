@@ -547,6 +547,7 @@ export function RegisterClient({
           occupationOther: headOcc.occupationOther || undefined,
           education: headOcc.education || undefined,
           course: headOcc.course || undefined,
+          specialization: headOcc.specialization || undefined,
         },
         ...members.map((m, i) => ({
           fullNameEn: m.name.trim(),
@@ -569,6 +570,7 @@ export function RegisterClient({
           occupationOther: memberOcc[i].occupationOther || undefined,
           education: memberOcc[i].education || undefined,
           course: memberOcc[i].course || undefined,
+          specialization: memberOcc[i].specialization || undefined,
         })),
       ],
     };

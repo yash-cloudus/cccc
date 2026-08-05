@@ -7,12 +7,21 @@ import { toast } from "sonner";
 import { AppScreen } from "@/components/layout/app-screen";
 import { BackHeader } from "@/components/layout/back-header";
 import { PickerWithAdd } from "@/components/ui/picker-with-add";
+import { CourseField, SpecializationField } from "@/components/results/course-field";
 import { NextStandardModal, type NextStandardValue } from "@/components/results/next-standard-modal";
 import { useLang } from "@/providers/lang-provider";
 import { api } from "@/lib/http";
-import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
-import { HIGHER_STANDARDS, STREAM_STANDARDS, canonicalStream, isPdf } from "@/lib/result-drive";
-import { pickText, titleWithYear } from "@/lib/format";
+import { specializationOptionsForCourse } from "@/lib/cascading-occupation";
+import { DEFAULT_STREAMS, EDUCATION_LEVELS, type OccupationTreeNode } from "@/lib/occupation-defaults";
+import {
+  HIGHER_STANDARDS,
+  STREAM_STANDARDS,
+  canonicalStream,
+  driveDisplayName,
+  isPdf,
+  liveLevelLabel,
+} from "@/lib/result-drive";
+import { pickText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export type DriveInfo = {
@@ -71,10 +80,8 @@ const TOPPER_AVATARS = [
   { fg: "#B26A1E", bg: "#FEF3E0" },
 ];
 
-const eduLabel = (std: string, lang: "gu" | "en") =>
-  lang === "gu"
-    ? (EDUCATION_LEVELS.find((l) => l.nameEn === std)?.nameGu ?? std)
-    : std;
+const eduLabel = (std: string, lang: "gu" | "en", tree: OccupationTreeNode[]) =>
+  liveLevelLabel(tree, std, lang);
 
 /** A stored stream shown in the reader's language, whichever it was saved in. */
 const streamLabel = (stream: string | null | undefined, lang: "gu" | "en") => {
@@ -96,6 +103,7 @@ export function ResultsClient({
   uploadFocus = false,
   studentUploadEnabled = true,
   showMeritTab = true,
+  occupationTree,
 }: {
   drive: DriveInfo | null;
   childOptions: ChildOption[];
@@ -105,6 +113,7 @@ export function ResultsClient({
   uploadFocus?: boolean;
   studentUploadEnabled?: boolean;
   showMeritTab?: boolean;
+  occupationTree: OccupationTreeNode[];
 }) {
   const { lang } = useLang();
   const router = useRouter();
@@ -112,9 +121,7 @@ export function ResultsClient({
 
   const [tab, setTab] = useState<Tab>("upload");
 
-  const title = drive
-    ? titleWithYear(pickText(drive.titleGu, drive.titleEn, lang), drive.year)
-    : T("પરિણામ", "Results");
+  const title = drive ? driveDisplayName(drive, lang) : T("પરિણામ", "Results");
 
   const tabs: { key: Tab; label: string }[] =
     uploadFocus || !showMeritTab
@@ -132,12 +139,12 @@ export function ResultsClient({
     if (uploadFocus && tab === "toppers") setTab("upload");
   }, [uploadFocus, tab]);
 
-  if (!drive) {
+  if (!drive || !drive.isOpen) {
     return (
-      <AppScreen showNav={false}>
+      <AppScreen>
         <BackHeader title={T("પરિણામ", "Results")} />
         <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
-          {T("પરિણામ ડ્રાઈવ હજુ શરૂ થઈ નથી", "No result drive has started yet")}
+          {T("કોઈ ડ્રાઈવ ખુલ્લી નથી — જલ્દી આવે છે", "No drive is open — coming soon")}
         </p>
       </AppScreen>
     );
@@ -179,14 +186,19 @@ export function ResultsClient({
             childOptions={childOptions}
             signedIn={signedIn}
             studentUploadEnabled={studentUploadEnabled}
+            occupationTree={occupationTree}
             onDone={() => {
               setTab("mine");
               router.refresh();
             }}
           />
         )}
-        {tab === "mine" && <MyUploadsTab entries={myEntries} signedIn={signedIn} />}
-        {tab === "toppers" && !uploadFocus && <ToppersTab drive={drive} rows={toppers} />}
+        {tab === "mine" && (
+          <MyUploadsTab entries={myEntries} signedIn={signedIn} occupationTree={occupationTree} />
+        )}
+        {tab === "toppers" && !uploadFocus && (
+          <ToppersTab drive={drive} rows={toppers} occupationTree={occupationTree} />
+        )}
       </div>
     </AppScreen>
   );
@@ -194,7 +206,7 @@ export function ResultsClient({
 
 /* ────────────────────────────── 1 · Upload ────────────────────────────── */
 
-const STANDARDS = EDUCATION_LEVELS.map((l) => ({ value: l.nameEn, label: l.nameGu }));
+const STANDARDS = EDUCATION_LEVELS.map((l) => ({ value: l.nameEn }));
 
 const standardKey = (v: string | null) =>
   EDUCATION_LEVELS.find((l) => l.nameEn === v || l.nameGu === v)?.nameEn ?? "";
@@ -204,12 +216,14 @@ function UploadTab({
   childOptions,
   signedIn,
   studentUploadEnabled,
+  occupationTree,
   onDone,
 }: {
   drive: DriveInfo;
   childOptions: ChildOption[];
   signedIn: boolean;
   studentUploadEnabled: boolean;
+  occupationTree: OccupationTreeNode[];
   onDone: () => void;
 }) {
   const { lang } = useLang();
@@ -220,6 +234,7 @@ function UploadTab({
   const [standard, setStandard] = useState("");
   const [stream, setStream] = useState("");
   const [courseName, setCourseName] = useState("");
+  const [specialization, setSpecialization] = useState("");
   const [total, setTotal] = useState("");
   const [obtained, setObtained] = useState("");
   const [marksheetUrl, setMarksheetUrl] = useState("");
@@ -230,6 +245,8 @@ function UploadTab({
   const selectedChild = childOptions.find((c) => c.id === memberId) ?? null;
   const isHigher = HIGHER_STANDARDS.has(standard);
   const showStream = STREAM_STANDARDS.has(standard);
+  const showSpecialization =
+    isHigher && specializationOptionsForCourse(occupationTree, standard, courseName).options.length > 0;
 
   const percentage = useMemo(() => {
     const t = Number(total);
@@ -308,6 +325,7 @@ function UploadTab({
       standard,
       stream: showStream ? stream : undefined,
       course: isHigher ? courseName.trim() : undefined,
+      specialization: isHigher && showSpecialization ? specialization.trim() || undefined : undefined,
       ...(isHigher
         ? {}
         : {
@@ -321,6 +339,7 @@ function UploadTab({
             nextStandard: next.nextStandard ?? undefined,
             nextStream: next.nextStream ?? undefined,
             nextCourse: next.nextCourse ?? undefined,
+            nextSpecialization: next.nextSpecialization ?? undefined,
           }
         : {}),
     });
@@ -332,6 +351,7 @@ function UploadTab({
     setStandard("");
     setStream("");
     setCourseName("");
+    setSpecialization("");
     setTotal("");
     setObtained("");
     setMarksheetUrl("");
@@ -369,7 +389,8 @@ function UploadTab({
           placeholder={T("બાળક પસંદ કરો…", "Select a child…")}
           options={childOptions.map((c) => ({
             value: c.id,
-            label: `${childName(c, lang)} · ${eduLabel(standardKey(c.standard) || "—", lang)}`,
+            label: childName(c, lang),
+            right: eduLabel(standardKey(c.standard) || "—", lang, occupationTree),
           }))}
           emptyText={T("તમારા પરિવારમાં કોઈ સભ્ય નથી", "No members in your family")}
         />
@@ -380,7 +401,7 @@ function UploadTab({
             <br />
             {T("પરિવાર", "Family")}: {selectedChild.familyLabel}
             {" · "}
-            {T("અભ્યાસ", "Education")}: {eduLabel(standardKey(selectedChild.standard) || standard || "—", lang)}
+            {T("અભ્યાસ", "Education")}: {eduLabel(standardKey(selectedChild.standard) || standard || "—", lang, occupationTree)}
             {selectedChild.course && STREAM_STANDARDS.has(standard)
               ? ` · ${streamLabel(selectedChild.course, lang) || selectedChild.course}`
               : null}
@@ -394,11 +415,12 @@ function UploadTab({
             setStandard(v);
             if (!STREAM_STANDARDS.has(v)) setStream("");
             if (!HIGHER_STANDARDS.has(v)) setCourseName("");
+            setSpecialization("");
           }}
           placeholder={T("પસંદ કરો", "Select")}
           options={STANDARDS.map((s) => ({
             value: s.value,
-            label: lang === "gu" ? s.label : s.value,
+            label: eduLabel(s.value, lang, occupationTree),
           }))}
         />
 
@@ -420,11 +442,31 @@ function UploadTab({
         {isHigher && (
           <>
             <Label>{T("ડિગ્રી / કોર્સનું નામ", "Degree / Course name")} *</Label>
-            <input
+            <CourseField
+              tree={occupationTree}
+              standard={standard}
               value={courseName}
-              onChange={(e) => setCourseName(e.target.value)}
-              placeholder={T("દા.ત. B.Com, મિકેનિકલ એન્જિનિયરિંગ", "e.g. B.Com, Mechanical Engineering")}
-              className={FIELD}
+              onChange={(v) => {
+                setCourseName(v);
+                setSpecialization("");
+              }}
+              lang={lang}
+              className="[&>button]:h-12 [&>button]:rounded-[13px] [&>button]:border-[#EDE4D4] [&>button]:bg-[#FCFAF6] [&>button]:text-[14px]"
+            />
+          </>
+        )}
+
+        {showSpecialization && (
+          <>
+            <Label>{T("વિશેષતા", "Specialization")}</Label>
+            <SpecializationField
+              tree={occupationTree}
+              standard={standard}
+              course={courseName}
+              value={specialization}
+              onChange={setSpecialization}
+              lang={lang}
+              className="[&>button]:h-12 [&>button]:rounded-[13px] [&>button]:border-[#EDE4D4] [&>button]:bg-[#FCFAF6] [&>button]:text-[14px]"
             />
           </>
         )}
@@ -549,8 +591,10 @@ function UploadTab({
       {showNextStandard && selectedChild && (
         <NextStandardModal
           studentName={childName(selectedChild, lang)}
+          currentStandard={standard}
           lang={lang}
           busy={busy}
+          occupationTree={occupationTree}
           onSkip={() => setShowNextStandard(false)}
           onConfirm={(value) => void submitWithNext(value)}
         />
@@ -561,7 +605,15 @@ function UploadTab({
 
 /* ─────────────────────────── 2 · My uploads ─────────────────────────── */
 
-function MyUploadsTab({ entries, signedIn }: { entries: MyEntry[]; signedIn: boolean }) {
+function MyUploadsTab({
+  entries,
+  signedIn,
+  occupationTree,
+}: {
+  entries: MyEntry[];
+  signedIn: boolean;
+  occupationTree: OccupationTreeNode[];
+}) {
   const { lang } = useLang();
   const T = (g: string, e: string) => (lang === "gu" ? g : e);
 
@@ -613,7 +665,7 @@ function MyUploadsTab({ entries, signedIn }: { entries: MyEntry[]; signedIn: boo
           >
             <div className="min-w-0 flex-1">
               <div className="text-[14px] font-bold text-[var(--ink)]">
-                {pickText(e.studentNameGu, e.studentNameEn, lang) || e.studentName} · {eduLabel(e.standard, lang)}
+                {pickText(e.studentNameGu, e.studentNameEn, lang) || e.studentName} · {eduLabel(e.standard, lang, occupationTree)}
               </div>
               <div className="mt-0.5 text-[12px] font-medium text-[#938C80]">{note(e)}</div>
             </div>
@@ -632,7 +684,15 @@ function MyUploadsTab({ entries, signedIn }: { entries: MyEntry[]; signedIn: boo
 
 /* ───────────────────────────── 3 · Toppers ───────────────────────────── */
 
-function ToppersTab({ drive, rows }: { drive: DriveInfo; rows: TopperRow[] }) {
+function ToppersTab({
+  drive,
+  rows,
+  occupationTree,
+}: {
+  drive: DriveInfo;
+  rows: TopperRow[];
+  occupationTree: OccupationTreeNode[];
+}) {
   const { lang } = useLang();
   const T = (g: string, e: string) => (lang === "gu" ? g : e);
 
@@ -647,23 +707,11 @@ function ToppersTab({ drive, rows }: { drive: DriveInfo; rows: TopperRow[] }) {
     .filter((r) => r.standard === active)
     .map((r, i) => ({ ...r, rank: i + 1 }));
 
-  const footer = (
-    <div className="mt-2 rounded-[14px] border border-[#EFE3CB] bg-[#FDF9F0] px-3.5 py-3 text-[12px] leading-relaxed text-[#8B7A55]">
-      {T(
-        "ફક્ત eligible (≥80%) વિદ્યાર્થીઓ દેખાય.",
-        "Only eligible (≥80%) students appear.",
-      )}
-    </div>
-  );
-
   if (!drive.isOpen || rows.length === 0) {
     return (
-      <>
-        <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
-          {T("ટોપર્સ યાદી ઉપલબ્ધ નથી", "Toppers list not available")}
-        </p>
-        {footer}
-      </>
+      <p className="py-16 text-center text-[13.5px] text-[var(--faint)]">
+        {T("ટોપર્સ યાદી ઉપલબ્ધ નથી", "Toppers list not available")}
+      </p>
     );
   }
 
@@ -682,7 +730,7 @@ function ToppersTab({ drive, rows }: { drive: DriveInfo; rows: TopperRow[] }) {
                 : "border border-[#EDE4D4] bg-white text-[#6B6357]",
             )}
           >
-            {eduLabel(s, lang)}
+            {eduLabel(s, lang, occupationTree)}
           </button>
         ))}
       </div>
@@ -728,8 +776,6 @@ function ToppersTab({ drive, rows }: { drive: DriveInfo; rows: TopperRow[] }) {
           );
         })}
       </div>
-
-      {footer}
     </>
   );
 }
@@ -754,7 +800,7 @@ function Select({
 }: {
   value: string;
   onChange: (v: string) => void;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; right?: string }[];
   placeholder: string;
   emptyText?: string;
 }) {

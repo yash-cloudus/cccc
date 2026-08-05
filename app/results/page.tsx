@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/community-settings";
 import { getActiveCommunity, getMyFamilyId, getSessionPayload } from "@/lib/tenant";
+import { getOccupationTree } from "@/lib/tenant-data";
 import { ResultsClient, type ChildOption, type MyEntry, type TopperRow } from "./results-client";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +27,13 @@ export default async function ResultsPage({
   // uploading opens well before the admin publishes the toppers list. Falls
   // back to the most recent drive once none are open, so results/toppers
   // stay visible after a drive closes.
-  const drive = await prisma.resultDrive.findFirst({
-    where: { communityId: community.id },
-    orderBy: [{ isOpen: "desc" }, { year: "desc" }],
-  });
+  const [drive, occupationTree] = await Promise.all([
+    prisma.resultDrive.findFirst({
+      where: { communityId: community.id },
+      orderBy: [{ isOpen: "desc" }, { year: "desc" }],
+    }),
+    getOccupationTree(community.id),
+  ]);
 
   if (!drive) {
     return (
@@ -42,6 +46,7 @@ export default async function ResultsPage({
         uploadFocus={uploadFocus}
         studentUploadEnabled={settings.studentUpload}
         showMeritTab={settings.showMerit}
+        occupationTree={occupationTree}
       />
     );
   }
@@ -138,6 +143,7 @@ export default async function ResultsPage({
       uploadFocus={uploadFocus}
       studentUploadEnabled={settings.studentUpload}
       showMeritTab={settings.showMerit}
+      occupationTree={occupationTree}
     />
   );
 }

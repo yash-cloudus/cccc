@@ -1,6 +1,38 @@
 /** Shared Result Drive helpers — roster rows, status labels, reject chips. */
 
-import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
+import {
+  DEFAULT_STREAMS,
+  EDUCATION_LEVELS,
+  liveStudentChildNode,
+  type OccupationTreeNode,
+} from "@/lib/occupation-defaults";
+import { pickText } from "@/lib/format";
+import type { Lang } from "@/lib/i18n/dictionary";
+
+/**
+ * "2026" -> "2025-26" — the fixed academic-year range shown next to every drive title.
+ * The selected year is the END of the academic session (results declared in
+ * 2026 belong to the 2025-26 session), so the range runs backward from it.
+ */
+export function yearRangeSuffix(year: number): string {
+  return `${year - 1}-${String(year).slice(-2)}`;
+}
+
+/** Default title for auto-created drives (initial community seed + the "+" quick-create). */
+export const DEFAULT_DRIVE_TITLE = { en: "Result", gu: "પરિણામ" } as const;
+
+/**
+ * Full display name for a drive — base title plus its academic-year suffix,
+ * e.g. "Result" + year 2026 -> "Result 2025-26". The suffix is derived from
+ * `year` rather than stored in the title, so it always tracks the drive's
+ * actual year everywhere it's shown (header, reports, dropdown, modals).
+ */
+export function driveDisplayName(
+  drive: { titleEn: string; titleGu: string | null; year: number },
+  lang: Lang,
+): string {
+  return `${pickText(drive.titleGu, drive.titleEn, lang)} ${yearRangeSuffix(drive.year)}`;
+}
 
 export type RosterStatus = "none" | "PENDING" | "APPROVED" | "REJECTED" | "RESUBMIT";
 
@@ -21,6 +53,7 @@ export type RosterRow = {
   standard: string;
   stream: string | null;
   course: string | null;
+  specialization: string | null;
   totalMarks: number | null;
   obtainedMarks: number | null;
   percentage: number | null;
@@ -31,6 +64,7 @@ export type RosterRow = {
   nextStandard: string | null;
   nextStream: string | null;
   nextCourse: string | null;
+  nextSpecialization: string | null;
   studyOutcome: StudyOutcome | null;
 };
 
@@ -48,19 +82,34 @@ export function hasNextStatus(r: Pick<RosterRow, "studyOutcome">): boolean {
 
 /** A short label for what's next, for admin tables and the close-drive summary. */
 export function nextStatusLabel(
-  r: Pick<RosterRow, "studyOutcome" | "nextStandard" | "nextStream" | "nextCourse">,
+  r: Pick<
+    RosterRow,
+    "studyOutcome" | "nextStandard" | "nextStream" | "nextCourse" | "nextSpecialization"
+  >,
   lang: "en" | "gu" = "en",
 ): string {
   if (!r.studyOutcome) return lang === "gu" ? "નક્કી નથી" : "Not decided";
   if (r.studyOutcome === "PROMOTED") {
-    const extra = r.nextStream || r.nextCourse;
+    const extra = [r.nextStream || r.nextCourse, r.nextSpecialization].filter(Boolean).join(" · ");
     return `${r.nextStandard ?? ""}${extra ? ` · ${extra}` : ""}`.trim();
   }
   return STUDY_OUTCOME_LABELS[r.studyOutcome][lang];
 }
 
-export const STREAM_STANDARDS = new Set(["Std 11", "Std 12"]);
+export const STREAM_STANDARDS = new Set(["Standard 11", "Standard 12"]);
 export const HIGHER_STANDARDS = new Set(["College", "Diploma"]);
+
+/**
+ * Which roster field carries a standard's nested sub-department (Science /
+ * Commerce / Arts for Standard 11-12, a branch like IT / Mechanical for
+ * Diploma, a degree for College, …). Standard 11-12 keep their own dedicated
+ * `stream` field for backward compatibility; every other standard's
+ * sub-department — whatever Dropdown lists has nested under it — rides on
+ * `course`.
+ */
+export function subFieldFor(standard: string): "stream" | "course" {
+  return STREAM_STANDARDS.has(standard) ? "stream" : "course";
+}
 
 /**
  * English name for a standard, whichever language it was stored in.
@@ -68,8 +117,8 @@ export const HIGHER_STANDARDS = new Set(["College", "Diploma"]);
  * A member's `education` is saved as its display label — Gujarati when the
  * option has one ("ધોરણ 12"), English when it doesn't ("B.COM") — while result
  * entries and every check in this file key off the English name. Without this,
- * the same standard shows up as two separate cards: "Std 12" with nobody in it
- * and "ધોરણ 12" holding the actual student.
+ * the same standard shows up as two separate cards: "Standard 12" with nobody
+ * in it and "ધોરણ 12" holding the actual student.
  *
  * An unrecognised value passes through untouched, so community-specific levels
  * still get their own card instead of vanishing.
@@ -85,6 +134,31 @@ export function canonicalStream(value: string | null | undefined): string | null
   const v = (value || "").trim();
   if (!v) return null;
   return DEFAULT_STREAMS.find((s) => s.nameEn === v || s.nameGu === v)?.nameEn ?? v;
+}
+
+/**
+ * A standard's *current* display name — read live from Dropdown lists rather
+ * than the seed list above, so renaming "Junior" to "Junior KG" there shows
+ * up here immediately, with no separate step to "sync" it into Result Drive.
+ *
+ * `canonicalStandard` above still keys everything off the seed list's English
+ * name — that identity has to stay stable no matter what an admin renames a
+ * level to, or every already-stored record would stop matching its card.
+ * This function is the other half: given that stable identity, find the
+ * matching Dropdown lists row (via `liveStudentChildNode`, matched by
+ * `sortOrder` rather than name) and show whatever it's *currently* called.
+ */
+export function liveLevelLabel(
+  tree: OccupationTreeNode[],
+  canonicalNameEn: string,
+  lang: "en" | "gu",
+): string {
+  const seed = EDUCATION_LEVELS.find((l) => l.nameEn === canonicalNameEn);
+  if (!seed) return canonicalNameEn; // not one of ours — nothing to relabel
+  const live = liveStudentChildNode(tree, canonicalNameEn);
+  const nameEn = live?.nameEn || seed.nameEn;
+  const nameGu = live?.nameGu || seed.nameGu;
+  return lang === "gu" ? nameGu || nameEn : nameEn;
 }
 
 export const REJECT_REASON_CHIPS = [

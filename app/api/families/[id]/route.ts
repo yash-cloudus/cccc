@@ -26,6 +26,7 @@ const memberSchema = z.object({
   occupationOther: z.string().optional().nullable(),
   education: z.string().optional().nullable(),
   course: z.string().optional().nullable(),
+  specialization: z.string().optional().nullable(),
   // Registration collects both; without them here an admin edit silently wiped
   // the member's place and reset their WhatsApp flag.
   currentlyAt: z.string().optional().nullable(),
@@ -157,6 +158,7 @@ export async function PUT(req: Request, { params }: Params) {
             occupationOther: m.occupationOther ?? null,
             education: m.education ?? null,
             course: m.course ?? null,
+            specialization: m.specialization ?? null,
             currentlyAt: m.currentlyAt ?? null,
             hasWhatsApp: m.hasWhatsApp ?? true,
             whatsapp: m.whatsapp ?? null,

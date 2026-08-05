@@ -1,6 +1,7 @@
 import type { CommunityType, Prisma } from "@prisma/client";
 import { seedRelationshipDefaults } from "@/lib/constants";
 import { seedOccupationDefaults } from "@/lib/occupation-defaults";
+import { DEFAULT_DRIVE_TITLE } from "@/lib/result-drive";
 
 type Tx = Prisma.TransactionClient | typeof import("@/lib/prisma").prisma;
 
@@ -109,6 +110,37 @@ export async function seedGamVillages(
   });
 }
 
+/**
+ * Every community starts with two result drives — last year's (closed, for
+ * reference/history) and the current one (open, live) — so a fresh admin
+ * never has to know how drive-naming works to get started. Skips if any
+ * drive already exists (safe backfill / re-seed).
+ */
+export async function seedInitialResultDrive(tx: Tx, communityId: string) {
+  const existing = await tx.resultDrive.findFirst({ where: { communityId } });
+  if (existing) return existing;
+
+  const year = new Date().getFullYear();
+  await tx.resultDrive.create({
+    data: {
+      communityId,
+      titleEn: DEFAULT_DRIVE_TITLE.en,
+      titleGu: DEFAULT_DRIVE_TITLE.gu,
+      year: year - 1,
+      isOpen: false,
+    },
+  });
+  return tx.resultDrive.create({
+    data: {
+      communityId,
+      titleEn: DEFAULT_DRIVE_TITLE.en,
+      titleGu: DEFAULT_DRIVE_TITLE.gu,
+      year,
+      isOpen: true,
+    },
+  });
+}
+
 export type SeedCommunityOptions = {
   type: CommunityType;
   primarySurnameEn?: string;
@@ -125,6 +157,7 @@ export type SeedCommunityOptions = {
 export async function seedCommunityDefaults(tx: Tx, communityId: string, opts: SeedCommunityOptions) {
   await seedRelationshipDefaults(tx, communityId);
   await seedOccupationDefaults(tx, communityId);
+  await seedInitialResultDrive(tx, communityId);
 
   if (opts.type === "PARIVAR") {
     const community = await tx.community.findUnique({

@@ -490,6 +490,7 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
         mobile: true,
         education: true,
         course: true,
+        specialization: true,
         family: { select: { headNameEn: true, headNameGu: true } },
       },
       orderBy: { fullNameEn: "asc" },
@@ -516,17 +517,24 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
     // `education` is a display label (Gujarati where the option has one), but
     // entries and every standard check use the English name — normalise once
     // here so a student lands on one card, not two.
-    const std = canonicalStandard(m.education);
+    const memberStd = canonicalStandard(m.education);
     const memberStream = canonicalStream(m.course);
     let entry = byMember.get(m.id) ?? null;
     if (!entry) {
       entry =
         orphans.find(
           (e) =>
-            canonicalStandard(e.standard) === std &&
+            canonicalStandard(e.standard) === memberStd &&
             (e.studentName === (m.fullNameGu || m.fullNameEn) || e.studentName === m.fullNameEn),
         ) ?? null;
     }
+    // A promotion approved on this drive writes straight to the member's
+    // live education/course (see PATCH /api/results) so the rest of the app
+    // reflects it right away — but that must not relabel *this* drive's own
+    // roster row. An entry anchors this row to the standard it was actually
+    // submitted for; only a student with no entry yet (nothing to anchor to)
+    // falls back to their current standard.
+    const std = entry ? canonicalStandard(entry.standard) : memberStd;
     const name = m.fullNameGu || m.fullNameEn;
     roster.push({
       memberId: m.id,
@@ -540,12 +548,13 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       familyLabelGu: m.family.headNameGu || null,
       mobile: m.mobile,
       standard: std,
-      stream:
-        canonicalStream(entry?.stream) ??
-        (memberStream && DEFAULT_STREAMS.some((s) => s.nameEn === memberStream)
+      stream: entry
+        ? canonicalStream(entry.stream)
+        : memberStream && DEFAULT_STREAMS.some((s) => s.nameEn === memberStream)
           ? memberStream
-          : null),
-      course: entry?.course ?? (HIGHER_STANDARDS.has(std) ? m.course : null),
+          : null,
+      course: entry ? entry.course : HIGHER_STANDARDS.has(std) ? m.course : null,
+      specialization: entry ? entry.specialization : HIGHER_STANDARDS.has(std) ? m.specialization : null,
       totalMarks: entry?.totalMarks ?? null,
       obtainedMarks: entry?.obtainedMarks ?? null,
       percentage: entry?.percentage ?? null,
@@ -556,6 +565,7 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       nextStandard: entry?.nextStandard ?? null,
       nextStream: entry?.nextStream ?? null,
       nextCourse: entry?.nextCourse ?? null,
+      nextSpecialization: entry?.nextSpecialization ?? null,
       studyOutcome: (entry?.studyOutcome as import("@/lib/result-drive").StudyOutcome | null) ?? null,
     });
   }
@@ -577,6 +587,7 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       standard: canonicalStandard(e.standard),
       stream: canonicalStream(e.stream),
       course: e.course,
+      specialization: e.specialization,
       totalMarks: e.totalMarks,
       obtainedMarks: e.obtainedMarks,
       percentage: e.percentage,
@@ -587,6 +598,7 @@ export async function getResultDriveRoster(communityId: string, driveId: string)
       nextStandard: e.nextStandard,
       nextStream: e.nextStream,
       nextCourse: e.nextCourse,
+      nextSpecialization: e.nextSpecialization,
       studyOutcome: e.studyOutcome as import("@/lib/result-drive").StudyOutcome | null,
     });
   }

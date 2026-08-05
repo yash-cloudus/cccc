@@ -137,6 +137,8 @@ export type MyMemberRecord = {
   occupationOther: string | null;
   education: string | null;
   course: string | null;
+  /** Third level under `course` — only `FamilyMember` has this column; a `Profile`-sourced record never carries one. */
+  specialization: string | null;
   currentlyAt: string | null;
   showPhone: boolean;
   hasWhatsApp: boolean;
@@ -164,6 +166,7 @@ export async function getMyMemberRecord(userId: string): Promise<MyMemberRecord 
       occupationOther: profile.occupationOther,
       education: profile.education,
       course: profile.course,
+      specialization: null,
       currentlyAt: profile.currentlyAt,
       showPhone: profile.showPhone,
       hasWhatsApp: profile.hasWhatsApp,
@@ -192,6 +195,7 @@ export async function getMyMemberRecord(userId: string): Promise<MyMemberRecord 
     occupationOther: member.occupationOther,
     education: member.education,
     course: member.course,
+    specialization: member.specialization,
     currentlyAt: member.currentlyAt,
     showPhone: member.showPhone,
     hasWhatsApp: member.hasWhatsApp,

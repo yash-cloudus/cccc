@@ -6,13 +6,17 @@ import { AdminModal, AdminModalActions } from "@/components/admin/admin-form";
 import { AdminBtn, AdminInput, AdminLabel } from "@/components/admin/admin-ui";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useCommunity } from "@/providers/community-provider";
+import { CourseField, SpecializationField } from "@/components/results/course-field";
 import { NextStandardModal, type NextStandardValue } from "@/components/results/next-standard-modal";
+import { specializationOptionsForCourse } from "@/lib/cascading-occupation";
 import {
   HIGHER_STANDARDS,
   REJECT_REASON_CHIPS,
   STREAM_STANDARDS,
   calcPct,
+  canonicalStandard,
   isPdf,
+  liveLevelLabel,
   nextStatusLabel,
   rosterStatusMeta,
   streamColors,
@@ -20,7 +24,7 @@ import {
 } from "@/lib/result-drive";
 import { api } from "@/lib/http";
 import { useAdminT } from "@/lib/i18n/admin-dictionary";
-import { DEFAULT_STREAMS, EDUCATION_LEVELS } from "@/lib/occupation-defaults";
+import { DEFAULT_STREAMS, type OccupationTreeNode } from "@/lib/occupation-defaults";
 import { waLink } from "@/lib/format";
 
 function stop(e: React.MouseEvent) {
@@ -42,10 +46,9 @@ const CHIP_KEYS = {
   "Incomplete document": "res.chipIncomplete",
 } as const;
 
-/** Display name for a standard / stream — the seed lists carry both languages. */
-function levelLabel(value: string, lang: string): string {
-  const m = EDUCATION_LEVELS.find((l) => l.nameEn === value || l.nameGu === value);
-  return m ? (lang === "gu" ? m.nameGu : m.nameEn) : value;
+/** Display name for a standard — its *current* Dropdown lists name, not just the seed list's. */
+function levelLabel(value: string, lang: "en" | "gu", tree: OccupationTreeNode[]): string {
+  return liveLevelLabel(tree, canonicalStandard(value), lang);
 }
 
 function streamLabel(value: string, lang: string): string {
@@ -58,6 +61,7 @@ export function VerifyResultModal({
   standard,
   viewOnly,
   hasNav,
+  occupationTree,
   onClose,
   onApprove,
   onSaveNext,
@@ -70,6 +74,7 @@ export function VerifyResultModal({
   standard: string;
   viewOnly: boolean;
   hasNav: boolean;
+  occupationTree: OccupationTreeNode[];
   onClose: () => void;
   onApprove: () => void;
   onSaveNext: () => void;
@@ -92,7 +97,7 @@ export function VerifyResultModal({
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#F1EBDE] bg-white px-6 py-4">
           <h3 className="text-base font-extrabold text-[#2A2620]">
-            {t("res.verifyResult")} — {levelLabel(standard, lang)}
+            {t("res.verifyResult")} — {levelLabel(standard, lang, occupationTree)}
           </h3>
           <button type="button" onClick={onClose} className="cursor-pointer text-xl leading-none text-[#A79E92]">
             ✕
@@ -100,26 +105,40 @@ export function VerifyResultModal({
         </div>
         <div className="px-6 py-5">
           <div className="grid grid-cols-1 gap-[18px] md:grid-cols-[1.1fr_1fr]">
-            <div>
+            <div className="relative min-h-[260px]">
               {row.marksheetUrl ? (
                 isPdf(row.marksheetUrl) ? (
                   <iframe
                     src={row.marksheetUrl}
                     title={t("res.marksheet")}
-                    className="h-[260px] w-full rounded-xl border border-[#EDE4D4]"
+                    className="h-full min-h-[260px] w-full rounded-xl border border-[#EDE4D4]"
                   />
                 ) : (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={row.marksheetUrl}
                     alt={t("res.marksheet")}
-                    className="max-h-[260px] w-full rounded-xl border border-[#EDE4D4] object-contain bg-[#FBFAF7]"
+                    className="h-full min-h-[260px] w-full rounded-xl border border-[#EDE4D4] object-cover bg-[#FBFAF7]"
                   />
                 )
               ) : (
-                <div className="flex h-[260px] w-full items-center justify-center rounded-xl bg-gradient-to-br from-[#3B4A63] to-[#22304A] text-[13px] text-white/50">
+                <div className="flex h-full min-h-[260px] w-full items-center justify-center rounded-xl bg-gradient-to-br from-[#3B4A63] to-[#22304A] text-[13px] text-white/50">
                   {t("res.noMarksheet")}
                 </div>
+              )}
+              {row.marksheetUrl && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(row.marksheetUrl!, "_blank", "noopener,noreferrer");
+                  }}
+                  aria-label={t("res.viewFullSize")}
+                  title={t("res.viewFullSize")}
+                  className="absolute right-2 top-2 z-10 flex size-8 cursor-pointer items-center justify-center rounded-full border border-[#E1BFC3] bg-white text-[#A62A38] shadow-sm transition-colors hover:bg-[#FDF4F5]"
+                >
+                  <Maximize2 className="size-4" strokeWidth={2.2} />
+                </button>
               )}
             </div>
             <div>
@@ -146,7 +165,7 @@ export function VerifyResultModal({
                       t("res.standard"),
                       stream && sc ? (
                         <span key="std">
-                          {levelLabel(standard, lang)}{" "}
+                          {levelLabel(standard, lang, occupationTree)}{" "}
                           <span
                             className="inline-block rounded-full px-2.5 py-0.5 text-[10.5px] font-bold"
                             style={{ background: sc.bg, color: sc.fg }}
@@ -155,7 +174,7 @@ export function VerifyResultModal({
                           </span>
                         </span>
                       ) : (
-                        levelLabel(standard, lang)
+                        levelLabel(standard, lang, occupationTree)
                       ),
                     ],
                     [t("res.totalMarks"), row.totalMarks ?? "—"],
@@ -287,11 +306,13 @@ export function RejectResultModal({
 export function UploadResultModal({
   row,
   driveId,
+  occupationTree,
   onClose,
   onSaved,
 }: {
   row: RosterRow;
   driveId: string;
+  occupationTree: OccupationTreeNode[];
   onClose: () => void;
   onSaved: (updated: RosterRow) => void;
 }) {
@@ -300,6 +321,9 @@ export function UploadResultModal({
   const isHigher = HIGHER_STANDARDS.has(row.standard);
   const showStream = STREAM_STANDARDS.has(row.standard);
   const [course, setCourse] = useState(row.course || "");
+  const [specialization, setSpecialization] = useState(row.specialization || "");
+  const showSpecialization =
+    isHigher && specializationOptionsForCourse(occupationTree, row.standard, course).options.length > 0;
   const [total, setTotal] = useState(row.totalMarks?.toString() || "");
   const [obtained, setObtained] = useState(row.obtainedMarks?.toString() || "");
   const [marksheetUrl, setMarksheetUrl] = useState(row.marksheetUrl || "");
@@ -350,6 +374,7 @@ export function UploadResultModal({
       standard: row.standard,
       stream: row.stream ?? undefined,
       course: isHigher ? course.trim() : undefined,
+      specialization: isHigher && showSpecialization ? specialization.trim() || undefined : undefined,
       ...(isHigher ? {} : { totalMarks: Number(total), obtainedMarks: Number(obtained) }),
       marksheetUrl: marksheetUrl || undefined,
       // Skipping ("Decide later") omits these entirely — on an edit that
@@ -360,6 +385,7 @@ export function UploadResultModal({
             nextStandard: next.nextStandard ?? undefined,
             nextStream: next.nextStream ?? undefined,
             nextCourse: next.nextCourse ?? undefined,
+            nextSpecialization: next.nextSpecialization ?? undefined,
           }
         : {}),
     };
@@ -372,15 +398,19 @@ export function UploadResultModal({
       nextStandard: string | null;
       nextStream: string | null;
       nextCourse: string | null;
+      nextSpecialization: string | null;
       studyOutcome: string | null;
     };
 
     let entry: EntryPayload;
     if (row.entryId) {
+      // Admin entering/editing a result on the student's behalf is itself the
+      // verification — it goes straight to Approved rather than back into the
+      // Pending queue. Only a family/student upload needs a separate Verify.
       const res = await api.patch<{ entry: EntryPayload }>("/api/results", {
         id: row.entryId,
         ...common,
-        status: "PENDING",
+        status: "APPROVED",
         rejectReason: null,
       });
       setBusy(false);
@@ -401,16 +431,18 @@ export function UploadResultModal({
       ...row,
       entryId: entry.id,
       course: isHigher ? course.trim() : row.course,
+      specialization: isHigher && showSpecialization ? specialization.trim() || null : row.specialization,
       totalMarks: isHigher ? null : Number(total),
       obtainedMarks: isHigher ? null : Number(obtained),
       percentage: entry.percentage ?? calcPct(Number(total), Number(obtained)),
       marksheetUrl: entry.marksheetUrl ?? marksheetUrl,
-      status: "PENDING",
+      status: entry.status as RosterRow["status"],
       rejectReason: null,
       updatedAt: new Date().toISOString(),
       nextStandard: entry.nextStandard,
       nextStream: entry.nextStream,
       nextCourse: entry.nextCourse,
+      nextSpecialization: entry.nextSpecialization,
       studyOutcome: entry.studyOutcome as RosterRow["studyOutcome"],
     });
   }
@@ -424,7 +456,7 @@ export function UploadResultModal({
         <div className="border-b border-[#F1EBDE] px-6 py-[18px]">
           <h3 className="text-base font-extrabold text-[#2A2620]">{t("res.uploadResult")}</h3>
           <p className="mt-0.5 text-[12px] text-[#938C80]">
-            {row.studentName} · {levelLabel(row.standard, lang)}
+            {row.studentName} · {levelLabel(row.standard, lang, occupationTree)}
             {row.stream && sc ? (
               <>
                 {" "}
@@ -508,10 +540,31 @@ export function UploadResultModal({
           {isHigher && (
             <>
               <AdminLabel>{t("res.degreeCourse")}</AdminLabel>
-              <AdminInput
+              <CourseField
+                tree={occupationTree}
+                standard={row.standard}
                 value={course}
-                onChange={setCourse}
-                placeholder={t("res.degreeCoursePlaceholder")}
+                onChange={(v) => {
+                  setCourse(v);
+                  setSpecialization("");
+                }}
+                lang={lang}
+                variant="admin"
+              />
+            </>
+          )}
+
+          {showSpecialization && (
+            <>
+              <AdminLabel>{t("res.specialization")}</AdminLabel>
+              <SpecializationField
+                tree={occupationTree}
+                standard={row.standard}
+                course={course}
+                value={specialization}
+                onChange={setSpecialization}
+                lang={lang}
+                variant="admin"
               />
             </>
           )}
@@ -521,17 +574,24 @@ export function UploadResultModal({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <AdminLabel>{t("res.totalMarks")}</AdminLabel>
-                  <AdminInput type="number" value={total} onChange={setTotal} />
+                  <AdminInput
+                    type="number"
+                    min={0}
+                    value={total}
+                    onChange={(v) => setTotal(v.replace(/^-+/, ""))}
+                  />
                 </div>
                 <div>
                   <AdminLabel>{t("res.obtainedMarks")}</AdminLabel>
                   <AdminInput
                     type="number"
+                    min={0}
                     value={obtained}
                     onChange={(v) => {
+                      const clean = v.replace(/^-+/, "");
                       const tot = Number(total);
-                      const o = Number(v);
-                      setObtained(v !== "" && tot > 0 && !Number.isNaN(o) && o > tot ? total : v);
+                      const o = Number(clean);
+                      setObtained(clean !== "" && tot > 0 && !Number.isNaN(o) && o > tot ? total : clean);
                     }}
                   />
                 </div>
@@ -563,7 +623,10 @@ export function UploadResultModal({
       {showNextStandard && (
         <NextStandardModal
           studentName={row.studentName}
+          currentStandard={row.standard}
+          lang={lang}
           busy={busy}
+          occupationTree={occupationTree}
           initial={
             row.studyOutcome
               ? {
@@ -571,6 +634,7 @@ export function UploadResultModal({
                   nextStandard: row.nextStandard,
                   nextStream: row.nextStream,
                   nextCourse: row.nextCourse,
+                  nextSpecialization: row.nextSpecialization,
                 }
               : null
           }

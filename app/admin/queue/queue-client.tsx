@@ -95,6 +95,7 @@ type FamilyDetail = {
     occupationOther: string | null;
     education: string | null;
     course: string | null;
+    specialization: string | null;
   }[];
 };
 

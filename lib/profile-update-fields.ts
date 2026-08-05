@@ -15,6 +15,7 @@ export const APPLIABLE_MEMBER_FIELDS = new Set([
   "occupationOther",
   "education",
   "course",
+  "specialization",
   "currentlyAt",
   "bloodGroup",
   "hasWhatsApp",
@@ -33,6 +34,7 @@ export const MEMBER_FIELD_LABELS: Record<string, string> = {
   occupationOther: "Business / job",
   education: "Education",
   course: "Course",
+  specialization: "Specialization",
   currentlyAt: "Currently at",
   bloodGroup: "Blood group",
 };

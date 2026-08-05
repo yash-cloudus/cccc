@@ -466,6 +466,7 @@ export function FamiliesClient({
           occupationOther: resolvedHead.occupationOther || undefined,
           education: resolvedHead.education || undefined,
           course: resolvedHead.course || undefined,
+          specialization: resolvedHead.specialization || undefined,
           isHead: true,
           currentlyAt: form.headIsNri
             ? form.headNriCity.trim() || undefined
@@ -490,6 +491,9 @@ export function FamiliesClient({
           occupationOther: resolved[i].occupationOther || undefined,
           education: resolved[i].education || undefined,
           course: resolved[i].course || undefined,
+          specialization: resolved[i].specialization || undefined,
+          // An NRI's "currently at" is the foreign city, which is what every
+          // directory screen reads.
           currentlyAt: m.isNri
             ? m.nriCity.trim() || undefined
             : m.place.trim() || form.headPlace.trim() || undefined,

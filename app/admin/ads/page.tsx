@@ -35,29 +35,37 @@ export default async function AdsPage() {
     }),
   ]);
 
-  const rows: AdRow[] = ads.map((a) => ({
-    id: a.id,
-    name: a.name,
-    pitch: a.pitch,
-    imageUrl: a.imageUrl,
-    linkUrl: a.linkUrl,
-    ownerName: a.ownerName,
-    ownerMobile: a.ownerMobile,
-    ownerMobileIso: a.ownerMobileIso,
-    category: a.category,
-    rejectReason: a.rejectReason,
-    type: a.type === "premium" ? "premium" : "general",
-    source: a.source === "admin" ? "admin" : "user",
-    payStatus: a.payStatus,
-    paymentProof: a.paymentProof,
-    status: a.status,
-    priority: a.priority,
-    views: a.views,
-    clicks: a.clicks,
-    createdAt: a.createdAt.toISOString(),
-    startDate: a.startDate.toISOString(),
-    endDate: a.endDate.toISOString(),
-  }));
+  const bizNameById = new Map(bizRows.map((b) => [b.id, { nameEn: b.nameEn, nameGu: b.nameGu || b.nameEn }]));
+
+  const rows: AdRow[] = ads.map((a) => {
+    const bizName = a.businessId ? bizNameById.get(a.businessId) : undefined;
+    return {
+      id: a.id,
+      name: a.name,
+      nameEn: bizName?.nameEn ?? a.name,
+      nameGu: bizName?.nameGu ?? a.name,
+      pitch: a.pitch,
+      imageUrl: a.imageUrl,
+      linkUrl: a.linkUrl,
+      ownerName: a.ownerName,
+      ownerMobile: a.ownerMobile,
+      // The advertiser's number carries its country like every other number.
+      ownerMobileIso: a.ownerMobileIso,
+      category: a.category,
+      rejectReason: a.rejectReason,
+      type: a.type === "premium" ? "premium" : "general",
+      source: a.source === "admin" ? "admin" : "user",
+      payStatus: a.payStatus,
+      paymentProof: a.paymentProof,
+      status: a.status,
+      priority: a.priority,
+      views: a.views,
+      clicks: a.clicks,
+      createdAt: a.createdAt.toISOString(),
+      startDate: a.startDate.toISOString(),
+      endDate: a.endDate.toISOString(),
+    };
+  });
 
   const categoryOptions: CategoryOption[] = categories.map((c) => ({
     value: c.nameEn,

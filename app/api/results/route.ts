@@ -1,10 +1,51 @@
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { created, fail, fromZod, ok } from "@/lib/api";
 import { requireSession, hasRole } from "@/lib/auth/session";
 import { getCommunitySettingsMap, getResultModuleSettings } from "@/lib/community-settings";
 import { getActiveCommunityId, getSessionPayload, getWritableCommunityId } from "@/lib/tenant";
 import { COMMUNITY_ADMIN_ROLES } from "@/lib/constants";
+
+type Tx = Prisma.TransactionClient | typeof prisma;
+
+/**
+ * The next-standard choice only ever touches the student's actual record once
+ * the result itself is approved — a rejected or still-pending entry must
+ * never promote/graduate/drop someone off the strength of an unverified
+ * marksheet. Shared by both the PATCH approval path and admin's POST (which
+ * self-approves — see `isAdmin` below).
+ */
+async function applyStudyOutcome(
+  tx: Tx,
+  memberId: string | null | undefined,
+  studyOutcome: string | null | undefined,
+  nextStandard: string | null | undefined,
+  nextStream: string | null | undefined,
+  nextCourse: string | null | undefined,
+  nextSpecialization: string | null | undefined,
+) {
+  if (!memberId || !studyOutcome) return;
+  if (studyOutcome === "PROMOTED") {
+    await tx.familyMember.update({
+      where: { id: memberId },
+      data: {
+        education: nextStandard,
+        course: nextStream || nextCourse || null,
+        // Only meaningful alongside a course, not a stream — Std 11/12 have no
+        // specialization tier.
+        specialization: nextStream ? null : nextSpecialization || null,
+      },
+    });
+  } else if (studyOutcome === "STUDY_COMPLETE" || studyOutcome === "DROPPED_OUT") {
+    // No longer an active student — drops out of future drive rosters.
+    await tx.familyMember.update({
+      where: { id: memberId },
+      data: { education: null, course: null, specialization: null },
+    });
+  }
+  // FAILED_REPEAT: no change — the student repeats the same standard.
+}
 
 /**
  * Outside production, put the real reason in the response so the toast says
@@ -84,6 +125,8 @@ const schema = z.object({
   standard: z.string().min(1),
   stream: z.string().optional(),
   course: z.string().optional(),
+  // Third level under `course`, e.g. College → BE → this.
+  specialization: z.string().optional(),
   totalMarks: z.number().positive().optional(),
   obtainedMarks: z.number().nonnegative().optional(),
   marksheetUrl: z.string().optional(),
@@ -92,6 +135,7 @@ const schema = z.object({
   nextStandard: z.string().optional(),
   nextStream: z.string().optional(),
   nextCourse: z.string().optional(),
+  nextSpecialization: z.string().optional(),
   studyOutcome: studyOutcomeSchema.optional(),
 });
 
@@ -139,6 +183,10 @@ export async function POST(req: Request) {
     }
 
     const scores = scoreOf(body.totalMarks, body.obtainedMarks);
+    // An admin entering a result on the student's behalf is the verification —
+    // it needs no separate approval step. Only a family/student upload waits
+    // in the queue for an admin to check the marksheet.
+    const status = isAdmin ? "APPROVED" : "PENDING";
 
     // Resubmit: update rejected entry for same child + standard instead of duplicating.
     if (body.memberId) {
@@ -152,36 +200,66 @@ export async function POST(req: Request) {
         orderBy: { updatedAt: "desc" },
       });
       if (existing) {
-        const entry = await prisma.resultEntry.update({
-          where: { id: existing.id },
-          data: {
-            studentName: body.studentName,
-            stream: body.stream,
-            course: body.course,
-            totalMarks: body.totalMarks,
-            obtainedMarks: body.obtainedMarks,
-            marksheetUrl: body.marksheetUrl,
-            ...scores,
-            status: "PENDING",
-            rejectReason: null,
-            userId: isAdmin ? existing.userId : session.sub,
-            nextStandard: body.nextStandard,
-            nextStream: body.nextStream,
-            nextCourse: body.nextCourse,
-            studyOutcome: body.studyOutcome,
-          },
+        const entry = await prisma.$transaction(async (tx) => {
+          const updated = await tx.resultEntry.update({
+            where: { id: existing.id },
+            data: {
+              studentName: body.studentName,
+              stream: body.stream,
+              course: body.course,
+              specialization: body.specialization,
+              totalMarks: body.totalMarks,
+              obtainedMarks: body.obtainedMarks,
+              marksheetUrl: body.marksheetUrl,
+              ...scores,
+              status,
+              rejectReason: null,
+              userId: isAdmin ? existing.userId : session.sub,
+              nextStandard: body.nextStandard,
+              nextStream: body.nextStream,
+              nextCourse: body.nextCourse,
+              nextSpecialization: body.nextSpecialization,
+              studyOutcome: body.studyOutcome,
+            },
+          });
+          if (status === "APPROVED") {
+            await applyStudyOutcome(
+              tx,
+              body.memberId,
+              body.studyOutcome,
+              body.nextStandard,
+              body.nextStream,
+              body.nextCourse,
+              body.nextSpecialization,
+            );
+          }
+          return updated;
         });
         return ok(entry);
       }
     }
 
-    const entry = await prisma.resultEntry.create({
-      data: {
-        ...body,
-        ...scores,
-        userId: session.sub,
-        status: "PENDING",
-      },
+    const entry = await prisma.$transaction(async (tx) => {
+      const row = await tx.resultEntry.create({
+        data: {
+          ...body,
+          ...scores,
+          userId: session.sub,
+          status,
+        },
+      });
+      if (status === "APPROVED") {
+        await applyStudyOutcome(
+          tx,
+          body.memberId,
+          body.studyOutcome,
+          body.nextStandard,
+          body.nextStream,
+          body.nextCourse,
+          body.nextSpecialization,
+        );
+      }
+      return row;
     });
     return created(entry);
   } catch (e) {
@@ -220,6 +298,7 @@ export async function PATCH(req: Request) {
         standard: z.string().optional(),
         stream: z.string().optional(),
         course: z.string().optional(),
+        specialization: z.string().optional(),
         totalMarks: z.number().positive().optional(),
         obtainedMarks: z.number().nonnegative().optional(),
         marksheetUrl: z.string().optional(),
@@ -231,6 +310,7 @@ export async function PATCH(req: Request) {
         nextStandard: z.string().optional(),
         nextStream: z.string().optional(),
         nextCourse: z.string().optional(),
+        nextSpecialization: z.string().optional(),
         studyOutcome: studyOutcomeSchema.optional(),
       })
       .parse(await req.json());
@@ -253,6 +333,7 @@ export async function PATCH(req: Request) {
     const nextStandard = body.nextStandard ?? existing.nextStandard;
     const nextStream = body.nextStream ?? existing.nextStream;
     const nextCourse = body.nextCourse ?? existing.nextCourse;
+    const nextSpecialization = body.nextSpecialization ?? existing.nextSpecialization;
 
     const entry = await prisma.$transaction(async (tx) => {
       const updated = await tx.resultEntry.update({
@@ -263,6 +344,7 @@ export async function PATCH(req: Request) {
           standard: body.standard ?? existing.standard,
           stream: body.stream ?? existing.stream,
           course: body.course ?? existing.course,
+          specialization: body.specialization ?? existing.specialization,
           totalMarks: body.totalMarks ?? existing.totalMarks,
           obtainedMarks: body.obtainedMarks ?? existing.obtainedMarks,
           marksheetUrl: body.marksheetUrl ?? existing.marksheetUrl,
@@ -281,28 +363,21 @@ export async function PATCH(req: Request) {
           nextStandard,
           nextStream,
           nextCourse,
+          nextSpecialization,
           studyOutcome,
         },
       });
 
-      // The next-standard choice only ever touches the student's actual record
-      // once the result itself is approved — a rejected or still-pending entry
-      // must never promote/graduate/drop someone off the strength of an
-      // unverified marksheet.
-      if (finalStatus === "APPROVED" && studyOutcome && memberId) {
-        if (studyOutcome === "PROMOTED") {
-          await tx.familyMember.update({
-            where: { id: memberId },
-            data: { education: nextStandard, course: nextStream || nextCourse || null },
-          });
-        } else if (studyOutcome === "STUDY_COMPLETE" || studyOutcome === "DROPPED_OUT") {
-          // No longer an active student — drops out of future drive rosters.
-          await tx.familyMember.update({
-            where: { id: memberId },
-            data: { education: null, course: null },
-          });
-        }
-        // FAILED_REPEAT: no change — the student repeats the same standard.
+      if (finalStatus === "APPROVED") {
+        await applyStudyOutcome(
+          tx,
+          memberId,
+          studyOutcome,
+          nextStandard,
+          nextStream,
+          nextCourse,
+          nextSpecialization,
+        );
       }
 
       return updated;
@@ -313,7 +388,12 @@ export async function PATCH(req: Request) {
     const nextNote =
       body.status === "APPROVED" && studyOutcome
         ? studyOutcome === "PROMOTED"
-          ? ` Promoted to ${nextStandard}${nextStream || nextCourse ? ` (${nextStream || nextCourse})` : ""}.`
+          ? (() => {
+              const extra = [nextStream || nextCourse, nextStream ? null : nextSpecialization]
+                .filter(Boolean)
+                .join(" · ");
+              return ` Promoted to ${nextStandard}${extra ? ` (${extra})` : ""}.`;
+            })()
           : ` ${STUDY_OUTCOME_NOTIFY[studyOutcome]}`
         : "";
 
